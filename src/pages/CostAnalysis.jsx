@@ -7,6 +7,7 @@ import { fmtBRL, fmtNum } from '@/lib/statsUtils';
 import { useInsumoCosts } from '@/hooks/useInsumoCosts';
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
 import { Save } from 'lucide-react';
+import { usePermissions } from '@/lib/PermissionsContext';
 
 function fmtBRL4(v) {
   if (v == null || !isFinite(v)) return '—';
@@ -60,6 +61,7 @@ export default function CostAnalysis() {
   const { costs: insumoCosts } = useInsumoCosts();
   const [priceEdits, setPriceEdits] = useState({}); // productId -> { value, saved }
   const [savingPriceId, setSavingPriceId] = useState(null);
+  const { can } = usePermissions();
 
   useEffect(() => {
     let active = true;
@@ -292,9 +294,11 @@ export default function CostAnalysis() {
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:bg-muted transition-colors">
             <Printer className="w-4 h-4" /> Relatório
           </button>
-          <button onClick={() => setShowDre(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
-            <FileSpreadsheet className="w-4 h-4" /> Gerenciar DRE
-          </button>
+          {can('COSTS_EDIT') && (
+            <button onClick={() => setShowDre(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+              <FileSpreadsheet className="w-4 h-4" /> Gerenciar DRE
+            </button>
+          )}
         </div>
       </div>
 
@@ -522,6 +526,7 @@ export default function CostAnalysis() {
                                 <td className="py-1.5 text-right text-muted-foreground">{fmtBRL(indirect)}</td>
                                 <td className="py-1.5 text-right font-semibold text-foreground">{fmtBRL(totalCost)}</td>
                                 <td className="py-1.5 text-right">
+                                  {can('COSTS_EDIT') ? (
                                   <div className="flex items-center justify-end gap-1">
                                     <div className="relative">
                                       <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">R$</span>
@@ -543,6 +548,9 @@ export default function CostAnalysis() {
                                       </button>
                                     )}
                                   </div>
+                                  ) : (
+                                    <span className="text-muted-foreground">{savedPrice ? fmtBRL(savedPrice) : '—'}</span>
+                                  )}
                                 </td>
                                 <td className={`py-1.5 text-right font-semibold ${marginColor}`}>{fmtBRL(marginRs)}</td>
                                 <td className={`py-1.5 text-right font-semibold ${marginColor}`}>{price > 0 ? fmtNum(marginPct, 1) + '%' : '—'}</td>
