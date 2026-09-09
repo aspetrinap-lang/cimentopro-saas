@@ -5,6 +5,7 @@ import MoldForm from '@/components/molds/MoldForm';
 import MoldsReport from '@/components/reports/MoldsReport';
 import MoldLifecycleBar from '@/components/molds/MoldLifecycleBar';
 import MoldDetailDrawer from '@/components/molds/MoldDetailDrawer';
+import { usePermissions } from '@/lib/PermissionsContext';
 
 const STATUS_CONFIG = {
   'Ativo':          { color: 'bg-green-100 text-green-700',   icon: CheckCircle2 },
@@ -13,6 +14,7 @@ const STATUS_CONFIG = {
 };
 
 export default function Molds() {
+  const { can } = usePermissions();
   const [molds, setMolds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -65,11 +67,13 @@ export default function Molds() {
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:bg-muted transition-colors">
             <Printer className="w-4 h-4" /> Relatório
           </button>
-          <button
-            onClick={() => { setEditing(null); setShowForm(true); }}
-            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
-            <Plus className="w-4 h-4" /> Novo Molde
-          </button>
+          {can('MACHINES_CREATE') && (
+            <button
+              onClick={() => { setEditing(null); setShowForm(true); }}
+              className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+              <Plus className="w-4 h-4" /> Novo Molde
+            </button>
+          )}
         </div>
       </div>
 
@@ -169,14 +173,18 @@ export default function Molds() {
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors">
                     <ClipboardList className="w-3.5 h-3.5" /> Histórico
                   </button>
-                  <button onClick={() => { setEditing(mold); setShowForm(true); }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
-                    <Pencil className="w-3.5 h-3.5" /> Editar
-                  </button>
-                  <button onClick={() => handleDelete(mold)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors ml-auto">
-                    <Trash2 className="w-3.5 h-3.5" /> Excluir
-                  </button>
+                  {can('MACHINES_EDIT') && (
+                    <button onClick={() => { setEditing(mold); setShowForm(true); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
+                      <Pencil className="w-3.5 h-3.5" /> Editar
+                    </button>
+                  )}
+                  {can('MACHINES_DELETE') && (
+                    <button onClick={() => handleDelete(mold)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors ml-auto">
+                      <Trash2 className="w-3.5 h-3.5" /> Excluir
+                    </button>
+                  )}
                 </div>
               </div>
             );

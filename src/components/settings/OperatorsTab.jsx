@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Plus, Pencil, Trash2, X } from 'lucide-react';
 import { ROLE_LABELS } from '@/lib/permissions';
 import { scopedFilter, withCompany } from '@/lib/companyScope';
+import { usePermissions } from '@/lib/PermissionsContext';
 
 const ROLES = [
   { value: 'operador', label: 'Operador' },
@@ -13,6 +14,7 @@ const ROLES = [
 const empty = { name: '', email: '', pin: '', role: 'operador', profile_id: '', active: true };
 
 export default function OperatorsTab() {
+  const { can } = usePermissions();
   const [list, setList] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -68,11 +70,13 @@ export default function OperatorsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <button onClick={openNew} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
-          <Plus className="w-4 h-4" /> Novo Operador
-        </button>
-      </div>
+      {can('SETTINGS_MANAGE') && (
+        <div className="flex justify-end">
+          <button onClick={openNew} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+            <Plus className="w-4 h-4" /> Novo Operador
+          </button>
+        </div>
+      )}
 
       <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
         {loading ? (
@@ -114,14 +118,16 @@ export default function OperatorsTab() {
                     )}
                   </td>
                   <td className="px-5 py-3">
-                    <div className="flex items-center gap-2 justify-end">
-                      <button onClick={() => openEdit(op)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => handleDelete(op)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    {can('SETTINGS_MANAGE') && (
+                      <div className="flex items-center gap-2 justify-end">
+                        <button onClick={() => openEdit(op)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleDelete(op)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

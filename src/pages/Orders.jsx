@@ -7,6 +7,7 @@ import { Plus, Printer, Search } from 'lucide-react';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
 import OrdersReport from '@/components/reports/OrdersReport';
 import { scopedFilter } from '@/lib/companyScope';
+import { usePermissions } from '@/lib/PermissionsContext';
 
 export default function Orders() {
   const [orders, setOrders] = useState([]);
@@ -19,6 +20,7 @@ export default function Orders() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showReport, setShowReport] = useState(false);
   const { names } = useInsumoNames();
+  const { can } = usePermissions();
 
   async function load() {
     setLoading(true);
@@ -62,10 +64,12 @@ export default function Orders() {
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:bg-muted transition-colors">
             <Printer className="w-4 h-4" /> Relatório
           </button>
-          <button onClick={() => { setEditing(null); setShowForm(true); }}
-            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
-            <Plus className="w-4 h-4" /> Nova Ordem
-          </button>
+          {can('PRODUCTION_CREATE') && (
+            <button onClick={() => { setEditing(null); setShowForm(true); }}
+              className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+              <Plus className="w-4 h-4" /> Nova Ordem
+            </button>
+          )}
         </div>
       </div>
 
@@ -115,7 +119,8 @@ export default function Orders() {
                     </td>
                   </tr>
                 ) : filtered.map(o => (
-                  <OrderRow key={o.id} order={o} onEdit={handleEdit} onDelete={handleDelete} onSelect={setSelectedOrder} />
+                  <OrderRow key={o.id} order={o} onEdit={handleEdit} onDelete={handleDelete} onSelect={setSelectedOrder}
+                    canEdit={can('PRODUCTION_EDIT')} canDelete={can('PRODUCTION_DELETE')} />
                 ))}
               </tbody>
             </table>

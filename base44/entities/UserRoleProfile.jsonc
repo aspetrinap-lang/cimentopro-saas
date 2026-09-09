@@ -12,26 +12,9 @@
     },
     "permissions": {
       "type": "object",
-      "description": "Chaves dos m\u00f3dulos permitidos (true/false): operator_panel, dashboard, orders, history, analysis, stats, costs, pricing, executive_summary, virtual_engineer, machines, lines, molds, maintenance, quality, cadastro, configuracoes, backup",
+      "description": "Permiss\u00f5es granulares por m\u00f3dulo (chave \u2192 true). Formato atual: PRODUCTION_VIEW, PRODUCTION_CREATE, PRODUCTION_EDIT, PRODUCTION_DELETE, MACHINES_VIEW, MACHINES_CREATE, MACHINES_EDIT, MACHINES_DELETE, MAINTENANCE_VIEW, MAINTENANCE_EDIT, QUALITY_VIEW, QUALITY_EDIT, COSTS_VIEW, COSTS_EDIT, INDICATORS_VIEW, SETTINGS_VIEW, SETTINGS_MANAGE. O formato legado (booleans por m\u00f3dulo: orders, machines, ...) ainda \u00e9 aceito e convertido automaticamente para o granular.",
       "default": {
-        "operator_panel": false,
-        "dashboard": true,
-        "orders": true,
-        "history": false,
-        "analysis": false,
-        "stats": false,
-        "costs": false,
-        "pricing": false,
-        "executive_summary": false,
-        "virtual_engineer": false,
-        "machines": false,
-        "lines": false,
-        "molds": false,
-        "maintenance": false,
-        "quality": false,
-        "cadastro": false,
-        "configuracoes": false,
-        "backup": false
+        "PRODUCTION_VIEW": true
       }
     },
     "active": {

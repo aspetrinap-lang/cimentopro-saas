@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Plus, Pencil, Trash2, RefreshCw, Wrench, Shapes, Printer } from 'lucide-react';
 import PreventiveMaintenanceForm from '@/components/settings/PreventiveMaintenanceForm';
 import MaintenanceReport from '@/components/reports/MaintenanceReport';
+import { usePermissions } from '@/lib/PermissionsContext';
 
 function TypeBadge({ type }) {
   return (
@@ -10,20 +11,24 @@ function TypeBadge({ type }) {
   );
 }
 
-function ActionButtons({ item, onEdit, onDelete }) {
+function ActionButtons({ item, onEdit, onDelete, canEdit = true, canDelete = true }) {
   return (
     <div className="flex items-center gap-2 justify-end">
-      <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-        <Pencil className="w-3.5 h-3.5" />
-      </button>
-      <button onClick={() => onDelete(item)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
+      {canEdit && (
+        <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+      )}
+      {canDelete && (
+        <button onClick={() => onDelete(item)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      )}
     </div>
   );
 }
 
-function MachineTable({ items, onEdit, onDelete }) {
+function MachineTable({ items, onEdit, onDelete, canEdit, canDelete }) {
   return (
     <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border bg-muted/30">
@@ -61,7 +66,7 @@ function MachineTable({ items, onEdit, onDelete }) {
                 <td className="px-5 py-3 text-muted-foreground text-xs max-w-xs truncate">{p.description || '—'}</td>
                 <td className="px-5 py-3 text-muted-foreground text-xs whitespace-nowrap">{p.technician || '—'}</td>
                 <td className="px-5 py-3 text-right text-xs whitespace-nowrap">{p.duration_minutes ? `${p.duration_minutes} min` : '—'}</td>
-                <td className="px-5 py-3"><ActionButtons item={p} onEdit={onEdit} onDelete={onDelete} /></td>
+                <td className="px-5 py-3"><ActionButtons item={p} onEdit={onEdit} onDelete={onDelete} canEdit={canEdit} canDelete={canDelete} /></td>
               </tr>
             ))}
           </tbody>
@@ -71,7 +76,7 @@ function MachineTable({ items, onEdit, onDelete }) {
   );
 }
 
-function MoldTable({ items, onEdit, onDelete }) {
+function MoldTable({ items, onEdit, onDelete, canEdit, canDelete }) {
   return (
     <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border bg-muted/30">
@@ -109,7 +114,7 @@ function MoldTable({ items, onEdit, onDelete }) {
                 <td className="px-5 py-3 text-muted-foreground text-xs max-w-xs truncate">{p.description || '—'}</td>
                 <td className="px-5 py-3 text-muted-foreground text-xs whitespace-nowrap">{p.technician || '—'}</td>
                 <td className="px-5 py-3 text-right text-xs whitespace-nowrap">{p.duration_minutes ? `${p.duration_minutes} min` : '—'}</td>
-                <td className="px-5 py-3"><ActionButtons item={p} onEdit={onEdit} onDelete={onDelete} /></td>
+                <td className="px-5 py-3"><ActionButtons item={p} onEdit={onEdit} onDelete={onDelete} canEdit={canEdit} canDelete={canDelete} /></td>
               </tr>
             ))}
           </tbody>
@@ -120,6 +125,7 @@ function MoldTable({ items, onEdit, onDelete }) {
 }
 
 export default function Maintenance() {
+  const { can } = usePermissions();
   const [maintenances, setMaintenances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -166,10 +172,12 @@ export default function Maintenance() {
               className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:bg-muted transition-colors">
               <Printer className="w-4 h-4" /> Relatório
             </button>
-            <button onClick={() => { setEditing(null); setShowForm(true); }}
-              className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
-              <Plus className="w-4 h-4" /> Nova Manutenção
-            </button>
+            {can('MAINTENANCE_EDIT') && (
+              <button onClick={() => { setEditing(null); setShowForm(true); }}
+                className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+                <Plus className="w-4 h-4" /> Nova Manutenção
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -180,8 +188,8 @@ export default function Maintenance() {
         </div>
       ) : (
         <>
-          <MachineTable items={machineMaint} onEdit={handleEdit} onDelete={handleDelete} />
-          <MoldTable items={moldMaint} onEdit={handleEdit} onDelete={handleDelete} />
+          <MachineTable items={machineMaint} onEdit={handleEdit} onDelete={handleDelete} canEdit={can('MAINTENANCE_EDIT')} canDelete={can('MAINTENANCE_EDIT')} />
+          <MoldTable items={moldMaint} onEdit={handleEdit} onDelete={handleDelete} canEdit={can('MAINTENANCE_EDIT')} canDelete={can('MAINTENANCE_EDIT')} />
         </>
       )}
 

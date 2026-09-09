@@ -6,8 +6,9 @@ import { useDailyBackup } from '@/hooks/useDailyBackup';
 import { useEnterToTab } from '@/hooks/useEnterToTab';
 import { useAuth } from '@/lib/AuthContext';
 import { useOperator } from '@/lib/OperatorContext';
-import { getAllowedPaths, getAllowedPathsForOperator, ROLE_LABELS } from '@/lib/permissions';
-import { isPlatformAdmin } from '@/lib/platformAdmin';
+import { ROLE_LABELS } from '@/lib/permissions';
+import { usePermissions } from '@/lib/PermissionsContext';
+import { useToast } from '@/components/ui/use-toast';
 import CompanySelector from '@/components/CompanySelector';
 
 const navItems = [
@@ -40,17 +41,18 @@ export default function Layout() {
   useDailyBackup();
   useEnterToTab();
 
-  const role = activeOperator?.role || user?.role || 'user';
-  const allowed = activeOperator
-    ? getAllowedPathsForOperator(activeOperator)
-    : getAllowedPaths(role);
+  const { allowedPaths, can } = usePermissions();
+  const { toast } = useToast();
+  const allowed = allowedPaths;
   const visibleNav = navItems.filter((i) => allowed.includes(i.to));
-  const canManageOperators = allowed.includes('/configuracoes');
-  const isPlatform = !activeOperator && isPlatformAdmin(user);
+  const canManageOperators = can('SETTINGS_VIEW');
+  const isPlatform = !activeOperator && can('PLATFORM_ADMIN');
 
-  // Redireciona para o primeiro módulo permitido se o usuário acessar uma rota não permitida
+  // Guarda de rotas: esconder o menu é apenas experiência — a decisão
+  // real de acesso acontece aqui, antes de renderizar qualquer página.
   if (!allowed.includes(location.pathname)) {
-    return <Navigate to={allowed[0]} replace />;
+    toast({ title: 'Acesso restrito', description: 'Você não tem permissão para acessar este módulo.' });
+    return <Navigate to={allowed[0] || '/pin-login'} replace />;
   }
 
   function handleLogoutOperator() {

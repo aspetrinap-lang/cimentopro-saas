@@ -6,8 +6,10 @@ import ProductionLineDetail from '@/components/lines/ProductionLineDetail';
 import SharedResourceManager from '@/components/lines/SharedResourceManager';
 import ProductionLinesReport from '@/components/reports/ProductionLinesReport';
 import { fmtNum } from '@/lib/statsUtils';
+import { usePermissions } from '@/lib/PermissionsContext';
 
 export default function ProductionLines() {
+  const { can } = usePermissions();
   const [lines, setLines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -58,12 +60,16 @@ export default function ProductionLines() {
             className="flex items-center gap-2 border border-border bg-card px-4 py-2.5 rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors">
             <Printer className="w-4 h-4 text-primary" /> Relatório
           </button>
-          <button onClick={() => setShowResources(true)} className="flex items-center gap-2 border border-border bg-card px-4 py-2.5 rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors">
-            <Boxes className="w-4 h-4 text-primary" /> Recursos Compartilhados
-          </button>
-          <button onClick={handleNew} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
-            <Plus className="w-4 h-4" /> Nova Linha
-          </button>
+          {can('MACHINES_EDIT') && (
+            <button onClick={() => setShowResources(true)} className="flex items-center gap-2 border border-border bg-card px-4 py-2.5 rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors">
+              <Boxes className="w-4 h-4 text-primary" /> Recursos Compartilhados
+            </button>
+          )}
+          {can('MACHINES_CREATE') && (
+            <button onClick={handleNew} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+              <Plus className="w-4 h-4" /> Nova Linha
+            </button>
+          )}
         </div>
       </div>
 
@@ -97,8 +103,12 @@ export default function ProductionLines() {
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button onClick={() => setViewing(line)} className="p-1.5 text-muted-foreground hover:text-primary rounded-lg hover:bg-muted" title="Detalhes"><Eye className="w-4 h-4" /></button>
-                    <button onClick={() => handleEdit(line)} className="p-1.5 text-muted-foreground hover:text-primary rounded-lg hover:bg-muted" title="Editar"><Pencil className="w-4 h-4" /></button>
-                    <button onClick={() => handleDelete(line)} className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg hover:bg-muted" title="Excluir"><Trash2 className="w-4 h-4" /></button>
+                    {can('MACHINES_EDIT') && (
+                      <button onClick={() => handleEdit(line)} className="p-1.5 text-muted-foreground hover:text-primary rounded-lg hover:bg-muted" title="Editar"><Pencil className="w-4 h-4" /></button>
+                    )}
+                    {can('MACHINES_DELETE') && (
+                      <button onClick={() => handleDelete(line)} className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg hover:bg-muted" title="Excluir"><Trash2 className="w-4 h-4" /></button>
+                    )}
                   </div>
                 </div>
 

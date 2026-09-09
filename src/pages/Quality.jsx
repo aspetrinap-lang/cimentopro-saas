@@ -4,6 +4,7 @@ import QualityReportForm from '@/components/quality/QualityReportForm';
 import QualityReportView from '@/components/quality/QualityReportView';
 import { Plus, Search, FileText, Pencil, Trash2, Eye, AlertTriangle } from 'lucide-react';
 import { groupByAge, ageStats, estimateFck, checkCompliance } from '@/lib/qualityNorms';
+import { usePermissions } from '@/lib/PermissionsContext';
 
 // Recalcula conformidade usando a idade mais recente com 3+ CPs válidos
 function recalcCompliance(r) {
@@ -30,6 +31,7 @@ const STATUS_COLORS = {
 };
 
 export default function Quality() {
+  const { can } = usePermissions();
   const [reports, setReports] = useState([]);
   const [orders, setOrders] = useState([]);
   const [productTypes, setProductTypes] = useState([]);
@@ -78,10 +80,12 @@ export default function Quality() {
           <h1 className="text-2xl font-bold text-foreground">Qualidade — Laudos Técnicos</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Laudos de resistência conforme NBR 6136 / NBR 9781</p>
         </div>
-        <button onClick={() => { setEditing(null); setShowForm(true); }}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90">
-          <Plus className="w-4 h-4" /> Novo Laudo
-        </button>
+        {can('QUALITY_EDIT') && (
+          <button onClick={() => { setEditing(null); setShowForm(true); }}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90">
+            <Plus className="w-4 h-4" /> Novo Laudo
+          </button>
+        )}
       </div>
 
       <div className="relative max-w-sm">
@@ -150,8 +154,12 @@ export default function Quality() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
                           <button onClick={() => setViewing(r)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"><Eye className="w-3.5 h-3.5" /></button>
-                          <button onClick={() => { setEditing(r); setShowForm(true); }} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"><Pencil className="w-3.5 h-3.5" /></button>
-                          <button onClick={() => handleDelete(r)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"><Trash2 className="w-3.5 h-3.5" /></button>
+                          {can('QUALITY_EDIT') && (
+                            <button onClick={() => { setEditing(r); setShowForm(true); }} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"><Pencil className="w-3.5 h-3.5" /></button>
+                          )}
+                          {can('QUALITY_EDIT') && (
+                            <button onClick={() => handleDelete(r)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"><Trash2 className="w-3.5 h-3.5" /></button>
+                          )}
                         </div>
                       </td>
                     </tr>

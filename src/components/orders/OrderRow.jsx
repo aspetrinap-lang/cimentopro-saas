@@ -12,7 +12,7 @@ const fmtInt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { maximumFraction
 // Linha simplificada: data, artefato, qtde planejada, qtde real e atingimento.
 // O clique abre a ficha técnica (OrderTechSheet) com os dados de desvio,
 // refugo e matéria-prima.
-export default function OrderRow({ order, onEdit, onDelete, onSelect }) {
+export default function OrderRow({ order, onEdit, onDelete, onSelect, canEdit = true, canDelete = true }) {
   const hasProduced = order.actual_quantity != null;
 
   return (
@@ -38,14 +38,18 @@ export default function OrderRow({ order, onEdit, onDelete, onSelect }) {
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-2 justify-end">
-          <button onClick={(e) => { e.stopPropagation(); onEdit(order); }}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={(e) => { e.stopPropagation(); onDelete(order); }}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          {canEdit && (
+            <button onClick={(e) => { e.stopPropagation(); onEdit(order); }}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {canDelete && (
+            <button onClick={(e) => { e.stopPropagation(); onDelete(order); }}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </td>
     </tr>

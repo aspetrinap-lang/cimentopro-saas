@@ -1,13 +1,25 @@
 import { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Plus, Pencil, Trash2, X, ShieldCheck, CheckCircle2, XCircle } from 'lucide-react';
-import { MODULES } from '@/lib/permissions';
+import { Plus, Pencil, Trash2, X, ShieldCheck } from 'lucide-react';
+import { PERMISSION_CATALOG, resolvePermissions } from '@/lib/permissions';
+import { usePermissions } from '@/lib/PermissionsContext';
 
-const emptyPerms = Object.fromEntries(MODULES.map((m) => [m.key, false]));
+// Módulos editáveis em um perfil de operador (plataforma é exclusiva do SUPER_ADMIN).
+const EDITOR_MODULES = PERMISSION_CATALOG.filter((m) => m.module !== 'platform');
+const ACTION_LABELS = { view: 'Ver', create: 'Criar', edit: 'Editar', delete: 'Excluir', manage: 'Gerenciar' };
 
-const defaultForm = { name: '', description: '', permissions: { ...emptyPerms }, active: true };
+const defaultForm = { name: '', description: '', permissions: {}, active: true };
+
+// Converte permissões salvas (formato novo ou legado) para o editor granular.
+function toFormPermissions(permissions) {
+  const set = resolvePermissions(permissions);
+  if (!set) return {};
+  return Object.fromEntries([...set].map((p) => [p, true]));
+}
 
 export default function ProfilesTab() {
+  const { can } = usePermissions();
+  const canManage = can('SETTINGS_MANAGE');
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -32,7 +44,7 @@ export default function ProfilesTab() {
 
   function openNew() {
     setEditing(null);
-    setForm({ ...defaultForm, permissions: { ...emptyPerms } });
+    setForm({ ...defaultForm, permissions: {} });
     setShowForm(true);
   }
 
@@ -41,7 +53,7 @@ export default function ProfilesTab() {
     setForm({
       name: item.name || '',
       description: item.description || '',
-      permissions: { ...emptyPerms, ...(item.permissions || {}) },
+      permissions: toFormPermissions(item.permissions),
       active: item.active !== false,
     });
     setShowForm(true);
@@ -51,8 +63,8 @@ export default function ProfilesTab() {
     setForm((f) => ({ ...f, [field]: val }));
   }
 
-  function togglePerm(key) {
-    setForm((f) => ({ ...f, permissions: { ...f.permissions, [key]: !f.permissions[key] } }));
+  function togglePerm(perm) {
+    setForm((f) => ({ ...f, permissions: { ...f.permissions, [perm]: !f.permissions[perm] } }));
   }
 
   async function handleSave(e) {
@@ -61,7 +73,7 @@ export default function ProfilesTab() {
     const payload = {
       name: form.name.trim(),
       description: (form.description || '').trim(),
-      permissions: form.permissions,
+      permissions: Object.fromEntries(Object.entries(form.permissions).filter(([, v]) => v === true)),
       active: form.active !== false,
     };
     try {
@@ -84,24 +96,27 @@ export default function ProfilesTab() {
     load();
   }
 
-  function countPerms(perms) {
-    if (!perms) return 0;
-    return MODULES.filter((m) => perms[m.key] === true).length;
+  function countModules(perms) {
+    const set = resolvePermissions(perms);
+    if (!set) return 0;
+    return EDITOR_MODULES.filter((m) => set.has(m.actions.view)).length;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <p className="text-sm text-muted-foreground max-w-2xl">
-          Crie perfis de acesso e defina quais módulos cada perfil pode visualizar.
+          Crie perfis de acesso e defina, por módulo, o que cada perfil pode ver, criar, editar e excluir.
           Associe os perfis aos operadores na aba <strong>Operadores</strong>.
         </p>
-        <button
-          onClick={openNew}
-          className="shrink-0 flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Novo Perfil
-        </button>
+        {canManage && (
+          <button
+            onClick={openNew}
+            className="shrink-0 flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Novo Perfil
+          </button>
+        )}
       </div>
 
       <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
@@ -131,7 +146,7 @@ export default function ProfilesTab() {
                   <td className="px-5 py-3 text-muted-foreground">{p.description || '—'}</td>
                   <td className="px-5 py-3 text-center">
                     <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                      {countPerms(p.permissions)} módulo(s)
+                      {countModules(p.permissions)} módulo(s)
                     </span>
                   </td>
                   <td className="px-5 py-3 text-center">
@@ -142,20 +157,22 @@ export default function ProfilesTab() {
                     )}
                   </td>
                   <td className="px-5 py-3">
-                    <div className="flex items-center gap-2 justify-end">
-                      <button
-                        onClick={() => openEdit(p)}
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(p)}
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    {canManage && (
+                      <div className="flex items-center gap-2 justify-end">
+                        <button
+                          onClick={() => openEdit(p)}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(p)}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -197,35 +214,29 @@ export default function ProfilesTab() {
                 />
               </div>
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2">Módulos permitidos</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 border border-border rounded-lg p-3 bg-muted/30 max-h-[40vh] overflow-y-auto">
-                  {MODULES.map((m) => {
-                    const checked = form.permissions[m.key] === true;
-                    return (
-                      <label
-                        key={m.key}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm ${
-                          checked ? 'border-primary bg-primary/5 text-foreground' : 'border-border bg-card text-muted-foreground hover:bg-muted/50'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => togglePerm(m.key)}
-                          className="rounded border-input"
-                        />
-                        <span className="flex-1">{m.label}</span>
-                        {checked ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
-                        ) : (
-                          <XCircle className="w-3.5 h-3.5 text-muted-foreground/40" />
-                        )}
-                      </label>
-                    );
-                  })}
+                <p className="text-xs font-medium text-muted-foreground mb-2">Permissões por módulo</p>
+                <div className="space-y-2 border border-border rounded-lg p-3 bg-muted/30 max-h-[45vh] overflow-y-auto">
+                  {EDITOR_MODULES.map((mod) => (
+                    <div key={mod.module} className="border border-border rounded-lg p-3 bg-card">
+                      <p className="text-sm font-medium text-foreground mb-2">{mod.label}</p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                        {Object.entries(mod.actions).map(([actionKey, perm]) => (
+                          <label key={perm} className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={form.permissions[perm] === true}
+                              onChange={() => togglePerm(perm)}
+                              className="rounded border-input"
+                            />
+                            {ACTION_LABELS[actionKey] || actionKey}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
                 <p className="text-xs text-muted-foreground/70 mt-1">
-                  {MODULES.filter((m) => form.permissions[m.key]).length} de {MODULES.length} módulos selecionados.
+                  {EDITOR_MODULES.filter((m) => form.permissions[m.actions.view]).length} de {EDITOR_MODULES.length} módulos com acesso de visualização.
                 </p>
               </div>
               <label className="flex items-center gap-2 text-sm text-muted-foreground">

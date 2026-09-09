@@ -36,6 +36,7 @@ import AdminCompanies from '@/pages/admin/AdminCompanies';
 import AdminUsers from '@/pages/admin/AdminUsers';
 import { OperatorProvider } from '@/lib/OperatorContext';
 import { CompanyProvider } from '@/lib/CompanyContext';
+import { PermissionsProvider } from '@/lib/PermissionsContext';
 import { ThemeProvider } from 'next-themes';
 
 const AuthenticatedApp = () => {
@@ -106,9 +107,11 @@ function App() {
       <QueryClientProvider client={queryClientInstance}>
         <ConfigProvider>
           <OperatorProvider>
-            <Router>
-              <AuthenticatedApp />
-            </Router>
+            <PermissionsProvider>
+              <Router>
+                <AuthenticatedApp />
+              </Router>
+            </PermissionsProvider>
             <Toaster />
           </OperatorProvider>
         </ConfigProvider>

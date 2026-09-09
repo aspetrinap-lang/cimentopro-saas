@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { AlertTriangle, Clock, CheckCircle2, Wrench, Plus, Printer, RefreshCw, Pencil, Trash2 } from 'lucide-react';
 import MachineDowntimeForm from '@/components/orders/MachineDowntimeForm';
+import { usePermissions } from '@/lib/PermissionsContext';
 import MaintenanceAlerts from '@/components/dashboard/MaintenanceAlerts';
 import MachinesReport from '@/components/reports/MachinesReport';
 import { format, subDays, parseISO, isAfter } from 'date-fns';
@@ -31,6 +32,7 @@ function fmt(min) {
 }
 
 export default function MachineDashboard() {
+  const { can } = usePermissions();
   const [downtimes, setDowntimes] = useState([]);
   const [orders, setOrders] = useState([]);
   const [machines, setMachines] = useState([]);
@@ -136,10 +138,12 @@ export default function MachineDashboard() {
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
             <Printer className="w-4 h-4" /> Relatório
           </button>
-          <button onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors">
-            <Plus className="w-4 h-4" /> Registrar Parada
-          </button>
+          {can('MACHINES_EDIT') && (
+            <button onClick={() => setShowForm(true)}
+              className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors">
+              <Plus className="w-4 h-4" /> Registrar Parada
+            </button>
+          )}
         </div>
       </div>
 
@@ -367,18 +371,22 @@ export default function MachineDashboard() {
                           <td className="px-4 py-3 text-muted-foreground max-w-xs truncate">{d.corrective_action || '—'}</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1.5 justify-end">
-                              <button onClick={() => { setEditingDowntime(d); setShowForm(true); }}
-                                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={async () => {
-                                if (!window.confirm('Excluir este registro de parada?')) return;
-                                await base44.entities.MachineDowntime.delete(d.id);
-                                load();
-                              }}
-                                className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {can('MACHINES_EDIT') && (
+                                <button onClick={() => { setEditingDowntime(d); setShowForm(true); }}
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {can('MACHINES_DELETE') && (
+                                <button onClick={async () => {
+                                  if (!window.confirm('Excluir este registro de parada?')) return;
+                                  await base44.entities.MachineDowntime.delete(d.id);
+                                  load();
+                                }}
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
