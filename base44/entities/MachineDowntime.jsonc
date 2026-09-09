@@ -2,6 +2,10 @@
   "name": "MachineDowntime",
   "type": "object",
   "properties": {
+    "company_id": {
+      "type": "string",
+      "description": "ID da empresa (Company) \u2014 escopo multi-tenant, definido pela empresa ativa na cria\u00e7\u00e3o"
+    },
     "machine_id": {
       "type": "string",
       "description": "ID da m\u00e1quina"
@@ -69,26 +73,44 @@
     "duration_minutes"
   ],
   "rls": {
-    "create": null,
-    "read": null,
-    "update": {
+    "read": {
       "$or": [
         {
-          "created_by_id": "{{user.id}}"
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
+          }
         },
         {
           "user_condition": {
             "role": "admin"
           }
-        },
+        }
+      ]
+    },
+    "create": {
+      "$or": [
         {
-          "user_condition": {
-            "role": "administrador"
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
           }
         },
         {
           "user_condition": {
-            "role": "supervisor"
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
           }
         }
       ]
@@ -96,21 +118,13 @@
     "delete": {
       "$or": [
         {
-          "created_by_id": "{{user.id}}"
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
+          }
         },
         {
           "user_condition": {
             "role": "admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "administrador"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "supervisor"
           }
         }
       ]
