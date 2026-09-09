@@ -1,0 +1,95 @@
+{
+  "name": "SubscriptionPlan",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome do plano (ex: Starter, Professional, Enterprise)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do plano (o que inclui, p\u00fablico-alvo)"
+    },
+    "price": {
+      "type": "number",
+      "default": 0,
+      "description": "Pre\u00e7o mensal do plano (R$)"
+    },
+    "max_users": {
+      "type": "number",
+      "description": "Limite de usu\u00e1rios permitidos no plano"
+    },
+    "max_machines": {
+      "type": "number",
+      "description": "Limite de m\u00e1quinas cadastradas no plano"
+    },
+    "max_production_lines": {
+      "type": "number",
+      "description": "Limite de linhas de produ\u00e7\u00e3o no plano"
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Lista de funcionalidades inclu\u00eddas no plano (chaves, ex: QUALITY, COSTS, PRICING)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active",
+      "description": "Situa\u00e7\u00e3o do plano (dispon\u00edvel ou n\u00e3o para novas assinaturas)"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "read": null,
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "is_platform_admin": true
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "is_platform_admin": true
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "is_platform_admin": true
+          }
+        }
+      ]
+    }
+  }
+}

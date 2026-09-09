@@ -1,0 +1,112 @@
+{
+  "name": "Subscription",
+  "type": "object",
+  "properties": {
+    "company_id": {
+      "type": "string",
+      "description": "ID da empresa (Company) \u2014 assinatura \u00e9 por empresa"
+    },
+    "company_name": {
+      "type": "string",
+      "description": "Nome da empresa (cache, exibi\u00e7\u00e3o)"
+    },
+    "plan_id": {
+      "type": "string",
+      "description": "ID do plano (SubscriptionPlan)"
+    },
+    "plan_name": {
+      "type": "string",
+      "description": "Nome do plano (cache, exibi\u00e7\u00e3o)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "trial",
+        "active",
+        "past_due",
+        "suspended",
+        "cancelled"
+      ],
+      "default": "trial",
+      "description": "Situa\u00e7\u00e3o da assinatura"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de in\u00edcio da assinatura"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de t\u00e9rmino (vencimento) da assinatura"
+    }
+  },
+  "required": [
+    "company_id",
+    "plan_id",
+    "status"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "is_platform_admin": true
+          }
+        }
+      ]
+    },
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "is_platform_admin": true
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "is_platform_admin": true
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "is_platform_admin": true
+          }
+        }
+      ]
+    }
+  }
+}
