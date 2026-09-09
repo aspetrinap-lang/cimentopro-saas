@@ -6,6 +6,7 @@ import OrderTechSheet from '@/components/orders/OrderTechSheet';
 import { Plus, Printer, Search } from 'lucide-react';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
 import OrdersReport from '@/components/reports/OrdersReport';
+import { scopedFilter } from '@/lib/companyScope';
 
 export default function Orders() {
   const [orders, setOrders] = useState([]);
@@ -22,8 +23,8 @@ export default function Orders() {
   async function load() {
     setLoading(true);
     const [o, p] = await Promise.all([
-      base44.entities.ProductionOrder.list('-production_date', 200),
-      base44.entities.ProductType.list('name'),
+      base44.entities.ProductionOrder.filter(scopedFilter(), '-production_date', 200),
+      base44.entities.ProductType.filter(scopedFilter(), 'name'),
     ]);
     setOrders(o); setProductTypes(p); setLoading(false);
   }

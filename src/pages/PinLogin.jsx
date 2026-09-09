@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useOperator } from '@/lib/OperatorContext';
 import { ROLE_LABELS, getAllowedPaths, getAllowedPathsForOperator } from '@/lib/permissions';
+import { scopedFilter } from '@/lib/companyScope';
 import { Factory, ArrowLeft, Delete, ShieldCheck } from 'lucide-react';
 
 export default function PinLogin() {
@@ -15,7 +16,7 @@ export default function PinLogin() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    base44.entities.UserPin.filter({ active: true }, 'name')
+    base44.entities.UserPin.filter(scopedFilter({ active: true }), 'name')
       .then((list) => { setOperators(list); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { X, AlertTriangle } from 'lucide-react';
+import { scopedFilter, withCompany } from '@/lib/companyScope';
 
 const CATEGORIES = ['Elétrico', 'Mecânico', 'Pneumático', 'Hidráulico', 'Operacional', 'Manutenção Preventiva', 'Falta de Material', 'Outros'];
 
@@ -32,8 +33,8 @@ export default function MachineDowntimeForm({ item, prefillMachineId, prefillMac
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Machine.filter({ active: true }, 'name'),
-      base44.entities.FailurePattern.filter({ active: true }, 'name'),
+      base44.entities.Machine.filter(scopedFilter({ active: true }), 'name'),
+      base44.entities.FailurePattern.filter(scopedFilter({ active: true }), 'name'),
     ]).then(([m, p]) => { setMachines(m); setPatterns(p); });
   }, []);
 
@@ -80,7 +81,7 @@ export default function MachineDowntimeForm({ item, prefillMachineId, prefillMac
     if (item?.id) {
       await base44.entities.MachineDowntime.update(item.id, payload);
     } else {
-      await base44.entities.MachineDowntime.create(payload);
+      await base44.entities.MachineDowntime.create(withCompany(payload));
     }
     setSaving(false);
     onSaved();

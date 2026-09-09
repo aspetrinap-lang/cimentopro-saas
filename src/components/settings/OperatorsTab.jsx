@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Plus, Pencil, Trash2, X } from 'lucide-react';
 import { ROLE_LABELS } from '@/lib/permissions';
+import { scopedFilter, withCompany } from '@/lib/companyScope';
 
 const ROLES = [
   { value: 'operador', label: 'Operador' },
@@ -23,7 +24,7 @@ export default function OperatorsTab() {
   async function load() {
     setLoading(true);
     const [data, profs] = await Promise.all([
-      base44.entities.UserPin.list('name'),
+      base44.entities.UserPin.filter(scopedFilter(), 'name'),
       base44.entities.UserRoleProfile.filter({ active: true }, 'name').catch(() => []),
     ]);
     setList(data);
@@ -52,7 +53,7 @@ export default function OperatorsTab() {
     if (editing?.id) {
       await base44.entities.UserPin.update(editing.id, payload);
     } else {
-      await base44.entities.UserPin.create(payload);
+      await base44.entities.UserPin.create(withCompany(payload));
     }
     setSaving(false);
     setShowForm(false);

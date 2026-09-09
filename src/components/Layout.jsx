@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useOperator } from '@/lib/OperatorContext';
 import { getAllowedPaths, getAllowedPathsForOperator, ROLE_LABELS } from '@/lib/permissions';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
+import CompanySelector from '@/components/CompanySelector';
 
 const navItems = [
   { to: '/', label: 'Indicadores', icon: LayoutDashboard },
@@ -119,6 +120,7 @@ export default function Layout() {
             <p className="text-xs text-white/50 mt-0.5">{activeOperator ? 'Operador' : 'Produção'}</p>
           </div>
         </div>
+        <CompanySelector />
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-hide">
           {visibleNav.map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} end={to === '/'} className={navClass}>
@@ -153,6 +155,7 @@ export default function Layout() {
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-40 flex">
           <div className="w-64 bg-[hsl(var(--sidebar-bg))] text-white flex flex-col pt-[calc(3.5rem+env(safe-area-inset-top))]">
+            <CompanySelector />
             <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-hide">
               {visibleNav.map(({ to, label, icon: Icon }) => (
                 <NavLink key={to} to={to} end={to === '/'} onClick={() => setMobileOpen(false)} className={navClass}>

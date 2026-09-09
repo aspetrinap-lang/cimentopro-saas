@@ -5,6 +5,7 @@ import { useInsumoNames } from '@/hooks/useInsumoNames';
 import { INSUMO_KEYS, INSUMO_FIELDS, INSUMO_TRACE_PARTS } from '@/lib/insumos';
 import MachineDowntimeForm from './MachineDowntimeForm';
 import { useBackButtonClose } from '@/hooks/useBackButtonClose';
+import { scopedFilter, withCompany, assertSameCompany, activeCompanyId } from '@/lib/companyScope';
 
 const LOSS_FIELDS = [
   { key: 'loss_second_line', label: '2ª Linha' },
@@ -45,6 +46,7 @@ export default function OrderForm({ order, productTypes, onClose, onSaved }) {
   const [operators, setOperators] = useState([]);
   const [generatingNumber, setGeneratingNumber] = useState(false);
   const [showDowntime, setShowDowntime] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const { names } = useInsumoNames();
   useBackButtonClose(onClose);
 
@@ -69,7 +71,7 @@ export default function OrderForm({ order, productTypes, onClose, onSaved }) {
     setGeneratingNumber(true);
     const year = new Date().getFullYear();
     const yearShort = String(year).slice(-2);
-    const existingOrders = await base44.entities.ProductionOrder.filter({ order_year: year }, 'order_sequence', 500);
+    const existingOrders = await base44.entities.ProductionOrder.filter(scopedFilter({ order_year: year }), 'order_sequence', 500);
     const maxSeq = existingOrders.length > 0
       ? Math.max(...existingOrders.map(o => o.order_sequence || 0))
       : 0;
@@ -84,10 +86,10 @@ export default function OrderForm({ order, productTypes, onClose, onSaved }) {
   }
 
   useEffect(() => {
-    base44.entities.Machine.filter({ active: true }, 'name').then(ms => setMachines(ms.filter(m => m.machine_type !== 'Movimentação')));
+    base44.entities.Machine.filter(scopedFilter({ active: true }), 'name').then(ms => setMachines(ms.filter(m => m.machine_type !== 'Movimentação')));
     base44.entities.Mold.filter({ status: 'Ativo' }, 'name').then(setMolds);
-    base44.entities.ConcreteTrace.filter({ active: true }, 'name').then(setConcreteTraces);
-    base44.entities.UserPin.filter({ active: true }, 'name').then(setOperators);
+    base44.entities.ConcreteTrace.filter(scopedFilter({ active: true }), 'name').then(setConcreteTraces);
+    base44.entities.UserPin.filter(scopedFilter({ active: true }), 'name').then(setOperators);
     if (!order) generateOrderNumber();
   }, []);
 
@@ -143,6 +145,22 @@ export default function OrderForm({ order, productTypes, onClose, onSaved }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
+    setSaveError('');
+    try {
+      // Isolamento multiempresa: referências só podem ser da empresa ativa
+      await assertSameCompany([
+        { entity: 'ProductType', id: form.product_type_id, label: 'Artefato selecionado' },
+        { entity: 'Machine', id: form.machine_id, label: 'Máquina selecionada' },
+        { entity: 'UserPin', id: form.operator_id, label: 'Operador selecionado' },
+      ]);
+      if (order?.id && order.company_id && order.company_id !== activeCompanyId()) {
+        throw new Error('Esta ordem não pertence à empresa ativa.');
+      }
+    } catch (err) {
+      setSaveError(err.message);
+      setSaving(false);
+      return;
+    }
     const pt = productTypes.find(p => p.id === form.product_type_id);
     const payload = { ...form, planned_quantity: qty };
     const tracesQty = parseFloat(form.actual_traces_produced) || 0;
@@ -187,7 +205,7 @@ export default function OrderForm({ order, productTypes, onClose, onSaved }) {
         await updateMoldCycles(payload.machine_cycles_actual);
       }
     } else {
-      await base44.entities.ProductionOrder.create(payload);
+      await base44.entities.ProductionOrder.create(withCompany(payload));
       // Se criada já como Concluída, conta ciclos
       if (payload.status === 'Concluída') {
         await updateMoldCycles(payload.machine_cycles_actual);
@@ -512,6 +530,10 @@ export default function OrderForm({ order, productTypes, onClose, onSaved }) {
               <textarea className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
                 rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} />
             </div>
+
+            {saveError && (
+              <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2">{saveError}</p>
+            )}
 
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={onClose} className="flex-1 border border-border rounded-lg py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">Cancelar</button>

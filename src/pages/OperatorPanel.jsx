@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { format, subDays } from 'date-fns';
 import { Printer, RefreshCw, Timer } from 'lucide-react';
 import { buildOperatorPanelData } from '@/lib/operatorMetrics';
+import { scopedFilter } from '@/lib/companyScope';
 import { computeStats } from '@/lib/statsUtils';
 import MachineCard from '@/components/operator/MachineCard';
 import PeriodSelector from '@/components/operator/PeriodSelector';
@@ -25,10 +26,10 @@ export default function OperatorPanel() {
   async function load(p) {
     setLoading(true);
     const [machines, orders, downtimes, lines] = await Promise.all([
-      base44.entities.Machine.filter({ active: true }, 'name'),
-      base44.entities.ProductionOrder.list('-production_date', 2000),
-      base44.entities.MachineDowntime.list('-date', 2000),
-      base44.entities.ProductionLine.list('name'),
+      base44.entities.Machine.filter(scopedFilter({ active: true }), 'name'),
+      base44.entities.ProductionOrder.filter(scopedFilter(), '-production_date', 2000),
+      base44.entities.MachineDowntime.filter(scopedFilter(), '-date', 2000),
+      base44.entities.ProductionLine.filter(scopedFilter(), 'name'),
     ]);
     const data = buildOperatorPanelData({ machines, orders, downtimes, lines }, computeStats, { startDate: p.start, endDate: p.end });
     setCards(data.cards);

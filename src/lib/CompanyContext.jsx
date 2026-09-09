@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { getAllowedPaths } from '@/lib/permissions';
+import { isPlatformAdmin } from '@/lib/platformAdmin';
 
 const CompanyContext = createContext();
 
@@ -73,7 +74,14 @@ export const CompanyProvider = ({ children }) => {
         const comps = ids.length
           ? (await Promise.all(ids.map((id) => base44.entities.Company.get(id).catch(() => null)))).filter(Boolean)
           : [];
-        const selectable = comps.filter((c) => SELECTABLE_COMPANY_STATUS.includes(c.status));
+        let selectable = comps.filter((c) => SELECTABLE_COMPANY_STATUS.includes(c.status));
+        // SUPER_ADMIN administra a plataforma: pode selecionar qualquer empresa ativa
+        if (isPlatformAdmin(user)) {
+          const all = await base44.entities.Company.list('name', 500).catch(() => []);
+          const byId = new Map(selectable.map((c) => [c.id, c]));
+          all.filter((c) => SELECTABLE_COMPANY_STATUS.includes(c.status)).forEach((c) => byId.set(c.id, c));
+          selectable = [...byId.values()];
+        }
         if (cancelled) return;
         setMemberships(activeMbs);
         setCompanies(selectable);
