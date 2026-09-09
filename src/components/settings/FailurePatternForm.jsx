@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { withCompany } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { X } from 'lucide-react';
 
@@ -19,7 +20,7 @@ export default function FailurePatternForm({ item, onClose, onSaved }) {
     if (item?.id) {
       await base44.entities.FailurePattern.update(item.id, payload);
     } else {
-      await base44.entities.FailurePattern.create(payload);
+      await base44.entities.FailurePattern.create(withCompany(payload));
     }
     setSaving(false);
     onSaved();

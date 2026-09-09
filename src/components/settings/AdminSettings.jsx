@@ -2,9 +2,11 @@ import { useState } from 'react';
 import OperatorsTab from '@/components/settings/OperatorsTab';
 import BackupPanel from '@/components/settings/BackupPanel';
 import ProfilesTab from '@/components/settings/ProfilesTab';
+import CompanyUsersTab from '@/components/settings/CompanyUsersTab';
 
 const TABS = [
   { key: 'perfis', label: 'Perfis de Acesso' },
+  { key: 'usuarios', label: 'Usuários da Empresa' },
   { key: 'operadores', label: 'Operadores' },
   { key: 'backup', label: 'Backup' },
 ];
@@ -29,6 +31,7 @@ export default function AdminSettings() {
       </div>
 
       {tab === 'perfis' && <ProfilesTab />}
+      {tab === 'usuarios' && <CompanyUsersTab />}
       {tab === 'operadores' && <OperatorsTab />}
       {tab === 'backup' && <BackupPanel />}
     </div>

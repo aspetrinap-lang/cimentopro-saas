@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { AlertTriangle, Bell, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
 import { differenceInDays, parseISO, format } from 'date-fns';
@@ -19,8 +20,8 @@ export default function MaintenanceAlerts() {
   useEffect(() => {
     async function load() {
       const [machines, maintenances] = await Promise.all([
-        base44.entities.Machine.filter({ active: true }, 'name'),
-        base44.entities.PreventiveMaintenance.list('-date', 1000),
+        base44.entities.Machine.filter(scopedFilter({ active: true }), 'name'),
+        base44.entities.PreventiveMaintenance.filter(scopedFilter({}), '-date', 1000),
       ]);
 
       const today = new Date();
@@ -92,7 +93,7 @@ export default function MaintenanceAlerts() {
   async function handleReset() {
     if (!window.confirm('Zerar todos os alertas de manutenção? A contagem passará a iniciar a partir de hoje para todas as máquinas.')) return;
     setResetting(true);
-    const machines = await base44.entities.Machine.filter({ active: true }, 'name');
+    const machines = await base44.entities.Machine.filter(scopedFilter({ active: true }), 'name');
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     await base44.entities.Machine.bulkUpdate(
       machines.map(m => ({ id: m.id, alerts_reset_date: todayStr }))

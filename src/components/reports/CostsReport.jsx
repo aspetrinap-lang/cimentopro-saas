@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
 import { Calculator } from 'lucide-react';
@@ -32,10 +33,10 @@ export default function CostsReport({ initialMonth, onClose }) {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.ProductionOrder.filter({ status: 'Concluída' }, '-production_date', 2000),
-      base44.entities.ProductionLine.list('name', 200),
+      base44.entities.ProductionOrder.filter(scopedFilter({ status: 'Concluída' }), '-production_date', 2000),
+      base44.entities.ProductionLine.filter(scopedFilter({}), 'name', 200),
       base44.entities.MonthlyDre.list('-reference_month', 100),
-      base44.entities.ProductType.list('name', 500),
+      base44.entities.ProductType.filter(scopedFilter({}), 'name', 500),
     ]).then(([orders, lines, dres, productTypes]) => setData({ orders, lines, dres, productTypes }));
   }, []);
 

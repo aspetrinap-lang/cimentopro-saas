@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
@@ -36,11 +37,11 @@ export default function Analysis() {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.ProductionOrder.filter({ status: 'Concluída' }, '-production_date', 500),
-      base44.entities.ProductType.list('name'),
-      base44.entities.ConcreteTrace.list('name'),
-      base44.entities.MachineDowntime.list('-date', 500),
-      base44.entities.PreventiveMaintenance.list('-date', 500),
+      base44.entities.ProductionOrder.filter(scopedFilter({ status: 'Concluída' }), '-production_date', 500),
+      base44.entities.ProductType.filter(scopedFilter({}), 'name'),
+      base44.entities.ConcreteTrace.filter(scopedFilter({}), 'name'),
+      base44.entities.MachineDowntime.filter(scopedFilter({}), '-date', 500),
+      base44.entities.PreventiveMaintenance.filter(scopedFilter({}), '-date', 500),
     ]).then(([data, types, traces, downtimes, maintenances]) => {
       setOrders(data); setProductTypes(types); setConcreteTraces(traces);
       setDowntimes(downtimes); setMaintenances(maintenances);

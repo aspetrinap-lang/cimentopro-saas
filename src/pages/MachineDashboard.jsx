@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { AlertTriangle, Clock, CheckCircle2, Wrench, Plus, Printer, RefreshCw, Pencil, Trash2 } from 'lucide-react';
@@ -46,9 +47,9 @@ export default function MachineDashboard() {
   async function load() {
     setLoading(true);
     const [d, o, m] = await Promise.all([
-      base44.entities.MachineDowntime.list('-date', 500),
-      base44.entities.ProductionOrder.list('-production_date', 500),
-      base44.entities.Machine.list('name'),
+      base44.entities.MachineDowntime.filter(scopedFilter({}), '-date', 500),
+      base44.entities.ProductionOrder.filter(scopedFilter({}), '-production_date', 500),
+      base44.entities.Machine.filter(scopedFilter({}), 'name'),
     ]);
     setDowntimes(d); setOrders(o); setMachines(m);
     setLoading(false);

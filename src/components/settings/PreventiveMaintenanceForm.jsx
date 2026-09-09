@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { scopedFilter, withCompany } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { X, Zap, Wrench, Droplets, Wind, Settings, CheckSquare, RefreshCw, HelpCircle } from 'lucide-react';
 
@@ -34,7 +35,7 @@ export default function PreventiveMaintenanceForm({ item, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    base44.entities.Machine.filter({ active: true }, 'name').then(setMachines);
+    base44.entities.Machine.filter(scopedFilter({ active: true }), 'name').then(setMachines);
     base44.entities.Mold.filter({ status: 'Ativo' }, 'name').then(setMolds);
   }, []);
 
@@ -67,7 +68,7 @@ export default function PreventiveMaintenanceForm({ item, onClose, onSaved }) {
     if (item?.id) {
       await base44.entities.PreventiveMaintenance.update(item.id, payload);
     } else {
-      await base44.entities.PreventiveMaintenance.create(payload);
+      await base44.entities.PreventiveMaintenance.create(withCompany(payload));
     }
     setSaving(false);
     onSaved();

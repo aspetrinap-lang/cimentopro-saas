@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
@@ -30,7 +31,7 @@ export default function UnitConsumptionChart({ orders }) {
   const [categoryMap, setCategoryMap] = useState({});
 
   useEffect(() => {
-    base44.entities.ProductType.list('name').then(types => {
+    base44.entities.ProductType.filter(scopedFilter({}), 'name').then(types => {
       const map = {};
       types.forEach(t => { map[t.id] = t.category || 'Sem categoria'; });
       setCategoryMap(map);

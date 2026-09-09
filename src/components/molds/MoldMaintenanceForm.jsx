@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { withCompany } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { X, Zap, Wrench, Droplets, Wind, Settings, CheckSquare, RefreshCw, HelpCircle } from 'lucide-react';
 
@@ -42,7 +43,7 @@ export default function MoldMaintenanceForm({ item, mold, onClose, onSaved }) {
     if (item?.id) {
       await base44.entities.PreventiveMaintenance.update(item.id, payload);
     } else {
-      await base44.entities.PreventiveMaintenance.create(payload);
+      await base44.entities.PreventiveMaintenance.create(withCompany(payload));
       // Atualiza data da última manutenção no molde
       await base44.entities.Mold.update(mold.id, { last_maintenance_date: form.date });
     }

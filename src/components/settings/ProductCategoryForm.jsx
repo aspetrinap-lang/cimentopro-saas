@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { withCompany } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { X } from 'lucide-react';
 
@@ -16,7 +17,7 @@ export default function ProductCategoryForm({ item, onClose, onSaved }) {
     if (item?.id) {
       await base44.entities.ProductCategory.update(item.id, form);
     } else {
-      await base44.entities.ProductCategory.create(form);
+      await base44.entities.ProductCategory.create(withCompany(form));
     }
     setSaving(false);
     onSaved();

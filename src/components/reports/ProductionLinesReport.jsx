@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { Layers } from 'lucide-react';
 import ReportSheet from './ReportSheet';
@@ -13,8 +14,8 @@ export default function ProductionLinesReport({ onClose }) {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.ProductionLine.list('name', 200),
-      base44.entities.ProductionOrder.filter({ status: 'Concluída' }, '-production_date', 2000),
+      base44.entities.ProductionLine.filter(scopedFilter({}), 'name', 200),
+      base44.entities.ProductionOrder.filter(scopedFilter({ status: 'Concluída' }), '-production_date', 2000),
     ]).then(([lines, orders]) => setData({ lines, orders }));
   }, []);
 

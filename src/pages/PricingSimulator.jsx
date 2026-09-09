@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { scopedFilter } from '@/lib/companyScope';
 import { Calculator, Printer, Save, RotateCcw, SlidersHorizontal, Truck, Percent, ShieldCheck } from 'lucide-react';
 import { useInsumoCosts } from '@/hooks/useInsumoCosts';
 import { fmtBRL, fmtNum } from '@/lib/statsUtils';
@@ -83,10 +84,10 @@ export default function PricingSimulator() {
     let active = true;
     setLoading(true);
     Promise.all([
-      base44.entities.ProductionOrder.filter({ status: 'Concluída' }, '-production_date', 2000),
-      base44.entities.ProductionLine.list('name', 200),
+      base44.entities.ProductionOrder.filter(scopedFilter({ status: 'Concluída' }), '-production_date', 2000),
+      base44.entities.ProductionLine.filter(scopedFilter({}), 'name', 200),
       base44.entities.MonthlyDre.list('-reference_month', 100),
-      base44.entities.ProductType.list('name', 500),
+      base44.entities.ProductType.filter(scopedFilter({}), 'name', 500),
     ]).then(([o, l, d, pt]) => {
       if (!active) return;
       setOrders(o);

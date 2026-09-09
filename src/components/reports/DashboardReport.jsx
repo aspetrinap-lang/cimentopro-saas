@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { BarChart3 } from 'lucide-react';
 import ReportSheet from './ReportSheet';
@@ -20,8 +21,8 @@ export default function DashboardReport({ initialStart, onClose }) {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.ProductionOrder.list('-production_date', 2000),
-      base44.entities.ProductType.list('name', 500),
+      base44.entities.ProductionOrder.filter(scopedFilter({}), '-production_date', 2000),
+      base44.entities.ProductType.filter(scopedFilter({}), 'name', 500),
     ]).then(([orders, productTypes]) => setData({ orders, productTypes }));
   }, []);
 

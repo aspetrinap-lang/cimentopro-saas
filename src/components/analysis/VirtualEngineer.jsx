@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
@@ -123,8 +124,8 @@ export default function VirtualEngineer({ orders, costs, names }) {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.MachineDowntime.list('-date', 500),
-      base44.entities.Machine.list('name'),
+      base44.entities.MachineDowntime.filter(scopedFilter({}), '-date', 500),
+      base44.entities.Machine.filter(scopedFilter({}), 'name'),
     ]).then(([d, m]) => { setDowntimes(d); setMachines(m); });
   }, []);
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { scopedFilter } from '@/lib/companyScope';
 import { Boxes } from 'lucide-react';
 import ReportSheet from './ReportSheet';
 import Section from './Section';
@@ -24,7 +25,7 @@ export default function MoldsReport({ onClose }) {
   useEffect(() => {
     Promise.all([
       base44.entities.Mold.list('name'),
-      base44.entities.PreventiveMaintenance.list('-date', 500),
+      base44.entities.PreventiveMaintenance.filter(scopedFilter({}), '-date', 500),
     ]).then(([molds, maintenances]) => setData({ molds, maintenances }));
   }, []);
 

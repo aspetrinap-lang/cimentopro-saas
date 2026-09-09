@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { Timer } from 'lucide-react';
 import ReportSheet from './ReportSheet';
@@ -14,10 +15,10 @@ export default function OperatorPanelReport({ initialStart, initialEnd, onClose 
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Machine.filter({ active: true }, 'name'),
-      base44.entities.ProductionOrder.list('-production_date', 2000),
-      base44.entities.MachineDowntime.list('-date', 2000),
-      base44.entities.ProductionLine.list('name'),
+      base44.entities.Machine.filter(scopedFilter({ active: true }), 'name'),
+      base44.entities.ProductionOrder.filter(scopedFilter({}), '-production_date', 2000),
+      base44.entities.MachineDowntime.filter(scopedFilter({}), '-date', 2000),
+      base44.entities.ProductionLine.filter(scopedFilter({}), 'name'),
     ]).then(([machines, orders, downtimes, lines]) => setData({ machines, orders, downtimes, lines }));
   }, []);
 

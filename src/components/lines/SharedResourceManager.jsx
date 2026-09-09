@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter, withCompany } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { X, Plus, Pencil, Trash2, Save, Layers } from 'lucide-react';
 
@@ -25,7 +26,7 @@ export default function SharedResourceManager({ onClose, onSaved }) {
   async function load() {
     setLoading(true);
     try {
-      const data = await base44.entities.SharedResource.list('name', 200);
+      const data = await base44.entities.SharedResource.filter(scopedFilter({}), 'name', 200);
       setResources(data);
     } catch {
       setResources([]);
@@ -66,7 +67,7 @@ export default function SharedResourceManager({ onClose, onSaved }) {
     };
     try {
       if (editing === 'new') {
-        await base44.entities.SharedResource.create(payload);
+        await base44.entities.SharedResource.create(withCompany(payload));
       } else {
         await base44.entities.SharedResource.update(editing, payload);
       }

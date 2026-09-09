@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { useInsumoCosts } from '@/hooks/useInsumoCosts';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
@@ -20,7 +21,7 @@ export default function UnitCostCard({ orders }) {
   const [selectedProduct, setSelectedProduct] = useState('all');
 
   useEffect(() => {
-    base44.entities.ProductType.list().then(setProductTypes);
+    base44.entities.ProductType.filter(scopedFilter({})).then(setProductTypes);
   }, []);
 
   // Lista de artefatos disponíveis nas ordens concluídas

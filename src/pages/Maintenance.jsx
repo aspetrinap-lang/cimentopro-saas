@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { Plus, Pencil, Trash2, RefreshCw, Wrench, Shapes, Printer } from 'lucide-react';
 import PreventiveMaintenanceForm from '@/components/settings/PreventiveMaintenanceForm';
@@ -134,7 +135,7 @@ export default function Maintenance() {
 
   async function load() {
     setLoading(true);
-    const data = await base44.entities.PreventiveMaintenance.list('-date', 500);
+    const data = await base44.entities.PreventiveMaintenance.filter(scopedFilter({}), '-date', 500);
     setMaintenances(data);
     setLoading(false);
   }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { Bot } from 'lucide-react';
 import ReportSheet from './ReportSheet';
@@ -13,7 +14,7 @@ export default function VirtualEngineerReport({ orders, costs, names, onClose })
   const [downtimes, setDowntimes] = useState(null);
 
   useEffect(() => {
-    base44.entities.MachineDowntime.list('-date', 1000).then(setDowntimes);
+    base44.entities.MachineDowntime.filter(scopedFilter({}), '-date', 1000).then(setDowntimes);
   }, []);
 
   return (

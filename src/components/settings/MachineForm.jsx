@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { scopedFilter, withCompany } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { X, Plus, Trash2, Factory, ArrowRightLeft } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
@@ -64,7 +65,7 @@ export default function MachineForm({ item, onClose, onSaved }) {
 
   useEffect(() => {
     if (!item) {
-      base44.entities.Machine.list('name', 500).then(machines => {
+      base44.entities.Machine.filter(scopedFilter({}), 'name', 500).then(machines => {
         const code = generateMachineCode(machines.map(m => m.code));
         setForm(f => ({ ...f, code }));
       });
@@ -85,7 +86,7 @@ export default function MachineForm({ item, onClose, onSaved }) {
     if (item?.id) {
       await base44.entities.Machine.update(item.id, payload);
     } else {
-      await base44.entities.Machine.create(payload);
+      await base44.entities.Machine.create(withCompany(payload));
     }
     setSaving(false);
     onSaved();

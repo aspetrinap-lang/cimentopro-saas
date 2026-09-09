@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import QualityReportForm from '@/components/quality/QualityReportForm';
 import QualityReportView from '@/components/quality/QualityReportView';
@@ -45,8 +46,8 @@ export default function Quality() {
     setLoading(true);
     const [r, o, p] = await Promise.all([
       base44.entities.QualityReport.list('-created_date', 500),
-      base44.entities.ProductionOrder.list('-production_date', 200),
-      base44.entities.ProductType.list('name'),
+      base44.entities.ProductionOrder.filter(scopedFilter({}), '-production_date', 200),
+      base44.entities.ProductType.filter(scopedFilter({}), 'name'),
     ]);
     setReports(r); setOrders(o); setProductTypes(p);
     setLoading(false);

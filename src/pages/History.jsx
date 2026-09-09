@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { Printer, TrendingDown, TrendingUp } from 'lucide-react';
 import HistoryReport from '@/components/reports/HistoryReport';
@@ -36,8 +37,8 @@ export default function History() {
   async function load() {
     setLoading(true);
     const [o, p] = await Promise.all([
-      base44.entities.ProductionOrder.filter({ status: 'Concluída' }, '-production_date', 500),
-      base44.entities.ProductType.list('name'),
+      base44.entities.ProductionOrder.filter(scopedFilter({ status: 'Concluída' }), '-production_date', 500),
+      base44.entities.ProductType.filter(scopedFilter({}), 'name'),
     ]);
     setOrders(o); setProductTypes(p); setLoading(false);
   }

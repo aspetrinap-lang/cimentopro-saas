@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { Printer } from 'lucide-react';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
@@ -15,7 +16,7 @@ export default function VirtualEngineerPage() {
   const { costs } = useInsumoCosts();
 
   useEffect(() => {
-    base44.entities.ProductionOrder.filter({ status: 'Concluída' }, '-production_date', 500)
+    base44.entities.ProductionOrder.filter(scopedFilter({ status: 'Concluída' }), '-production_date', 500)
       .then(data => { setOrders(data); setLoading(false); });
   }, []);
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { LineChart } from 'lucide-react';
 import ReportSheet from './ReportSheet';
@@ -21,9 +22,9 @@ export default function AnalysisReport({ initialStart, initialEnd, initialProduc
 
   useEffect(() => {
     Promise.all([
-      base44.entities.ProductionOrder.filter({ status: 'Concluída' }, '-production_date', 2000),
-      base44.entities.ProductType.list('name', 500),
-      base44.entities.ConcreteTrace.list('name', 200),
+      base44.entities.ProductionOrder.filter(scopedFilter({ status: 'Concluída' }), '-production_date', 2000),
+      base44.entities.ProductType.filter(scopedFilter({}), 'name', 500),
+      base44.entities.ConcreteTrace.filter(scopedFilter({}), 'name', 200),
     ]).then(([orders, productTypes, traces]) => setData({ orders, productTypes, traces }));
   }, []);
 

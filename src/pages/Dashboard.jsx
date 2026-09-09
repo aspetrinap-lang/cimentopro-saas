@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import SummaryCards from '@/components/dashboard/SummaryCards';
 import TrendChart from '@/components/dashboard/TrendChart';
@@ -30,7 +31,7 @@ export default function Dashboard() {
 
   async function load() {
     setLoading(true);
-    const data = await base44.entities.ProductionOrder.list('-production_date', 500);
+    const data = await base44.entities.ProductionOrder.filter(scopedFilter({}), '-production_date', 500);
     setOrders(data);
     setLoading(false);
   }

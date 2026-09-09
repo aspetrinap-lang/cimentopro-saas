@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { Wrench } from 'lucide-react';
 import ReportSheet from './ReportSheet';
@@ -12,9 +13,9 @@ export default function MachinesReport({ onClose }) {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Machine.list('name'),
-      base44.entities.MachineDowntime.list('-date', 1000),
-      base44.entities.ProductionOrder.list('-production_date', 1000),
+      base44.entities.Machine.filter(scopedFilter({}), 'name'),
+      base44.entities.MachineDowntime.filter(scopedFilter({}), '-date', 1000),
+      base44.entities.ProductionOrder.filter(scopedFilter({}), '-production_date', 1000),
     ]).then(([machines, downtimes, orders]) => setData({ machines, downtimes, orders }));
   }, []);
 

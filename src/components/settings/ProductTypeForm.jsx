@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { scopedFilter, withCompany } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { X, Zap } from 'lucide-react';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
@@ -39,9 +40,9 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.ConcreteTrace.filter({ active: true }, 'name'),
+      base44.entities.ConcreteTrace.filter(scopedFilter({ active: true }), 'name'),
       base44.entities.Mold.filter({ status: 'Ativo' }, 'name'),
-      base44.entities.ProductCategory.filter({ active: true }, 'name'),
+      base44.entities.ProductCategory.filter(scopedFilter({ active: true }), 'name'),
     ]).then(([t, m, c]) => { setTraces(t); setMolds(m); setCategories(c); });
   }, []);
 
@@ -108,7 +109,7 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
     if (item?.id) {
       await base44.entities.ProductType.update(item.id, payload);
     } else {
-      await base44.entities.ProductType.create(payload);
+      await base44.entities.ProductType.create(withCompany(payload));
     }
     setSaving(false);
     onSaved();

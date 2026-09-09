@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { scopedFilter, withCompany } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { X, Plus, Trash2, ArrowUp, ArrowDown, Save, Layers } from 'lucide-react';
 
@@ -20,8 +21,8 @@ export default function ProductionLineForm({ line, onClose, onSaved }) {
   const [sharedResources, setSharedResources] = useState([]);
 
   useEffect(() => {
-    base44.entities.Machine.filter({}, 'name').then(setMachines).catch(() => {});
-    base44.entities.SharedResource.filter({ active: true }, 'name').then(setSharedResources).catch(() => {});
+    base44.entities.Machine.filter(scopedFilter({}), 'name').then(setMachines).catch(() => {});
+    base44.entities.SharedResource.filter(scopedFilter({ active: true }), 'name').then(setSharedResources).catch(() => {});
   }, []);
 
   const usedPower = (form.machines || []).reduce((s, m) => s + (Number(m.power_kw) || 0), 0);
@@ -119,7 +120,7 @@ export default function ProductionLineForm({ line, onClose, onSaved }) {
       if (line) {
         await base44.entities.ProductionLine.update(line.id, payload);
       } else {
-        await base44.entities.ProductionLine.create(payload);
+        await base44.entities.ProductionLine.create(withCompany(payload));
       }
       onSaved?.();
       onClose?.();

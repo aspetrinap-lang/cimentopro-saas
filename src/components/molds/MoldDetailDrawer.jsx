@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { X, Plus, Pencil, Trash2, Wrench, Zap, Droplets, Wind, Settings, CheckSquare, RefreshCw, HelpCircle, Calendar, Clock, User, Package } from 'lucide-react';
 import MoldLifecycleBar from './MoldLifecycleBar';
@@ -25,7 +26,7 @@ export default function MoldDetailDrawer({ mold, onClose, onMoldUpdated }) {
 
   async function loadMaintenances() {
     setLoading(true);
-    const data = await base44.entities.PreventiveMaintenance.filter({ mold_id: mold.id }, '-date', 200);
+    const data = await base44.entities.PreventiveMaintenance.filter(scopedFilter({ mold_id: mold.id }), '-date', 200);
     setMaintenances(data);
     setLoading(false);
   }

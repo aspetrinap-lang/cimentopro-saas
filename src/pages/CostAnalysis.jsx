@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { Calculator, FileSpreadsheet, Gauge, Package, Zap, Layers, DollarSign, AlertTriangle, Activity, Printer } from 'lucide-react';
 import DreImporter from '@/components/cost/DreImporter';
@@ -67,10 +68,10 @@ export default function CostAnalysis() {
     let active = true;
     setLoading(true);
     Promise.all([
-      base44.entities.ProductionOrder.filter({ status: 'Concluída' }, '-production_date', 2000),
-      base44.entities.ProductionLine.list('name', 200),
+      base44.entities.ProductionOrder.filter(scopedFilter({ status: 'Concluída' }), '-production_date', 2000),
+      base44.entities.ProductionLine.filter(scopedFilter({}), 'name', 200),
       base44.entities.MonthlyDre.list('-reference_month', 100),
-      base44.entities.ProductType.list('name', 500),
+      base44.entities.ProductType.filter(scopedFilter({}), 'name', 500),
     ]).then(([o, l, d, pt]) => {
       if (!active) return;
       setOrders(o);

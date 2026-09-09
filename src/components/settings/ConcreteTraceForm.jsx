@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { withCompany } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { useConfig } from '@/lib/ConfigContext';
@@ -131,7 +132,7 @@ export default function ConcreteTraceForm({ item, onClose, onSaved }) {
     if (item?.id) {
       await base44.entities.ConcreteTrace.update(item.id, payload);
     } else {
-      await base44.entities.ConcreteTrace.create(payload);
+      await base44.entities.ConcreteTrace.create(withCompany(payload));
     }
     setSaving(false);
     onSaved();

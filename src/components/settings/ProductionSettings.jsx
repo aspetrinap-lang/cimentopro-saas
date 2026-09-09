@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { useConfig } from '@/lib/ConfigContext';
 import ProductCategoryForm from '@/components/settings/ProductCategoryForm';
@@ -31,10 +32,10 @@ export default function ProductionSettings({ canEditCost }) {
   async function load() {
     setLoading(true);
     const [t, m, tr, c] = await Promise.all([
-      base44.entities.ProductType.list('name'),
-      base44.entities.Machine.list('name'),
-      base44.entities.ConcreteTrace.list('name'),
-      base44.entities.ProductCategory.list('name'),
+      base44.entities.ProductType.filter(scopedFilter({}), 'name'),
+      base44.entities.Machine.filter(scopedFilter({}), 'name'),
+      base44.entities.ConcreteTrace.filter(scopedFilter({}), 'name'),
+      base44.entities.ProductCategory.filter(scopedFilter({}), 'name'),
     ]);
     setTypes(t); setMachines(m); setTraces(tr); setCategories(c);
     setLoading(false);

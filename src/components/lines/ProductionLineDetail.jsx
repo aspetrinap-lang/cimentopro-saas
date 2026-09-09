@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { X, Gauge, Zap, DollarSign, TrendingUp, AlertTriangle, Package, Activity, Layers } from 'lucide-react';
 import { fmtBRL, fmtNum } from '@/lib/statsUtils';
@@ -13,9 +14,9 @@ export default function ProductionLineDetail({ line, onClose }) {
     let active = true;
     setLoading(true);
     Promise.all([
-      base44.entities.ProductionOrder.list('-production_date', 2000),
-      base44.entities.MachineDowntime.filter({}, '-date', 500),
-      base44.entities.SharedResource.list('name', 200),
+      base44.entities.ProductionOrder.filter(scopedFilter({}), '-production_date', 2000),
+      base44.entities.MachineDowntime.filter(scopedFilter({}), '-date', 500),
+      base44.entities.SharedResource.filter(scopedFilter({}), 'name', 200),
     ]).then(([o, d, sr]) => {
       if (!active) return;
       setOrders(o);

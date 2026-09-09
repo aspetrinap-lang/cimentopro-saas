@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
 import { useInsumoCosts } from '@/hooks/useInsumoCosts';
@@ -34,9 +35,9 @@ export default function StatsReport({ onClose }) {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.ProductionOrder.filter({ status: 'Concluída' }, '-production_date', 1000),
-      base44.entities.ProductType.list('name'),
-      base44.entities.ConcreteTrace.list('name'),
+      base44.entities.ProductionOrder.filter(scopedFilter({ status: 'Concluída' }), '-production_date', 1000),
+      base44.entities.ProductType.filter(scopedFilter({}), 'name'),
+      base44.entities.ConcreteTrace.filter(scopedFilter({}), 'name'),
     ]).then(([orders, productTypes, traces]) => {
       setData({
         orders,

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { X, CheckSquare, Square } from 'lucide-react';
 import { useBackButtonClose } from '@/hooks/useBackButtonClose';
@@ -22,7 +23,7 @@ export default function MoldForm({ item, onClose, onSaved }) {
   useBackButtonClose(onClose);
 
   useEffect(() => {
-    base44.entities.ProductType.filter({ active: true }, 'name').then(setProductTypes);
+    base44.entities.ProductType.filter(scopedFilter({ active: true }), 'name').then(setProductTypes);
     if (!item) generateCode();
   }, []);
 

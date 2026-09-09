@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { Plus, Printer, Search, Pencil, Trash2, Eye, Layers, Zap, DollarSign, Activity, Power, Boxes } from 'lucide-react';
 import ProductionLineForm from '@/components/lines/ProductionLineForm';
@@ -22,7 +23,7 @@ export default function ProductionLines() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await base44.entities.ProductionLine.list('-created_date', 200);
+      const data = await base44.entities.ProductionLine.filter(scopedFilter({}), '-created_date', 200);
       setLines(data);
     } catch (e) {
       setLines([]);

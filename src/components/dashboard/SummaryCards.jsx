@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { Layers, TrendingDown, TrendingUp } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
@@ -57,8 +58,8 @@ export default function SummaryCards({ orders, periodLabel }) {
   const [catUnitMode, setCatUnitMode] = useState({}); // { [categoria]: 'm2' | 'pc' }
 
   useEffect(() => {
-    base44.entities.ProductType.list().then(setProductTypes);
-    base44.entities.ConcreteTrace.list().then(setTraces);
+    base44.entities.ProductType.filter(scopedFilter({})).then(setProductTypes);
+    base44.entities.ConcreteTrace.filter(scopedFilter({})).then(setTraces);
   }, []);
 
   const ptMap = useMemo(() => Object.fromEntries(productTypes.map(p => [p.id, p])), [productTypes]);

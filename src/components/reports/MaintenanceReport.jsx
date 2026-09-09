@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { Wrench } from 'lucide-react';
 import ReportSheet from './ReportSheet';
@@ -13,7 +14,7 @@ export default function MaintenanceReport({ onClose }) {
   const [maintenances, setMaintenances] = useState(null);
 
   useEffect(() => {
-    base44.entities.PreventiveMaintenance.list('-date', 1000).then(setMaintenances);
+    base44.entities.PreventiveMaintenance.filter(scopedFilter({}), '-date', 1000).then(setMaintenances);
   }, []);
 
   return (
