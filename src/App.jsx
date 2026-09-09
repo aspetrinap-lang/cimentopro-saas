@@ -30,6 +30,10 @@ import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import PinLogin from '@/pages/PinLogin';
+import AdminGuard from '@/components/admin/AdminGuard';
+import AdminHome from '@/pages/admin/AdminHome';
+import AdminCompanies from '@/pages/admin/AdminCompanies';
+import AdminUsers from '@/pages/admin/AdminUsers';
 import { OperatorProvider } from '@/lib/OperatorContext';
 import { CompanyProvider } from '@/lib/CompanyContext';
 import { ThemeProvider } from 'next-themes';
@@ -82,6 +86,11 @@ const AuthenticatedApp = () => {
         <Route path="/maintenance" element={<Maintenance />} />
         <Route path="/quality" element={<Quality />} />
         <Route path="/backup" element={<Backup />} />
+      </Route>
+      <Route path="/admin" element={<AdminGuard />}>
+        <Route index element={<AdminHome />} />
+        <Route path="companies" element={<AdminCompanies />} />
+        <Route path="users" element={<AdminUsers />} />
       </Route>
       <Route path="/pin-login" element={<PinLogin />} />
       <Route path="*" element={<PageNotFound />} />

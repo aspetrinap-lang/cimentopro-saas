@@ -7,6 +7,7 @@ import { useEnterToTab } from '@/hooks/useEnterToTab';
 import { useAuth } from '@/lib/AuthContext';
 import { useOperator } from '@/lib/OperatorContext';
 import { getAllowedPaths, getAllowedPathsForOperator, ROLE_LABELS } from '@/lib/permissions';
+import { isPlatformAdmin } from '@/lib/platformAdmin';
 
 const navItems = [
   { to: '/', label: 'Indicadores', icon: LayoutDashboard },
@@ -44,6 +45,7 @@ export default function Layout() {
     : getAllowedPaths(role);
   const visibleNav = navItems.filter((i) => allowed.includes(i.to));
   const canManageOperators = allowed.includes('/configuracoes');
+  const isPlatform = !activeOperator && isPlatformAdmin(user);
 
   // Redireciona para o primeiro módulo permitido se o usuário acessar uma rota não permitida
   if (!allowed.includes(location.pathname)) {
@@ -124,6 +126,14 @@ export default function Layout() {
               {label}
             </NavLink>
           ))}
+          {isPlatform && (
+            <div className="pt-3 mt-3 border-t border-white/10">
+              <NavLink to="/admin" className={navClass}>
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                Admin CimentoPro
+              </NavLink>
+            </div>
+          )}
         </nav>
         {renderFooter()}
       </aside>
@@ -150,6 +160,14 @@ export default function Layout() {
                   {label}
                 </NavLink>
               ))}
+              {isPlatform && (
+                <div className="pt-3 mt-3 border-t border-white/10">
+                  <NavLink to="/admin" onClick={() => setMobileOpen(false)} className={navClass}>
+                    <ShieldCheck className="w-4 h-4 shrink-0" />
+                    Admin CimentoPro
+                  </NavLink>
+                </div>
+              )}
             </nav>
             {renderFooter()}
           </div>
