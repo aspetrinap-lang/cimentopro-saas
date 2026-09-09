@@ -15,6 +15,14 @@
       "type": "boolean",
       "default": false,
       "description": "SUPER_ADMIN da plataforma CimentoPro (is_platform_admin). Independente do papel operacional na empresa: false = usu\u00e1rio comum/admin de empresa; true = administra\u00e7\u00e3o da plataforma. Padr\u00e3o false para todo usu\u00e1rio novo."
+    },
+    "company_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Cache das empresas (Company) das quais o usu\u00e1rio \u00e9 membro \u2014 mantido em sincronia com os v\u00ednculos UserCompany pelo backend. Base das regras RLS de multi-tenancy."
     }
   },
   "required": [
