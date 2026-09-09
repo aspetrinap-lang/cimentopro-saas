@@ -1,0 +1,106 @@
+{
+  "name": "Company",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome comercial da empresa"
+    },
+    "legal_name": {
+      "type": "string",
+      "description": "Raz\u00e3o social"
+    },
+    "document": {
+      "type": "string",
+      "description": "CNPJ da empresa"
+    },
+    "email": {
+      "type": "string",
+      "description": "E-mail de contato"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Telefone de contato"
+    },
+    "address": {
+      "type": "string",
+      "description": "Endere\u00e7o (logradouro, n\u00famero, complemento)"
+    },
+    "city": {
+      "type": "string",
+      "description": "Cidade"
+    },
+    "state": {
+      "type": "string",
+      "description": "Estado (UF)"
+    },
+    "country": {
+      "type": "string",
+      "default": "Brasil",
+      "description": "Pa\u00eds"
+    },
+    "zip_code": {
+      "type": "string",
+      "description": "CEP"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive",
+        "suspended",
+        "trial"
+      ],
+      "default": "active",
+      "description": "Situa\u00e7\u00e3o da empresa na plataforma"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        }
+      ]
+    }
+  }
+}

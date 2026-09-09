@@ -1,0 +1,100 @@
+{
+  "name": "UserCompany",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "ID do usu\u00e1rio da plataforma (User)"
+    },
+    "user_email": {
+      "type": "string",
+      "description": "E-mail do usu\u00e1rio (cache, exibi\u00e7\u00e3o)"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "Nome do usu\u00e1rio (cache, exibi\u00e7\u00e3o)"
+    },
+    "company_id": {
+      "type": "string",
+      "description": "ID da empresa (Company)"
+    },
+    "company_name": {
+      "type": "string",
+      "description": "Nome da empresa (cache, exibi\u00e7\u00e3o)"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "owner",
+        "admin",
+        "supervisor"
+      ],
+      "description": "Papel do usu\u00e1rio na empresa"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "invited",
+        "inactive"
+      ],
+      "default": "active",
+      "description": "Situa\u00e7\u00e3o do v\u00ednculo usu\u00e1rio-empresa"
+    },
+    "is_owner": {
+      "type": "boolean",
+      "default": false,
+      "description": "Indica se o usu\u00e1rio \u00e9 o dono da empresa"
+    }
+  },
+  "required": [
+    "user_id",
+    "company_id",
+    "role"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        }
+      ]
+    }
+  }
+}
