@@ -1,0 +1,192 @@
+{
+  "name": "ProductType",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome do artefato (ex: Bloco 14)"
+    },
+    "code": {
+      "type": "string",
+      "description": "C\u00f3digo interno do produto"
+    },
+    "category": {
+      "type": "string",
+      "description": "Subcategoria do artefato (ex: Blocos de Concreto)"
+    },
+    "unit": {
+      "type": "string",
+      "default": "un",
+      "description": "Unidade de medida"
+    },
+    "units_per_mold": {
+      "type": "number",
+      "description": "Quantidade de artefatos por molde"
+    },
+    "length_mm": {
+      "type": "number",
+      "description": "Comprimento (mm)"
+    },
+    "width_mm": {
+      "type": "number",
+      "description": "Largura (mm)"
+    },
+    "height_mm": {
+      "type": "number",
+      "description": "Altura (mm)"
+    },
+    "pieces_per_m": {
+      "type": "number",
+      "description": "Quantidade de pe\u00e7as por metro"
+    },
+    "pieces_per_m_unit": {
+      "type": "string",
+      "enum": [
+        "m",
+        "m2"
+      ],
+      "default": "m",
+      "description": "Unidade de medida para pe\u00e7as por metro (m linear ou m\u00b2)"
+    },
+    "mold_id": {
+      "type": "string",
+      "description": "ID do molde vinculado para produ\u00e7\u00e3o"
+    },
+    "mold_name": {
+      "type": "string",
+      "description": "Nome do molde (cache)"
+    },
+    "mold_cost_per_unit": {
+      "type": "number",
+      "default": 0,
+      "description": "Custo do molde por unidade (R$) = custo_molde / vida_util_ciclos / pe\u00e7as_por_ciclo"
+    },
+    "concrete_trace_id": {
+      "type": "string",
+      "description": "ID do tra\u00e7o de concreto vinculado"
+    },
+    "volume_per_unit_m3": {
+      "type": "number",
+      "description": "Peso por unidade (kg) \u2014 usado para c\u00e1lculo de consumo"
+    },
+    "cement_per_unit": {
+      "type": "number",
+      "description": "Cimento por unidade (kg)"
+    },
+    "sand_artificial_per_unit": {
+      "type": "number",
+      "description": "Areia Artificial por unidade (kg)"
+    },
+    "sand_medium_per_unit": {
+      "type": "number",
+      "description": "Areia M\u00e9dia por unidade (kg)"
+    },
+    "sand_fine_per_unit": {
+      "type": "number",
+      "description": "Areia Fina por unidade (kg)"
+    },
+    "gravel_per_unit": {
+      "type": "number",
+      "description": "Brita por unidade (kg)"
+    },
+    "additive_per_unit": {
+      "type": "number",
+      "description": "Aditivo por unidade (kg)"
+    },
+    "pigment_per_unit": {
+      "type": "number",
+      "description": "Pigmento por unidade (kg)"
+    },
+    "water_per_unit": {
+      "type": "number",
+      "description": "\u00c1gua por unidade (L)"
+    },
+    "norm_class": {
+      "type": "string",
+      "description": "Classe da norma aplic\u00e1vel (NBR 6136: A/B/C; NBR 9781: 35/50)"
+    },
+    "target_resistance": {
+      "type": "number",
+      "default": 0,
+      "description": "Resist\u00eancia caracter\u00edstica de projeto (fck/fbk MPa) \u2014 preenchido pela classe da norma"
+    },
+    "selling_price": {
+      "type": "number",
+      "default": 0,
+      "description": "Pre\u00e7o de venda por unidade (R$) \u2014 usado para c\u00e1lculo de margem de lucro"
+    },
+    "tax_rate_percent": {
+      "type": "number",
+      "default": 0,
+      "description": "Al\u00edquota tribut\u00e1ria efetiva do produto (%) \u2014 usada no c\u00e1lculo de pre\u00e7o de venda (Simples Nacional ou carga de Lucro Real)"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name",
+    "code"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    }
+  }
+}

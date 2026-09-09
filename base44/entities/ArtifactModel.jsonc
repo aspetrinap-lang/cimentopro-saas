@@ -1,0 +1,52 @@
+{
+  "name": "ArtifactModel",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome do modelo (ex: Bloco Estrutural 14x19x39)"
+    },
+    "code": {
+      "type": "string",
+      "description": "C\u00f3digo interno do modelo"
+    },
+    "category": {
+      "type": "string",
+      "description": "Subcategoria (ex: Blocos de Concreto, Pavimento de Concreto, Meio fio)"
+    },
+    "length_mm": {
+      "type": "number",
+      "description": "Comprimento (mm)"
+    },
+    "width_mm": {
+      "type": "number",
+      "description": "Largura (mm)"
+    },
+    "height_mm": {
+      "type": "number",
+      "description": "Altura (mm)"
+    },
+    "weight_kg": {
+      "type": "number",
+      "description": "Peso por unidade (kg)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o t\u00e9cnica do modelo"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name",
+    "category"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "name": "FailurePattern",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome do padr\u00e3o de falha"
+    },
+    "failure_category": {
+      "type": "string",
+      "enum": [
+        "El\u00e9trico",
+        "Mec\u00e2nico",
+        "Pneum\u00e1tico",
+        "Hidr\u00e1ulico",
+        "Operacional",
+        "Manuten\u00e7\u00e3o Preventiva",
+        "Falta de Material",
+        "Outros"
+      ]
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do padr\u00e3o"
+    },
+    "typical_duration_minutes": {
+      "type": "number",
+      "description": "Dura\u00e7\u00e3o t\u00edpica em minutos"
+    },
+    "recommended_action": {
+      "type": "string",
+      "description": "A\u00e7\u00e3o recomendada"
+    },
+    "applies_to_machines": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs de m\u00e1quinas onde esse padr\u00e3o \u00e9 comum"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name",
+    "failure_category"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    }
+  }
+}

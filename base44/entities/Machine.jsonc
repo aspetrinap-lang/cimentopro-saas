@@ -1,0 +1,111 @@
+{
+  "name": "Machine",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome da m\u00e1quina (ex: Vibro-prensa 1)"
+    },
+    "code": {
+      "type": "string",
+      "description": "C\u00f3digo interno"
+    },
+    "type": {
+      "type": "string",
+      "description": "Tipo de equipamento (ex: Vibro-prensa, Betoneira)"
+    },
+    "machine_type": {
+      "type": "string",
+      "enum": [
+        "Produ\u00e7\u00e3o",
+        "Movimenta\u00e7\u00e3o"
+      ],
+      "default": "Produ\u00e7\u00e3o",
+      "description": "Classifica\u00e7\u00e3o da m\u00e1quina: Produ\u00e7\u00e3o (m\u00e1quina principal, entra nos c\u00e1lculos de ciclos/produ\u00e7\u00e3o) ou Movimenta\u00e7\u00e3o (m\u00e1quina secund\u00e1ria, exclu\u00edda dos c\u00e1lculos de produ\u00e7\u00e3o)"
+    },
+    "maintenance_intervals": {
+      "type": "object",
+      "description": "Intervalos ATIVOS de manuten\u00e7\u00e3o preventiva por item (tipo \u2192 dias). M\u00e1quinas sem o campo usam os 5 tipos padr\u00e3o (Lubrifica\u00e7\u00e3o 15, Hidr\u00e1ulico 45, Pneum\u00e1tico 45, Mec\u00e2nico 60, El\u00e9trico 60). Itens customizados permitidos.",
+      "default": {
+        "Lubrifica\u00e7\u00e3o": 15,
+        "Hidr\u00e1ulico": 45,
+        "Pneum\u00e1tico": 45,
+        "Mec\u00e2nico": 60,
+        "El\u00e9trico": 60
+      }
+    },
+    "alerts_reset_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data-base a partir da qual os alertas de manuten\u00e7\u00e3o passam a contar (zerar alertas)"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name",
+    "code"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "name": "UserRoleProfile",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome do perfil de acesso (ex: Operador de Produ\u00e7\u00e3o, Supervisor de Qualidade)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o curta do que este perfil pode acessar"
+    },
+    "permissions": {
+      "type": "object",
+      "description": "Chaves dos m\u00f3dulos permitidos (true/false): operator_panel, dashboard, orders, history, analysis, stats, costs, pricing, executive_summary, virtual_engineer, machines, lines, molds, maintenance, quality, cadastro, configuracoes, backup",
+      "default": {
+        "operator_panel": false,
+        "dashboard": true,
+        "orders": true,
+        "history": false,
+        "analysis": false,
+        "stats": false,
+        "costs": false,
+        "pricing": false,
+        "executive_summary": false,
+        "virtual_engineer": false,
+        "machines": false,
+        "lines": false,
+        "molds": false,
+        "maintenance": false,
+        "quality": false,
+        "cadastro": false,
+        "configuracoes": false,
+        "backup": false
+      }
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        }
+      ]
+    }
+  }
+}

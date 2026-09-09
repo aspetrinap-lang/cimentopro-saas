@@ -1,0 +1,242 @@
+{
+  "name": "ProductionOrder",
+  "type": "object",
+  "properties": {
+    "order_number": {
+      "type": "string",
+      "description": "N\u00famero da ordem (ex: 001/26)"
+    },
+    "order_year": {
+      "type": "number",
+      "description": "Ano da ordem (para sequencial anual)"
+    },
+    "order_sequence": {
+      "type": "number",
+      "description": "N\u00famero sequencial no ano"
+    },
+    "product_type_id": {
+      "type": "string",
+      "description": "ID do tipo de artefato"
+    },
+    "product_type_name": {
+      "type": "string",
+      "description": "Nome do artefato (cache)"
+    },
+    "machine_id": {
+      "type": "string",
+      "description": "ID da m\u00e1quina"
+    },
+    "machine_name": {
+      "type": "string",
+      "description": "Nome da m\u00e1quina (cache)"
+    },
+    "production_line_id": {
+      "type": "string",
+      "description": "ID da linha de produ\u00e7\u00e3o (opcional)"
+    },
+    "production_line_name": {
+      "type": "string",
+      "description": "Nome da linha de produ\u00e7\u00e3o (cache)"
+    },
+    "machine_cycles_total": {
+      "type": "number",
+      "description": "Total de ciclos da m\u00e1quina no dia (manual)"
+    },
+    "machine_cycles_planned": {
+      "type": "number",
+      "description": "Ciclos planejados da m\u00e1quina (informado manualmente)"
+    },
+    "machine_cycles_actual": {
+      "type": "number",
+      "description": "Ciclos reais da m\u00e1quina (informado manualmente)"
+    },
+    "production_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da produ\u00e7\u00e3o"
+    },
+    "start_time": {
+      "type": "string",
+      "description": "Hora de in\u00edcio (HH:MM)"
+    },
+    "end_time": {
+      "type": "string",
+      "description": "Hora de t\u00e9rmino (HH:MM)"
+    },
+    "production_minutes": {
+      "type": "number",
+      "description": "Minutos em produ\u00e7\u00e3o efetiva"
+    },
+    "operator_id": {
+      "type": "string",
+      "description": "ID do operador (UserPin) respons\u00e1vel pela ordem"
+    },
+    "operator_name": {
+      "type": "string",
+      "description": "Nome do operador (cache)"
+    },
+    "shift": {
+      "type": "string",
+      "enum": [
+        "Turno 1",
+        "Turno 2",
+        "Turno 3",
+        "Adm"
+      ],
+      "description": "Turno de produ\u00e7\u00e3o"
+    },
+    "planned_quantity": {
+      "type": "number",
+      "description": "Quantidade planejada (calculado: ciclos_planejados \u00d7 pe\u00e7as_por_ciclo)"
+    },
+    "actual_quantity": {
+      "type": "number",
+      "description": "Quantidade real produzida (calculado: ciclos_reais \u00d7 pe\u00e7as_por_ciclo)"
+    },
+    "actual_traces_produced": {
+      "type": "number",
+      "description": "Tra\u00e7os produzidos (usado para calcular mat\u00e9rias-primas reais pelo tra\u00e7o cadastrado)"
+    },
+    "raw_material_moisture": {
+      "type": "number",
+      "description": "Umidade m\u00e9dia dos agregados no momento da produ\u00e7\u00e3o (%)"
+    },
+    "planned_cement": {
+      "type": "number"
+    },
+    "planned_sand_artificial": {
+      "type": "number"
+    },
+    "planned_sand_medium": {
+      "type": "number"
+    },
+    "planned_sand_fine": {
+      "type": "number"
+    },
+    "planned_gravel": {
+      "type": "number"
+    },
+    "planned_additive": {
+      "type": "number"
+    },
+    "planned_pigment": {
+      "type": "number"
+    },
+    "planned_water": {
+      "type": "number"
+    },
+    "actual_cement": {
+      "type": "number"
+    },
+    "actual_sand_artificial": {
+      "type": "number"
+    },
+    "actual_sand_medium": {
+      "type": "number"
+    },
+    "actual_sand_fine": {
+      "type": "number"
+    },
+    "actual_gravel": {
+      "type": "number"
+    },
+    "actual_additive": {
+      "type": "number"
+    },
+    "actual_pigment": {
+      "type": "number"
+    },
+    "actual_water": {
+      "type": "number"
+    },
+    "loss_second_line": {
+      "type": "number",
+      "default": 0,
+      "description": "Pe\u00e7as de segunda linha (2\u00aa qualidade)"
+    },
+    "loss_discarded": {
+      "type": "number",
+      "default": 0,
+      "description": "Pe\u00e7as descartadas"
+    },
+    "loss_reason": {
+      "type": "string",
+      "enum": [
+        "Erro de Ajuste",
+        "Falha da M\u00e1quina",
+        "Falha de Mat\u00e9ria-Prima",
+        "Erro do Operador",
+        "Molde Desgastado",
+        "Outros"
+      ],
+      "description": "Motivo principal das perdas/descarte (rastreabilidade)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Em Andamento",
+        "Conclu\u00edda",
+        "Cancelada"
+      ],
+      "default": "Em Andamento"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es"
+    }
+  },
+  "required": [
+    "order_number",
+    "product_type_id",
+    "production_date",
+    "planned_quantity"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,151 @@
+{
+  "name": "ProductionLine",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome da linha de produ\u00e7\u00e3o (ex: Linha de Blocos A)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o da linha"
+    },
+    "machines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "machine_id": {
+            "type": "string",
+            "description": "ID da m\u00e1quina (refer\u00eancia \u00e0 entidade Machine)"
+          },
+          "machine_name": {
+            "type": "string",
+            "description": "Nome da m\u00e1quina (cache)"
+          },
+          "sequence_order": {
+            "type": "number",
+            "description": "Ordem do equipamento na sequ\u00eancia operacional da linha"
+          },
+          "power_kw": {
+            "type": "number",
+            "description": "Pot\u00eancia utilizada por esta m\u00e1quina na linha (kW)"
+          }
+        }
+      },
+      "description": "Sequ\u00eancia operacional de m\u00e1quinas que comp\u00f5em a linha (sem duplicar cadastro)"
+    },
+    "shared_resources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "description": "ID do recurso compartilhado (SharedResource)"
+          },
+          "resource_name": {
+            "type": "string",
+            "description": "Nome do recurso (cache)"
+          },
+          "resource_type": {
+            "type": "string",
+            "description": "Tipo do recurso (cache)"
+          },
+          "usage_pct": {
+            "type": "number",
+            "description": "Percentual de uso deste recurso pela linha (%) \u2014 base do rateio de custo"
+          }
+        }
+      },
+      "description": "Recursos compartilhados entre linhas (ex: central dosadora) com percentual de rateio de custo"
+    },
+    "installed_power_kw": {
+      "type": "number",
+      "description": "Pot\u00eancia total instalada da linha (kW)"
+    },
+    "used_power_kw": {
+      "type": "number",
+      "description": "Pot\u00eancia utilizada (soma das pot\u00eancias das m\u00e1quinas da linha) (kW)"
+    },
+    "energy_cost_per_kwh": {
+      "type": "number",
+      "description": "Custo de energia por kWh (R$)"
+    },
+    "production_capacity_per_hour": {
+      "type": "number",
+      "description": "Capacidade nominal da linha em ciclos por hora"
+    },
+    "target_cycles_per_hour": {
+      "type": "number",
+      "description": "Meta de velocidade de cruzeiro (ciclos/hora) usada como base de rateio dos custos fixos da DRE"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    }
+  }
+}

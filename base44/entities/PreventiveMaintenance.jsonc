@@ -1,0 +1,109 @@
+{
+  "name": "PreventiveMaintenance",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da manuten\u00e7\u00e3o"
+    },
+    "machine_id": {
+      "type": "string",
+      "description": "ID da m\u00e1quina"
+    },
+    "machine_name": {
+      "type": "string",
+      "description": "Nome da m\u00e1quina (cache)"
+    },
+    "mold_id": {
+      "type": "string",
+      "description": "ID do molde (opcional)"
+    },
+    "mold_name": {
+      "type": "string",
+      "description": "Nome do molde (cache)"
+    },
+    "maintenance_type": {
+      "type": "string",
+      "enum": [
+        "El\u00e9trico",
+        "Mec\u00e2nico",
+        "Pneum\u00e1tico",
+        "Hidr\u00e1ulico",
+        "Lubrifica\u00e7\u00e3o",
+        "Inspe\u00e7\u00e3o Geral",
+        "Troca de Pe\u00e7a",
+        "Outros"
+      ],
+      "description": "Tipo de manuten\u00e7\u00e3o preventiva"
+    },
+    "replaced_part": {
+      "type": "string",
+      "description": "Pe\u00e7a trocada (se houver)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o da manuten\u00e7\u00e3o realizada"
+    },
+    "technician": {
+      "type": "string",
+      "description": "Respons\u00e1vel pela manuten\u00e7\u00e3o"
+    },
+    "duration_minutes": {
+      "type": "number",
+      "description": "Dura\u00e7\u00e3o em minutos"
+    }
+  },
+  "required": [
+    "date",
+    "maintenance_type"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    }
+  }
+}

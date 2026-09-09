@@ -1,0 +1,128 @@
+{
+  "name": "Mold",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome do molde (ex: Molde Bloco 14 - A)"
+    },
+    "code": {
+      "type": "string",
+      "description": "C\u00f3digo interno autom\u00e1tico (ex: BL0001/26)"
+    },
+    "code_sequence": {
+      "type": "number",
+      "description": "N\u00famero sequencial do c\u00f3digo"
+    },
+    "code_year": {
+      "type": "number",
+      "description": "Ano do c\u00f3digo (para sequencial anual)"
+    },
+    "supplier_code": {
+      "type": "string",
+      "description": "C\u00f3digo do fornecedor (manual)"
+    },
+    "product_type_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs dos tipos de artefato vinculados"
+    },
+    "product_type_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Nomes dos artefatos (cache)"
+    },
+    "units_per_cycle": {
+      "type": "number",
+      "description": "Quantidade de artefatos produzidos por ciclo (moldagem)"
+    },
+    "max_cycles": {
+      "type": "number",
+      "description": "Vida \u00fatil m\u00e1xima em ciclos (n\u00famero de moldagens)"
+    },
+    "cycles_used": {
+      "type": "number",
+      "default": 0,
+      "description": "Ciclos j\u00e1 utilizados"
+    },
+    "cost": {
+      "type": "number",
+      "default": 0,
+      "description": "Custo total de aquisi\u00e7\u00e3o do molde (R$)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Ativo",
+        "Em Manuten\u00e7\u00e3o",
+        "Descartado"
+      ],
+      "default": "Ativo",
+      "description": "Status atual do molde"
+    },
+    "acquisition_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de aquisi\u00e7\u00e3o"
+    },
+    "last_maintenance_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da \u00faltima manuten\u00e7\u00e3o"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es"
+    }
+  },
+  "required": [
+    "name",
+    "code"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": null,
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    }
+  }
+}

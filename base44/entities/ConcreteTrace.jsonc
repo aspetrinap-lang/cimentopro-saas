@@ -1,0 +1,136 @@
+{
+  "name": "ConcreteTrace",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome do tra\u00e7o (ex: Tra\u00e7o 4 MPa)"
+    },
+    "resistance_mpa": {
+      "type": "number",
+      "description": "Resist\u00eancia em MPa"
+    },
+    "ratio_label": {
+      "type": "string",
+      "description": "R\u00f3tulo da propor\u00e7\u00e3o cimento/agregado (ex: 1/16)"
+    },
+    "total_weight_kg": {
+      "type": "number",
+      "description": "Peso total da mistura em kg (base de c\u00e1lculo)"
+    },
+    "aggregate_parts": {
+      "type": "number",
+      "default": 16,
+      "description": "Partes de agregado na propor\u00e7\u00e3o (ex: 1/16 \u2192 16)"
+    },
+    "cement_parts": {
+      "type": "number",
+      "default": 1,
+      "description": "Partes de cimento na propor\u00e7\u00e3o (compatibilidade)"
+    },
+    "materials_composition": {
+      "type": "object",
+      "description": "Composi\u00e7\u00e3o din\u00e2mica: { chave: { percent, type: 'aggregate'|'additive' } }. Agregados: % do peso total; Aditivos: % do peso do cimento."
+    },
+    "sand_artificial_parts": {
+      "type": "number",
+      "default": 0,
+      "description": "Partes de areia artificial (compatibilidade)"
+    },
+    "sand_medium_parts": {
+      "type": "number",
+      "default": 0,
+      "description": "Partes de areia m\u00e9dia (compatibilidade)"
+    },
+    "sand_fine_parts": {
+      "type": "number",
+      "default": 0,
+      "description": "Partes de areia fina (compatibilidade)"
+    },
+    "gravel_parts": {
+      "type": "number",
+      "default": 0,
+      "description": "Partes de brita (compatibilidade)"
+    },
+    "materials_parts": {
+      "type": "object",
+      "description": "Partes de cada mat\u00e9ria-prima no tra\u00e7o (chave \u2192 partes). Compatibilidade com c\u00e1lculos de desvio."
+    },
+    "cement_kg_per_m3": {
+      "type": "number",
+      "description": "Peso do cimento por tra\u00e7o (kg) \u2014 calculado a partir do peso total e propor\u00e7\u00e3o"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    },
+    "notes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es"
+    }
+  },
+  "required": [
+    "name",
+    "cement_parts"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    }
+  }
+}

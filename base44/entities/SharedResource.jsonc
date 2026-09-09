@@ -1,0 +1,102 @@
+{
+  "name": "SharedResource",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome do recurso compartilhado (ex: Central Dosadora 1)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o t\u00e9cnica do recurso"
+    },
+    "resource_type": {
+      "type": "string",
+      "enum": [
+        "Central Dosadora",
+        "Compressor",
+        "Silo",
+        "Esteira",
+        "Outros"
+      ],
+      "default": "Central Dosadora",
+      "description": "Tipo do recurso compartilhado entre linhas"
+    },
+    "cost_per_hour": {
+      "type": "number",
+      "description": "Custo operacional por hora de uso (R$/h) \u2014 usado para rateio"
+    },
+    "power_kw": {
+      "type": "number",
+      "description": "Pot\u00eancia el\u00e9trica (kW)"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name",
+    "resource_type"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,250 @@
+{
+  "name": "QualityReport",
+  "type": "object",
+  "properties": {
+    "report_number": {
+      "type": "string",
+      "description": "N\u00ba do laudo (sequencial)"
+    },
+    "order_id": {
+      "type": "string",
+      "description": "ID da ordem de produ\u00e7\u00e3o vinculada"
+    },
+    "order_number": {
+      "type": "string",
+      "description": "N\u00ba da ordem (cache)"
+    },
+    "product_type_id": {
+      "type": "string",
+      "description": "ID do artefato"
+    },
+    "product_type_name": {
+      "type": "string",
+      "description": "Nome do artefato (cache)"
+    },
+    "category": {
+      "type": "string",
+      "description": "Categoria do artefato (Blocos/Pavimento)"
+    },
+    "norm_reference": {
+      "type": "string",
+      "enum": [
+        "NBR 6136",
+        "NBR 9781"
+      ],
+      "description": "Norma de refer\u00eancia (blocos ou pavimentos)"
+    },
+    "laboratory_name": {
+      "type": "string",
+      "description": "Identifica\u00e7\u00e3o do laborat\u00f3rio"
+    },
+    "test_equipment": {
+      "type": "string",
+      "description": "M\u00e1quina de ensaio utilizada (prensa)"
+    },
+    "calibration_number": {
+      "type": "string",
+      "description": "N\u00ba do certificado de calibra\u00e7\u00e3o da m\u00e1quina"
+    },
+    "calibration_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data da calibra\u00e7\u00e3o da m\u00e1quina"
+    },
+    "calibration_issuer": {
+      "type": "string",
+      "description": "Emitente do certificado de calibra\u00e7\u00e3o"
+    },
+    "responsible_engineer": {
+      "type": "string",
+      "description": "Engenheiro civil respons\u00e1vel"
+    },
+    "engineer_crea": {
+      "type": "string",
+      "description": "Registro CREA do respons\u00e1vel"
+    },
+    "manufacturer": {
+      "type": "string",
+      "description": "Fabricante do lote"
+    },
+    "application_location": {
+      "type": "string",
+      "description": "Local de aplica\u00e7\u00e3o do lote"
+    },
+    "molding_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de moldagem/recebimento"
+    },
+    "test_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data do ensaio de ruptura (idade de refer\u00eancia)"
+    },
+    "specimen_count": {
+      "type": "number",
+      "default": 6,
+      "description": "Quantidade de corpos de prova ensaiados"
+    },
+    "specimens": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "age_days": {
+            "type": "number"
+          },
+          "width_mm": {
+            "type": "number"
+          },
+          "height_mm": {
+            "type": "number"
+          },
+          "length_mm": {
+            "type": "number"
+          },
+          "area_cm2": {
+            "type": "number"
+          },
+          "mass_g": {
+            "type": "number",
+            "description": "Massa do corpo de prova (gramas)"
+          },
+          "rupture_load_kn": {
+            "type": "number"
+          },
+          "resistance_mpa": {
+            "type": "number"
+          }
+        }
+      },
+      "description": "Resultados individuais dos corpos de prova (agrupados por idade: 7, 14, 21, 28 dias)"
+    },
+    "final_age_days": {
+      "type": "number",
+      "default": 28,
+      "description": "Idade de refer\u00eancia para conformidade (28 dias)"
+    },
+    "average_resistance": {
+      "type": "number",
+      "description": "Resist\u00eancia m\u00e9dia (MPa) na idade de refer\u00eancia"
+    },
+    "min_resistance": {
+      "type": "number",
+      "description": "Menor resist\u00eancia individual (MPa) na idade de refer\u00eancia"
+    },
+    "estimated_fck": {
+      "type": "number",
+      "description": "Resist\u00eancia caracter\u00edstica estimada (fck est \u2014 MPa)"
+    },
+    "target_resistance": {
+      "type": "number",
+      "description": "Resist\u00eancia caracter\u00edstica de projeto (fck MPa)"
+    },
+    "traffic_type": {
+      "type": "string",
+      "enum": [
+        "Pedestres/Leves",
+        "Pesado"
+      ],
+      "description": "Tipo de tr\u00e1fego previsto (NBR 9781)"
+    },
+    "nominal_thickness_mm": {
+      "type": "number",
+      "description": "Espessura nominal (mm) \u2014 NBR 9781"
+    },
+    "measured_thickness_mm": {
+      "type": "number",
+      "description": "Espessura medida (mm) \u2014 NBR 9781"
+    },
+    "thickness_ok": {
+      "type": "boolean",
+      "description": "Conformidade dimensional da espessura (varia\u00e7\u00e3o \u2264 3 mm)"
+    },
+    "is_compliant": {
+      "type": "boolean",
+      "description": "Conformidade do lote frente \u00e0 norma (idade de refer\u00eancia)"
+    },
+    "alerts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Alertas de n\u00e3o conformidade (informativos, n\u00e3o bloqueantes)"
+    },
+    "conclusion": {
+      "type": "string",
+      "description": "Conclus\u00e3o t\u00e9cnica do laudo"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Observa\u00e7\u00f5es adicionais"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Rascunho",
+        "Emitido",
+        "Revisado"
+      ],
+      "default": "Emitido"
+    }
+  },
+  "required": [
+    "report_number",
+    "order_id",
+    "norm_reference",
+    "molding_date"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "supervisor"
+          }
+        }
+      ]
+    }
+  }
+}
