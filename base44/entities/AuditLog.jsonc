@@ -4,81 +4,106 @@
   "properties": {
     "user_id": {
       "type": "string",
-      "description": "ID do usu\u00e1rio (SUPER_ADMIN) que realizou a a\u00e7\u00e3o"
+      "description": "ID do usu\u00e1rio que realizou a a\u00e7\u00e3o"
     },
     "user_email": {
       "type": "string",
-      "description": "E-mail do usu\u00e1rio (cache)"
+      "description": "E-mail do usu\u00e1rio (cache, exibi\u00e7\u00e3o)"
     },
     "company_id": {
       "type": "string",
-      "description": "ID da empresa afetada, quando aplic\u00e1vel"
+      "description": "ID da empresa afetada / escopo da a\u00e7\u00e3o"
     },
     "action": {
       "type": "string",
       "enum": [
-        "COMPANY_CREATED",
-        "COMPANY_UPDATED",
-        "COMPANY_SUSPENDED",
-        "COMPANY_REACTIVATED",
-        "COMPANY_CANCELLED",
-        "USER_CREATED",
-        "USER_DEACTIVATED",
-        "PLAN_CHANGED",
-        "SUBSCRIPTION_CHANGED",
-        "PLATFORM_SETTING_CHANGED"
+        "CREATE",
+        "UPDATE",
+        "DELETE",
+        "LOGIN",
+        "LOGOUT",
+        "PERMISSION_CHANGE",
+        "COMPANY_STATUS_CHANGE"
       ],
-      "description": "A\u00e7\u00e3o administrativa realizada"
+      "description": "A\u00e7\u00e3o registrada na auditoria"
     },
-    "resource": {
+    "entity_name": {
       "type": "string",
-      "description": "Tipo de recurso afetado (ex: company, user, plan)"
+      "description": "Entidade afetada (ex: ProductionOrder, UserPin, Company, UserRoleProfile)"
     },
-    "resource_id": {
+    "entity_id": {
       "type": "string",
-      "description": "ID do recurso afetado"
+      "description": "ID do registro afetado"
+    },
+    "old_value": {
+      "type": "object",
+      "description": "Estado anterior (sanitizado \u2014 sem senhas, tokens, credenciais ou dados sens\u00edveis)"
+    },
+    "new_value": {
+      "type": "object",
+      "description": "Estado novo (sanitizado \u2014 sem senhas, tokens, credenciais ou dados sens\u00edveis)"
     },
     "ip": {
       "type": "string",
-      "description": "IP de origem da requisi\u00e7\u00e3o"
-    },
-    "metadata": {
-      "type": "object",
-      "description": "Dados adicionais da a\u00e7\u00e3o (ex: campos alterados, status)"
+      "description": "IP de origem da requisi\u00e7\u00e3o (quando dispon\u00edvel)"
     }
   },
   "required": [
     "user_id",
     "action",
-    "resource"
+    "entity_name"
   ],
   "rls": {
+    "create": null,
     "read": {
       "$or": [
         {
           "created_by_id": "{{user.id}}"
         },
         {
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
+          }
+        },
+        {
           "user_condition": {
             "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "is_platform_admin": true
           }
         }
       ]
     },
-    "create": {
-      "user_condition": {
-        "role": "admin"
-      }
-    },
     "update": {
-      "user_condition": {
-        "role": "admin"
-      }
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "is_platform_admin": true
+          }
+        }
+      ]
     },
     "delete": {
-      "user_condition": {
-        "role": "admin"
-      }
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "is_platform_admin": true
+          }
+        }
+      ]
     }
   }
 }
