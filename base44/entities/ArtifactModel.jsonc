@@ -2,6 +2,10 @@
   "name": "ArtifactModel",
   "type": "object",
   "properties": {
+    "company_id": {
+      "type": "string",
+      "description": "ID da empresa (Company) \u2014 escopo multi-tenant, definido pela empresa ativa na cria\u00e7\u00e3o"
+    },
     "name": {
       "type": "string",
       "description": "Nome do modelo (ex: Bloco Estrutural 14x19x39)"
@@ -44,9 +48,61 @@
     "category"
   ],
   "rls": {
-    "create": null,
-    "read": null,
-    "update": null,
-    "delete": null
+    "read": {
+      "$or": [
+        {
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "$or": [
+        {
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
   }
 }
