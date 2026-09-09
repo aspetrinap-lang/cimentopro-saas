@@ -10,6 +10,7 @@ import { ROLE_LABELS } from '@/lib/permissions';
 import { usePermissions } from '@/lib/PermissionsContext';
 import { useToast } from '@/components/ui/use-toast';
 import CompanySelector from '@/components/CompanySelector';
+import { logAudit } from '@/lib/audit';
 
 const navItems = [
   { to: '/', label: 'Indicadores', icon: LayoutDashboard },
@@ -55,11 +56,13 @@ export default function Layout() {
     return <Navigate to={allowed[0] || '/pin-login'} replace />;
   }
 
-  function handleLogoutOperator() {
+  async function handleLogoutOperator() {
+    await logAudit({ action: 'LOGOUT', entity_name: 'UserPin', entity_id: activeOperator?.id || null });
     clearOperator();
     navigate('/pin-login');
   }
-  function handleLogout() {
+  async function handleLogout() {
+    await logAudit({ action: 'LOGOUT', entity_name: 'User' });
     logout(true);
   }
 

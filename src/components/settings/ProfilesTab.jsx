@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Plus, Pencil, Trash2, X, ShieldCheck } from 'lucide-react';
 import { PERMISSION_CATALOG, resolvePermissions } from '@/lib/permissions';
 import { usePermissions } from '@/lib/PermissionsContext';
+import { logAudit } from '@/lib/audit';
 
 // Módulos editáveis em um perfil de operador (plataforma é exclusiva do SUPER_ADMIN).
 const EDITOR_MODULES = PERMISSION_CATALOG.filter((m) => m.module !== 'platform');
@@ -79,8 +80,14 @@ export default function ProfilesTab() {
     try {
       if (editing?.id) {
         await base44.entities.UserRoleProfile.update(editing.id, payload);
+        await logAudit({
+          action: 'PERMISSION_CHANGE', entity_name: 'UserRoleProfile', entity_id: editing.id,
+          old_value: { name: editing.name, permissions: editing.permissions, active: editing.active },
+          new_value: payload,
+        });
       } else {
-        await base44.entities.UserRoleProfile.create(payload);
+        const created = await base44.entities.UserRoleProfile.create(payload);
+        await logAudit({ action: 'PERMISSION_CHANGE', entity_name: 'UserRoleProfile', entity_id: created.id, new_value: payload });
       }
       setSaving(false);
       setShowForm(false);
@@ -93,6 +100,10 @@ export default function ProfilesTab() {
   async function handleDelete(item) {
     if (!window.confirm(`Excluir perfil "${item.name}"?`)) return;
     await base44.entities.UserRoleProfile.delete(item.id);
+    await logAudit({
+      action: 'PERMISSION_CHANGE', entity_name: 'UserRoleProfile', entity_id: item.id,
+      old_value: { name: item.name, permissions: item.permissions, active: item.active },
+    });
     load();
   }
 

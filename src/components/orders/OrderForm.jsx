@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { logAudit } from '@/lib/audit';
 import { X, AlertTriangle } from 'lucide-react';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
 import { INSUMO_KEYS, INSUMO_FIELDS, INSUMO_TRACE_PARTS } from '@/lib/insumos';
@@ -198,6 +199,7 @@ export default function OrderForm({ order, productTypes, onClose, onSaved }) {
 
     if (order?.id) {
       await base44.entities.ProductionOrder.update(order.id, payload);
+      await logAudit({ action: 'UPDATE', entity_name: 'ProductionOrder', entity_id: order.id, old_value: order, new_value: payload });
       // Atualiza ciclos do molde ao CONCLUIR (transição para Concluída)
       const wasConcluded = order.status === 'Concluída';
       const isNowConcluded = payload.status === 'Concluída';
@@ -205,7 +207,8 @@ export default function OrderForm({ order, productTypes, onClose, onSaved }) {
         await updateMoldCycles(payload.machine_cycles_actual);
       }
     } else {
-      await base44.entities.ProductionOrder.create(withCompany(payload));
+      const created = await base44.entities.ProductionOrder.create(withCompany(payload));
+      await logAudit({ action: 'CREATE', entity_name: 'ProductionOrder', entity_id: created.id, new_value: payload });
       // Se criada já como Concluída, conta ciclos
       if (payload.status === 'Concluída') {
         await updateMoldCycles(payload.machine_cycles_actual);

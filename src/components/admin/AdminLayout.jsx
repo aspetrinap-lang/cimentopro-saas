@@ -10,6 +10,7 @@ const mainNav = [
   { to: '/admin', label: 'Início', icon: Home, end: true },
   { to: '/admin/companies', label: 'Empresas', icon: Building2 },
   { to: '/admin/users', label: 'Usuários', icon: Users },
+  { to: '/admin/audit', label: 'Auditoria', icon: ScrollText },
 ];
 
 const soonNav = [
@@ -18,7 +19,6 @@ const soonNav = [
   { label: 'Assinaturas', icon: ReceiptText },
   { label: 'Status das Empresas', icon: Activity },
   { label: 'Configurações Globais', icon: Settings2 },
-  { label: 'Logs / Auditoria', icon: ScrollText },
   { label: 'Suporte', icon: LifeBuoy },
   { label: 'Métricas da Plataforma', icon: BarChart3 },
 ];

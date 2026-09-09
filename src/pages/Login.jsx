@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Factory, Mail, Lock, Loader2, ArrowLeft, KeyRound, User } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
+import { logAudit } from "@/lib/audit";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -26,6 +27,8 @@ export default function Login() {
     setLoading(true);
     try {
       await base44.auth.loginViaEmailPassword(email, password);
+      const me = await base44.auth.me().catch(() => null);
+      await logAudit({ action: "LOGIN", entity_name: "User", entity_id: me?.id || null });
       window.location.href = "/";
     } catch (err) {
       setError(err.message || "E-mail ou senha inválidos");

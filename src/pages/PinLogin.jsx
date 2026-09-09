@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { useOperator } from '@/lib/OperatorContext';
 import { ROLE_LABELS, getAllowedPaths, getAllowedPathsForOperator } from '@/lib/permissions';
 import { scopedFilter } from '@/lib/companyScope';
+import { logAudit } from '@/lib/audit';
 import { Factory, ArrowLeft, Delete, ShieldCheck } from 'lucide-react';
 
 export default function PinLogin() {
@@ -45,6 +46,7 @@ export default function PinLogin() {
               permissions: profile?.permissions || null,
             };
             setActiveOperator(operator);
+            logAudit({ action: 'LOGIN', entity_name: 'UserPin', entity_id: selected.id, company_id: selected.company_id || null });
             navigate(getAllowedPathsForOperator(operator)[0] || '/orders');
           })
           .catch(() => {
@@ -57,6 +59,7 @@ export default function PinLogin() {
               permissions: null,
             };
             setActiveOperator(operator);
+            logAudit({ action: 'LOGIN', entity_name: 'UserPin', entity_id: selected.id, company_id: selected.company_id || null });
             navigate(getAllowedPaths(operator.role)[0]);
           });
       } else {

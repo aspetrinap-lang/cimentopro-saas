@@ -4,6 +4,7 @@ import { Plus, Pencil, Trash2, X } from 'lucide-react';
 import { ROLE_LABELS } from '@/lib/permissions';
 import { scopedFilter, withCompany } from '@/lib/companyScope';
 import { usePermissions } from '@/lib/PermissionsContext';
+import { logAudit } from '@/lib/audit';
 
 const ROLES = [
   { value: 'operador', label: 'Operador' },
@@ -54,8 +55,17 @@ export default function OperatorsTab() {
     };
     if (editing?.id) {
       await base44.entities.UserPin.update(editing.id, payload);
+      await logAudit({ action: 'UPDATE', entity_name: 'UserPin', entity_id: editing.id, old_value: editing, new_value: payload });
+      if (editing.role !== payload.role || (editing.profile_id || null) !== (payload.profile_id || null)) {
+        await logAudit({
+          action: 'PERMISSION_CHANGE', entity_name: 'UserPin', entity_id: editing.id,
+          old_value: { role: editing.role, profile_id: editing.profile_id },
+          new_value: { role: payload.role, profile_id: payload.profile_id },
+        });
+      }
     } else {
-      await base44.entities.UserPin.create(withCompany(payload));
+      const created = await base44.entities.UserPin.create(withCompany(payload));
+      await logAudit({ action: 'CREATE', entity_name: 'UserPin', entity_id: created.id, new_value: payload });
     }
     setSaving(false);
     setShowForm(false);
@@ -65,6 +75,7 @@ export default function OperatorsTab() {
   async function handleDelete(item) {
     if (!window.confirm(`Excluir operador "${item.name}"?`)) return;
     await base44.entities.UserPin.delete(item.id);
+    await logAudit({ action: 'DELETE', entity_name: 'UserPin', entity_id: item.id, old_value: item });
     load();
   }
 

@@ -16,16 +16,17 @@ export default async function(req) {
     const action = body.action;
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || null;
 
-    const audit = async (actionName, companyId, metadata) => {
+    const audit = async (actionName, companyId, oldValue, newValue) => {
       await svc.entities.AuditLog.create({
         user_id: user.id,
         user_email: user.email,
         company_id: companyId,
         action: actionName,
-        resource: 'company',
-        resource_id: companyId,
+        entity_name: 'Company',
+        entity_id: companyId,
         ip,
-        metadata: metadata || {}
+        old_value: oldValue || null,
+        new_value: newValue || null,
       });
     };
 
@@ -60,7 +61,7 @@ export default async function(req) {
       for (const field of EDITABLE_FIELDS) data[field] = body[field] !== undefined ? body[field] : '';
       data.name = String(body.name).trim();
       const created = await svc.entities.Company.create(data);
-      await audit('COMPANY_CREATED', created.id, { name: created.name });
+      await audit('CREATE', created.id, null, { name: created.name, status: created.status });
       return Response.json({ company: created });
     }
 
@@ -78,8 +79,10 @@ export default async function(req) {
         }
         data.name = String(data.name).trim();
       }
+      const prev = await svc.entities.Company.get(body.company_id).catch(() => null);
       const updated = await svc.entities.Company.update(body.company_id, data);
-      await audit('COMPANY_UPDATED', body.company_id, data);
+      const prevSnap = prev ? Object.fromEntries(EDITABLE_FIELDS.map((f) => [f, prev[f]])) : null;
+      await audit('UPDATE', body.company_id, prevSnap, data);
       return Response.json({ company: updated });
     }
 
@@ -88,8 +91,9 @@ export default async function(req) {
         return Response.json({ error: 'company_id é obrigatório' }, { status: 400 });
       }
       const status = action === 'suspend' ? 'suspended' : 'active';
+      const prev = await svc.entities.Company.get(body.company_id).catch(() => null);
       const updated = await svc.entities.Company.update(body.company_id, { status });
-      await audit(action === 'suspend' ? 'COMPANY_SUSPENDED' : 'COMPANY_REACTIVATED', body.company_id, { status });
+      await audit('COMPANY_STATUS_CHANGE', body.company_id, prev ? { status: prev.status } : null, { status });
       return Response.json({ company: updated });
     }
 

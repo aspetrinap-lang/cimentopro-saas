@@ -7,6 +7,7 @@ import { Plus, Printer, Search } from 'lucide-react';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
 import OrdersReport from '@/components/reports/OrdersReport';
 import { scopedFilter } from '@/lib/companyScope';
+import { logAudit } from '@/lib/audit';
 import { usePermissions } from '@/lib/PermissionsContext';
 
 export default function Orders() {
@@ -36,6 +37,7 @@ export default function Orders() {
   async function handleDelete(order) {
     if (!window.confirm(`Excluir ordem ${order.order_number}?`)) return;
     await base44.entities.ProductionOrder.delete(order.id);
+    await logAudit({ action: 'DELETE', entity_name: 'ProductionOrder', entity_id: order.id, old_value: order });
     load();
   }
 
