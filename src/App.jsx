@@ -31,6 +31,7 @@ import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import PinLogin from '@/pages/PinLogin';
 import { OperatorProvider } from '@/lib/OperatorContext';
+import { CompanyProvider } from '@/lib/CompanyContext';
 import { ThemeProvider } from 'next-themes';
 
 const AuthenticatedApp = () => {
@@ -92,6 +93,7 @@ function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
     <AuthProvider>
+      <CompanyProvider>
       <QueryClientProvider client={queryClientInstance}>
         <ConfigProvider>
           <OperatorProvider>
@@ -102,6 +104,7 @@ function App() {
           </OperatorProvider>
         </ConfigProvider>
       </QueryClientProvider>
+      </CompanyProvider>
     </AuthProvider>
     </ThemeProvider>
   );
