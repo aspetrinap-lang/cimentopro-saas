@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { activeCompanyId } from '@/lib/companyScope';
 
 // Versão do formato de backup — incrementar ao adicionar campos/módulos
 // v2: norm_class e target_resistance em ProductType; norm_class em QualityReport
@@ -57,7 +58,16 @@ export function downloadBackup(backupObj) {
   URL.revokeObjectURL(url);
 }
 
+// Entidades globais (sem escopo de empresa) — não recebem company_id
+const GLOBAL_ENTITIES = ['UserRoleProfile'];
+
 export async function importAllData(backupObj, { replace } = { replace: false }) {
+  // Multi-tenant: todo registro importado precisa pertencer à empresa ativa,
+  // senão fica invisível nas telas (fora do escopo de company_id)
+  const companyId = activeCompanyId();
+  if (!companyId) {
+    throw new Error('Selecione uma empresa ativa antes de importar o backup — os dados importados precisam pertencer a uma empresa.');
+  }
   const results = {};
   for (const entity of BACKUP_ENTITIES) {
     const records = backupObj.data?.[entity] || [];
@@ -77,6 +87,9 @@ export async function importAllData(backupObj, { replace } = { replace: false })
     const cleanRecords = records.map(r => {
       const clean = { ...r };
       BUILTIN_FIELDS.forEach(f => delete clean[f]);
+      if (!GLOBAL_ENTITIES.includes(entity)) {
+        clean.company_id = clean.company_id || companyId;
+      }
       return clean;
     });
 
