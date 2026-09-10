@@ -2,9 +2,13 @@
   "name": "AppSettings",
   "type": "object",
   "properties": {
+    "company_id": {
+      "type": "string",
+      "description": "ID da empresa (Company) \u2014 escopo multi-tenant, definido pela empresa ativa na cria\u00e7\u00e3o"
+    },
     "key": {
       "type": "string",
-      "description": "Chave \u00fanica da configura\u00e7\u00e3o (ex: insumo_names)"
+      "description": "Chave \u00fanica da configura\u00e7\u00e3o (ex: insumo_names, insumo_costs, raw_materials, maintenance_intervals)"
     },
     "value": {
       "type": "object",
@@ -15,31 +19,44 @@
     "key"
   ],
   "rls": {
-    "create": {
+    "read": {
       "$or": [
         {
-          "user_condition": {
-            "role": "admin"
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
           }
         },
         {
           "user_condition": {
-            "role": "administrador"
+            "role": "admin"
           }
         }
       ]
     },
-    "read": null,
-    "update": {
+    "create": {
       "$or": [
         {
-          "user_condition": {
-            "role": "admin"
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
           }
         },
         {
           "user_condition": {
-            "role": "administrador"
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
           }
         }
       ]
@@ -47,13 +64,13 @@
     "delete": {
       "$or": [
         {
-          "user_condition": {
-            "role": "admin"
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
           }
         },
         {
           "user_condition": {
-            "role": "administrador"
+            "role": "admin"
           }
         }
       ]
