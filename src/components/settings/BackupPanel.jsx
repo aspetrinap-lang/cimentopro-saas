@@ -124,6 +124,11 @@ export default function BackupPanel() {
               </div>
             ))}
           </div>
+          {importResult.skipped && Object.values(importResult.skipped).some(n => (n || 0) > 0) && (
+            <p className="text-xs text-muted-foreground mt-2">
+              {Object.values(importResult.skipped).reduce((a, b) => a + (b || 0), 0)} registros ignorados por já existirem (duplicatas evitadas).
+            </p>
+          )}
         </div>
       )}
 

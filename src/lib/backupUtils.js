@@ -75,6 +75,48 @@ const FK_SPECS = {
   ProductionLine: { machines: 'Machine', shared_resources: 'SharedResource' },
 };
 
+// Entidades cuja chave natural não tem escopo de empresa (a DRE é global)
+const KEY_GLOBAL_ENTITIES = ['UserRoleProfile', 'MonthlyDre'];
+
+function normalizeKeyPart(value) {
+  return value == null ? '' : String(value).trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+// Chaves naturais por entidade — identificam o registro de forma única para
+// ignorar duplicatas na importação. `resolve` traduz FKs do arquivo (ex:
+// machine_id das paradas) para o ID final antes de compor a chave.
+const NATURAL_KEYS = {
+  ProductionOrder: r => [r.order_number],
+  Mold: r => [r.code],
+  ProductType: r => [r.code],
+  Machine: r => [r.code],
+  ConcreteTrace: r => [r.name],
+  FailurePattern: r => [r.name],
+  AppSettings: r => [r.key],
+  ProductionLine: r => [r.name],
+  SharedResource: r => [r.name],
+  QualityReport: r => [r.report_number],
+  UserRoleProfile: r => [r.name],
+  UserPin: r => [r.name],
+  ProductCategory: r => [r.name],
+  ArtifactModel: r => [r.name, r.category],
+  MonthlyDre: r => [r.reference_month],
+  MachineDowntime: (r, resolve) => [r.date, resolve('Machine', r.machine_id), r.start_time],
+  PreventiveMaintenance: (r, resolve) => [r.date, resolve('Machine', r.machine_id), r.maintenance_type],
+};
+
+// Chave natural normalizada (trim, minúsculas, espaços colapsados), isolada
+// por empresa nas entidades multi-tenant. null = sem campos de chave preenchidos.
+function naturalKey(entity, record, companyId, resolve) {
+  const keyFn = NATURAL_KEYS[entity];
+  if (!keyFn) return null;
+  const resolver = resolve || ((refEntity, id) => id);
+  const parts = keyFn(record, resolver);
+  if (parts.some(p => p == null || p === '')) return null;
+  const scope = KEY_GLOBAL_ENTITIES.includes(entity) ? [] : [companyId || record.company_id || ''];
+  return [...scope, ...parts.map(normalizeKeyPart)].join(' ');
+}
+
 export async function importAllData(backupObj, { replace } = { replace: false }) {
   // Multi-tenant: todo registro importado precisa pertencer à empresa ativa,
   // senão fica invisível nas telas (fora do escopo de company_id)
@@ -83,9 +125,12 @@ export async function importAllData(backupObj, { replace } = { replace: false })
     throw new Error('Selecione uma empresa ativa antes de importar o backup — os dados importados precisam pertencer a uma empresa.');
   }
   const results = {};
+  const skipped = {};
   const idMaps = {};
   for (const entity of BACKUP_ENTITIES) {
     const records = backupObj.data?.[entity] || [];
+    idMaps[entity] = {};
+    skipped[entity] = 0;
     if (records.length === 0) {
       results[entity] = 0;
       continue;
@@ -99,22 +144,55 @@ export async function importAllData(backupObj, { replace } = { replace: false })
       }
     }
 
-    const cleanRecords = records.map(r => {
+    // Dedupe por chave natural: registros que já existem no banco (ou que se
+    // repetem dentro do próprio arquivo) são ignorados em vez de duplicados.
+    const resolveId = (refEntity, id) => (id && idMaps[refEntity] && idMaps[refEntity][id]) || id;
+    const existingRecords = await base44.entities[entity].list('created_date', 10000);
+    const existingByKey = new Map();
+    for (const r of existingRecords) {
+      const key = naturalKey(entity, r, companyId, resolveId);
+      if (key && !existingByKey.has(key)) existingByKey.set(key, r.id);
+    }
+
+    const toCreate = [];
+    const batchDupes = [];
+    const firstByKey = new Map();
+    let skippedCount = 0;
+    for (const r of records) {
+      const key = naturalKey(entity, r, companyId, resolveId);
+      if (key && existingByKey.has(key)) {
+        idMaps[entity][r.id] = existingByKey.get(key);
+        skippedCount++;
+        continue;
+      }
+      if (key && firstByKey.has(key)) {
+        batchDupes.push({ id: r.id, firstId: firstByKey.get(key) });
+        skippedCount++;
+        continue;
+      }
+      if (key) firstByKey.set(key, r.id);
       const clean = { ...r };
       BUILTIN_FIELDS.forEach(f => delete clean[f]);
       if (!GLOBAL_ENTITIES.includes(entity)) {
         clean.company_id = clean.company_id || companyId;
       }
-      return clean;
-    });
+      toCreate.push({ fileId: r.id, clean });
+    }
 
-    const created = await base44.entities[entity].bulkCreate(cleanRecords);
-    results[entity] = Array.isArray(created) ? created.length : 0;
-    // Mapa id antigo (do arquivo) → id novo (criado agora), por entidade
-    idMaps[entity] = {};
-    (Array.isArray(created) ? created : []).forEach((c, i) => {
-      if (records[i] && c.id) idMaps[entity][records[i].id] = c.id;
+    const created = toCreate.length > 0
+      ? await base44.entities[entity].bulkCreate(toCreate.map(t => t.clean))
+      : [];
+    const createdArr = Array.isArray(created) ? created : [];
+    results[entity] = createdArr.length;
+    skipped[entity] = skippedCount;
+
+    // Mapa id antigo (do arquivo) → id final (criado agora ou já existente), por entidade
+    toCreate.forEach((t, i) => {
+      if (createdArr[i] && createdArr[i].id) idMaps[entity][t.fileId] = createdArr[i].id;
     });
+    for (const d of batchDupes) {
+      if (idMaps[entity][d.firstId]) idMaps[entity][d.id] = idMaps[entity][d.firstId];
+    }
   }
 
   // Passo 2: remapeia os vínculos usando o mapa id antigo → novo do arquivo
@@ -155,6 +233,7 @@ export async function importAllData(backupObj, { replace } = { replace: false })
       await base44.entities[entity].bulkUpdate(updates.slice(i, i + 400));
     }
   }
+  results.skipped = skipped;
   return results;
 }
 
