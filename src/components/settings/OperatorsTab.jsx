@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Plus, Pencil, Trash2, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, KeyRound, Lock } from 'lucide-react';
 import { ROLE_LABELS } from '@/lib/permissions';
-import { scopedFilter, withCompany } from '@/lib/companyScope';
+import { activeCompanyId } from '@/lib/companyScope';
 import { usePermissions } from '@/lib/PermissionsContext';
 import { logAudit } from '@/lib/audit';
+import { useToast } from '@/components/ui/use-toast';
 
 const ROLES = [
   { value: 'operador', label: 'Operador' },
@@ -16,6 +17,7 @@ const empty = { name: '', email: '', pin: '', role: 'operador', profile_id: '', 
 
 export default function OperatorsTab() {
   const { can } = usePermissions();
+  const { toast } = useToast();
   const [list, setList] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,53 +25,83 @@ export default function OperatorsTab() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(null);
+  const [newPin, setNewPin] = useState('');
+  const [savingPin, setSavingPin] = useState(false);
 
   async function load() {
     setLoading(true);
-    const [data, profs] = await Promise.all([
-      base44.entities.UserPin.filter(scopedFilter(), 'name'),
-      base44.entities.UserRoleProfile.filter({ active: true }, 'name').catch(() => []),
-    ]);
-    setList(data);
-    setProfiles(profs);
-    setLoading(false);
+    try {
+      const [res, profs] = await Promise.all([
+        base44.functions.invoke('operatorPins', { action: 'list', company_id: activeCompanyId() }),
+        base44.entities.UserRoleProfile.filter({ active: true }, 'name').catch(() => []),
+      ]);
+      setList(res.data.operators || []);
+      setProfiles(profs);
+    } catch (err) {
+      toast({ title: 'Erro ao carregar operadores', description: err.response?.data?.error || err.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { load(); }, []);
 
   function openNew() { setEditing(null); setForm({ ...empty }); setShowForm(true); }
-  function openEdit(item) { setEditing(item); setForm({ ...item }); setShowForm(true); }
+  function openEdit(item) { setEditing(item); setForm({ ...empty, name: item.name, email: item.email || '', role: item.role, profile_id: item.profile_id || '', active: item.active !== false }); setShowForm(true); }
   function set(field, val) { setForm((f) => ({ ...f, [field]: val })); }
 
   async function handleSave(e) {
     e.preventDefault();
+    const pin = String(form.pin || '').replace(/\D/g, '');
+    if (!editing && !/^\d{4}$/.test(pin)) {
+      toast({ title: 'PIN inválido', description: 'Informe um PIN de exatamente 4 dígitos.', variant: 'destructive' });
+      return;
+    }
     setSaving(true);
-    const pin = String(form.pin || '').replace(/\D/g, '').padStart(4, '0').slice(0, 4);
-    const payload = {
-      name: form.name.trim(),
-      email: (form.email || '').trim(),
-      pin,
-      role: form.role,
-      profile_id: form.profile_id || null,
-      active: form.active !== false,
-    };
-    if (editing?.id) {
-      await base44.entities.UserPin.update(editing.id, payload);
-      await logAudit({ action: 'UPDATE', entity_name: 'UserPin', entity_id: editing.id, old_value: editing, new_value: payload });
-      if (editing.role !== payload.role || (editing.profile_id || null) !== (payload.profile_id || null)) {
-        await logAudit({
-          action: 'PERMISSION_CHANGE', entity_name: 'UserPin', entity_id: editing.id,
-          old_value: { role: editing.role, profile_id: editing.profile_id },
-          new_value: { role: payload.role, profile_id: payload.profile_id },
-        });
-      }
-    } else {
-      const created = await base44.entities.UserPin.create(withCompany(payload));
-      await logAudit({ action: 'CREATE', entity_name: 'UserPin', entity_id: created.id, new_value: payload });
+    try {
+      await base44.functions.invoke('operatorPins', {
+        action: 'save',
+        operator_id: editing?.id || null,
+        company_id: activeCompanyId(),
+        name: form.name.trim(),
+        email: (form.email || '').trim(),
+        role: form.role,
+        profile_id: form.profile_id || null,
+        active: form.active !== false,
+        pin: pin || null,
+      });
+      toast({ title: editing ? 'Operador atualizado' : 'Operador criado' });
+    } catch (err) {
+      toast({ title: 'Não foi possível salvar', description: err.response?.data?.error || err.message, variant: 'destructive' });
+      setSaving(false);
+      return;
     }
     setSaving(false);
     setShowForm(false);
     load();
+  }
+
+  function openReset(op) { setResetting(op); setNewPin(''); }
+
+  async function handleResetPin(e) {
+    e.preventDefault();
+    const digits = String(newPin || '').replace(/\D/g, '');
+    if (!/^\d{4}$/.test(digits)) {
+      toast({ title: 'PIN inválido', description: 'Informe um PIN de exatamente 4 dígitos.', variant: 'destructive' });
+      return;
+    }
+    setSavingPin(true);
+    try {
+      await base44.functions.invoke('operatorPins', { action: 'reset_pin', operator_id: resetting.id, pin: digits });
+      toast({ title: 'PIN redefinido', description: `${resetting.name} já pode acessar com o novo PIN.` });
+      setResetting(null);
+      load();
+    } catch (err) {
+      toast({ title: 'Não foi possível redefinir', description: err.response?.data?.error || err.message, variant: 'destructive' });
+    } finally {
+      setSavingPin(false);
+    }
   }
 
   async function handleDelete(item) {
@@ -120,7 +152,11 @@ export default function OperatorsTab() {
                   <td className="px-5 py-3 text-muted-foreground">
                     {profiles.find((p) => p.id === op.profile_id)?.name || <span className="text-muted-foreground/60">Padrão</span>}
                   </td>
-                  <td className="px-5 py-3 text-center font-mono text-xs">{op.pin || '—'}</td>
+                  <td className="px-5 py-3 text-center">
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      <Lock className="w-3 h-3" /> Protegido
+                    </span>
+                  </td>
                   <td className="px-5 py-3 text-center">
                     {op.active !== false ? (
                       <span className="text-green-600 text-xs font-medium">Ativo</span>
@@ -131,6 +167,9 @@ export default function OperatorsTab() {
                   <td className="px-5 py-3">
                     {can('SETTINGS_MANAGE') && (
                       <div className="flex items-center gap-2 justify-end">
+                        <button onClick={() => openReset(op)} title="Redefinir PIN" className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                          <KeyRound className="w-3.5 h-3.5" />
+                        </button>
                         <button onClick={() => openEdit(op)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
@@ -212,10 +251,14 @@ export default function OperatorsTab() {
                   className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background font-mono tracking-[0.3em] text-center focus:outline-none focus:ring-2 focus:ring-ring"
                   value={form.pin || ''}
                   onChange={(e) => set('pin', e.target.value.replace(/\D/g, ''))}
-                  required
-                  placeholder="0000"
+                  required={!editing}
+                  placeholder={editing ? 'Manter PIN atual' : '0000'}
                 />
-                <p className="text-xs text-muted-foreground/70 mt-1">Usado no login rápido dos operadores no dispositivo da fábrica.</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">
+                  {editing
+                    ? 'Deixe em branco para manter o PIN atual. O PIN é armazenado de forma protegida e não pode ser consultado.'
+                    : 'Usado no login rápido dos operadores no dispositivo da fábrica. Armazenado de forma protegida.'}
+                </p>
               </div>
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
                 <input type="checkbox" checked={form.active !== false} onChange={(e) => set('active', e.target.checked)} className="rounded border-input" />
@@ -227,6 +270,42 @@ export default function OperatorsTab() {
                 </button>
                 <button type="submit" disabled={saving} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2.5 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60">
                   {saving ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {resetting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-card w-full max-w-sm rounded-2xl shadow-2xl border border-border">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <h2 className="font-semibold text-foreground">Redefinir PIN</h2>
+              <button onClick={() => setResetting(null)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleResetPin} className="p-6 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Defina um novo PIN de 4 dígitos para <span className="font-medium text-foreground">{resetting.name}</span>. O operador usará este PIN no próximo acesso.
+              </p>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background font-mono tracking-[0.3em] text-center focus:outline-none focus:ring-2 focus:ring-ring"
+                value={newPin}
+                onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+                required
+                placeholder="0000"
+              />
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setResetting(null)} className="flex-1 border border-border rounded-lg py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={savingPin} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2.5 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60">
+                  {savingPin ? 'Salvando...' : 'Redefinir'}
                 </button>
               </div>
             </form>

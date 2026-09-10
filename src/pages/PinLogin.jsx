@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useOperator } from '@/lib/OperatorContext';
-import { ROLE_LABELS, getAllowedPaths, getAllowedPathsForOperator } from '@/lib/permissions';
-import { scopedFilter } from '@/lib/companyScope';
+import { ROLE_LABELS, getAllowedPathsForOperator } from '@/lib/permissions';
+import { activeCompanyId } from '@/lib/companyScope';
 import { logAudit } from '@/lib/audit';
 import { Factory, ArrowLeft, Delete, ShieldCheck } from 'lucide-react';
 
@@ -17,8 +17,8 @@ export default function PinLogin() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    base44.entities.UserPin.filter(scopedFilter({ active: true }), 'name')
-      .then((list) => { setOperators(list); setLoading(false); })
+    base44.functions.invoke('operatorPins', { action: 'list', company_id: activeCompanyId() })
+      .then((res) => { setOperators(res.data.operators || []); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
 
@@ -33,41 +33,23 @@ export default function PinLogin() {
 
   useEffect(() => {
     if (pin.length === 4 && selected) {
-      if (pin === selected.pin) {
-        // Busca o perfil de acesso vinculado (se houver) para resolver as permissões.
-        base44.entities.UserRoleProfile.get(selected.profile_id)
-          .then((profile) => {
-            const operator = {
-              id: selected.id,
-              name: selected.name,
-              email: selected.email,
-              role: selected.role,
-              profile_id: selected.profile_id,
-              permissions: profile?.permissions || null,
-            };
-            setActiveOperator(operator);
-            logAudit({ action: 'LOGIN', entity_name: 'UserPin', entity_id: selected.id, company_id: selected.company_id || null });
-            navigate(getAllowedPathsForOperator(operator)[0] || '/orders');
-          })
-          .catch(() => {
-            const operator = {
-              id: selected.id,
-              name: selected.name,
-              email: selected.email,
-              role: selected.role,
-              profile_id: selected.profile_id,
-              permissions: null,
-            };
-            setActiveOperator(operator);
-            logAudit({ action: 'LOGIN', entity_name: 'UserPin', entity_id: selected.id, company_id: selected.company_id || null });
-            navigate(getAllowedPaths(operator.role)[0]);
-          });
-      } else {
-        setError('PIN incorreto');
-        setTimeout(() => setPin(''), 250);
-      }
+      let cancelled = false;
+      base44.functions.invoke('operatorPins', { action: 'verify', operator_id: selected.id, pin })
+        .then((res) => {
+          if (cancelled) return;
+          const { operator, permissions } = res.data;
+          const withPerms = { ...operator, permissions: permissions || null };
+          setActiveOperator(withPerms);
+          logAudit({ action: 'LOGIN', entity_name: 'UserPin', entity_id: operator.id, company_id: operator.company_id || null });
+          navigate(getAllowedPathsForOperator(withPerms)[0] || '/orders');
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setError(err.response?.data?.error || 'Não foi possível verificar o PIN');
+          setTimeout(() => setPin(''), 600);
+        });
+      return () => { cancelled = true; };
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin, selected, setActiveOperator, navigate]);
 
   return (
