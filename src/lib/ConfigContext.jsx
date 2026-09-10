@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { DEFAULT_RAW_MATERIALS, INSUMO_KEYS } from '@/lib/insumos';
+import { useCompany } from '@/lib/CompanyContext';
+import { scopedFilter, withCompany } from '@/lib/companyScope';
 
 export const DEFAULT_MAINTENANCE_INTERVALS = {
   'Lubrificação': 15,
@@ -22,12 +24,13 @@ export function ConfigProvider({ children }) {
   );
   const [maintenanceIntervals, setMaintenanceIntervals] = useState(DEFAULT_MAINTENANCE_INTERVALS);
   const [loading, setLoading] = useState(true);
+  const { currentCompanyId } = useCompany();
 
   const refreshConfigs = useCallback(async () => {
     const [matRows, costsRows, intervalsRows] = await Promise.all([
-      base44.entities.AppSettings.filter({ key: 'raw_materials' }),
-      base44.entities.AppSettings.filter({ key: 'insumo_costs' }),
-      base44.entities.AppSettings.filter({ key: 'maintenance_intervals' }),
+      base44.entities.AppSettings.filter(scopedFilter({ key: 'raw_materials' })),
+      base44.entities.AppSettings.filter(scopedFilter({ key: 'insumo_costs' })),
+      base44.entities.AppSettings.filter(scopedFilter({ key: 'maintenance_intervals' })),
     ]);
 
     if (matRows.length > 0 && Array.isArray(matRows[0].value?.items)) {
@@ -42,40 +45,40 @@ export function ConfigProvider({ children }) {
     setLoading(false);
   }, []);
 
-  useEffect(() => { refreshConfigs(); }, []);
+  useEffect(() => { refreshConfigs(); }, [refreshConfigs, currentCompanyId]);
 
   // Nomes derivados da lista de matérias-primas (compatibilidade com useInsumoNames)
   const insumoNames = Object.fromEntries(rawMaterials.map(m => [m.key, m.name]));
 
   async function saveCosts(newCosts) {
-    const rows = await base44.entities.AppSettings.filter({ key: 'insumo_costs' });
+    const rows = await base44.entities.AppSettings.filter(scopedFilter({ key: 'insumo_costs' }));
     if (rows.length > 0) {
       await base44.entities.AppSettings.update(rows[0].id, { value: newCosts });
     } else {
-      await base44.entities.AppSettings.create({ key: 'insumo_costs', value: newCosts });
+      await base44.entities.AppSettings.create(withCompany({ key: 'insumo_costs', value: newCosts }));
     }
     setInsumoCosts(newCosts);
     refreshConfigs();
   }
 
   async function saveRawMaterials(newList) {
-    const rows = await base44.entities.AppSettings.filter({ key: 'raw_materials' });
+    const rows = await base44.entities.AppSettings.filter(scopedFilter({ key: 'raw_materials' }));
     const valueObj = { items: newList };
     if (rows.length > 0) {
       await base44.entities.AppSettings.update(rows[0].id, { value: valueObj });
     } else {
-      await base44.entities.AppSettings.create({ key: 'raw_materials', value: valueObj });
+      await base44.entities.AppSettings.create(withCompany({ key: 'raw_materials', value: valueObj }));
     }
     setRawMaterials(newList);
     refreshConfigs();
   }
 
   async function saveMaintenanceIntervals(newIntervals) {
-    const rows = await base44.entities.AppSettings.filter({ key: 'maintenance_intervals' });
+    const rows = await base44.entities.AppSettings.filter(scopedFilter({ key: 'maintenance_intervals' }));
     if (rows.length > 0) {
       await base44.entities.AppSettings.update(rows[0].id, { value: newIntervals });
     } else {
-      await base44.entities.AppSettings.create({ key: 'maintenance_intervals', value: newIntervals });
+      await base44.entities.AppSettings.create(withCompany({ key: 'maintenance_intervals', value: newIntervals }));
     }
     setMaintenanceIntervals(newIntervals);
     refreshConfigs();

@@ -35,7 +35,7 @@ export default function CostsReport({ initialMonth, onClose }) {
     Promise.all([
       base44.entities.ProductionOrder.filter(scopedFilter({ status: 'Concluída' }), '-production_date', 2000),
       base44.entities.ProductionLine.filter(scopedFilter({}), 'name', 200),
-      base44.entities.MonthlyDre.list('-reference_month', 100),
+      base44.entities.MonthlyDre.filter(scopedFilter(), '-reference_month', 100),
       base44.entities.ProductType.filter(scopedFilter({}), 'name', 500),
     ]).then(([orders, lines, dres, productTypes]) => setData({ orders, lines, dres, productTypes }));
   }, []);

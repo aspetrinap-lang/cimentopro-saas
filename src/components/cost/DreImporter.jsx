@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { scopedFilter, withCompany } from '@/lib/companyScope';
 import { X, Upload, Save, Plus, Trash2, FileSpreadsheet, Calendar, DollarSign } from 'lucide-react';
 
 const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -40,7 +41,7 @@ export default function DreImporter({ onClose, onSaved }) {
   async function load() {
     setLoading(true);
     try {
-      const data = await base44.entities.MonthlyDre.list('-reference_month', 100);
+      const data = await base44.entities.MonthlyDre.filter(scopedFilter(), '-reference_month', 100);
       setDres(data);
     } catch {
       setDres([]);
@@ -203,7 +204,7 @@ export default function DreImporter({ onClose, onSaved }) {
     };
     try {
       if (editing === 'new') {
-        await base44.entities.MonthlyDre.create(payload);
+        await base44.entities.MonthlyDre.create(withCompany(payload));
       } else {
         await base44.entities.MonthlyDre.update(editing, payload);
       }

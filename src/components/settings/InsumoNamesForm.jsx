@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { scopedFilter } from '@/lib/companyScope';
 import { DEFAULT_INSUMO_NAMES, INSUMO_KEYS } from '@/lib/insumos';
 import { useConfig } from '@/lib/ConfigContext';
 import { Save } from 'lucide-react';
@@ -23,7 +24,7 @@ export default function InsumoNamesForm() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    base44.entities.AppSettings.filter({ key: 'insumo_names' }).then(rows => {
+    base44.entities.AppSettings.filter(scopedFilter({ key: 'insumo_names' })).then(rows => {
       if (rows.length > 0 && rows[0].value) {
         setNames({ ...DEFAULT_INSUMO_NAMES, ...rows[0].value });
         setSettingId(rows[0].id);
@@ -37,7 +38,7 @@ export default function InsumoNamesForm() {
     setSaving(true);
     await saveNames(names, settingId);
     if (!settingId) {
-      const rows = await base44.entities.AppSettings.filter({ key: 'insumo_names' });
+      const rows = await base44.entities.AppSettings.filter(scopedFilter({ key: 'insumo_names' }));
       if (rows.length > 0) setSettingId(rows[0].id);
     }
     setSaving(false);
