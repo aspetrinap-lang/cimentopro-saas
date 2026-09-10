@@ -32,9 +32,12 @@ export function getClassFbk(normReference, normClass) {
 }
 
 // Resistência mínima por tipo de tráfego (NBR 9781) — MPa
+// Resistência mínima da NBR 9781 padronizada em 35 MPa (fallback por tráfego
+// quando não houver classe definida). Com classe informada, vale a classe:
+// 35 → 35 MPa; 50 → 50 MPa (getClassFbk).
 export const MIN_RESISTANCE_BY_TRAFFIC = {
   'Pedestres/Leves': 35,
-  'Pesado': 40,
+  'Pesado': 35,
 };
 
 // Espessura mínima (mm) por tipo de tráfego (NBR 9781)

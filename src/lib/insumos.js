@@ -48,3 +48,19 @@ export const INSUMO_FIELDS = {
   pigment:        { pt_field: 'pigment_per_unit',       planned: 'planned_pigment',         actual: 'actual_pigment',         unit: 'kg' },
   water:          { pt_field: 'water_per_unit',          planned: 'planned_water',           actual: 'actual_water',           unit: 'L'  },
   };
+
+// Insumos vinculados a um traço de concreto: cimento + composição dinâmica
+// (materials_composition) + partes legadas (> 0). Sem traço selecionado,
+// retorna todos os insumos (comportamento padrão).
+export function traceInsumoKeys(trace) {
+  if (!trace) return INSUMO_KEYS;
+  const keys = new Set(['cement']);
+  Object.keys(trace.materials_composition || {}).forEach(k => {
+    if (k !== 'cement' && INSUMO_FIELDS[k]) keys.add(k);
+  });
+  CORE_PART_KEYS.forEach(k => {
+    const partField = INSUMO_TRACE_PARTS[k];
+    if (partField && Number(trace[partField]) > 0) keys.add(k);
+  });
+  return INSUMO_KEYS.filter(k => keys.has(k));
+}

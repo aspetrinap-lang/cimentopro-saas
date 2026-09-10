@@ -3,7 +3,7 @@ import { scopedFilter, withCompany } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { X, Zap } from 'lucide-react';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
-import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
+import { INSUMO_KEYS, INSUMO_FIELDS, traceInsumoKeys } from '@/lib/insumos';
 import { inferNorm, getNormClasses, getClassFbk } from '@/lib/qualityNorms';
 
 const empty = {
@@ -91,6 +91,38 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
     }));
   }
 
+  // Sincroniza o vínculo bidirecional artefato ↔ molde: adiciona o artefato à
+  // lista do molde selecionado (sem duplicar) e remove o vínculo antigo do
+  // molde anterior quando o molde foi trocado.
+  async function syncMoldLinks(savedId, savedName) {
+    const newMoldId = form.mold_id || '';
+    const oldMoldId = item?.mold_id || '';
+    const jobs = [];
+    if (oldMoldId && oldMoldId !== newMoldId) {
+      jobs.push(
+        base44.entities.Mold.get(oldMoldId).then(m => {
+          const ids = (m.product_type_ids || []).filter(id => id !== savedId);
+          const names = (m.product_type_names || []).filter(n => n !== savedName && n !== item?.name);
+          return base44.entities.Mold.update(oldMoldId, { product_type_ids: ids, product_type_names: names });
+        }).catch(() => {})
+      );
+    }
+    if (newMoldId) {
+      jobs.push(
+        base44.entities.Mold.get(newMoldId).then(m => {
+          const ids = (m.product_type_ids || []).includes(savedId)
+            ? m.product_type_ids
+            : [...(m.product_type_ids || []), savedId];
+          const names = (m.product_type_names || []).includes(savedName)
+            ? m.product_type_names
+            : [...(m.product_type_names || []), savedName];
+          return base44.entities.Mold.update(newMoldId, { product_type_ids: ids, product_type_names: names });
+        }).catch(() => {})
+      );
+    }
+    await Promise.all(jobs);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
@@ -106,10 +138,15 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
     payload.pieces_per_m = parseFloat(form.pieces_per_m) || null;
     payload.mold_cost_per_unit = parseFloat(form.mold_cost_per_unit) || 0;
     payload.selling_price = parseFloat(form.selling_price) || 0;
+    let savedId = item?.id;
     if (item?.id) {
       await base44.entities.ProductType.update(item.id, payload);
     } else {
-      await base44.entities.ProductType.create(withCompany(payload));
+      const created = await base44.entities.ProductType.create(withCompany(payload));
+      savedId = created?.id;
+    }
+    if (savedId) {
+      await syncMoldLinks(savedId, payload.name);
     }
     setSaving(false);
     onSaved();
@@ -117,6 +154,8 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
   }
 
   const selectedTrace = traces.find(t => t.id === form.concrete_trace_id);
+  // Consumo filtrado dinamicamente: com traço selecionado, apenas insumos do traço
+  const visibleKeys = traceInsumoKeys(selectedTrace);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -324,7 +363,7 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
           <div className="bg-muted/40 rounded-xl p-4 space-y-3">
             <p className="text-xs font-semibold text-muted-foreground">Consumo Padrão por Unidade Produzida</p>
             <div className="grid grid-cols-2 gap-3">
-              {INSUMO_KEYS.map((key, i) => {
+              {visibleKeys.map((key, i) => {
                 const { pt_field, unit } = INSUMO_FIELDS[key];
                 return (
                   <div key={key}>

@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { logAudit } from '@/lib/audit';
 import { X, AlertTriangle } from 'lucide-react';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
-import { INSUMO_KEYS, INSUMO_FIELDS, INSUMO_TRACE_PARTS } from '@/lib/insumos';
+import { INSUMO_KEYS, INSUMO_FIELDS, INSUMO_TRACE_PARTS, traceInsumoKeys } from '@/lib/insumos';
 import MachineDowntimeForm from './MachineDowntimeForm';
 import { useBackButtonClose } from '@/hooks/useBackButtonClose';
 import { scopedFilter, withCompany, assertSameCompany, activeCompanyId } from '@/lib/companyScope';
@@ -221,32 +221,37 @@ export default function OrderForm({ order, productTypes, onClose, onSaved }) {
 
   const isFinishing = form.status === 'Concluída';
 
-  const plannedItems = INSUMO_KEYS.map(key => {
+  const tracesQty = parseFloat(form.actual_traces_produced) || 0;
+  const linkedTrace = concreteTraces.find(t => t.id === selectedType?.concrete_trace_id);
+
+  // Consumo filtrado dinamicamente pelo traço: apenas insumos vinculados ao
+  // traço do artefato selecionado (sem traço → todos os insumos)
+  const visibleInsumos = traceInsumoKeys(linkedTrace);
+
+  const plannedItems = visibleInsumos.map(key => {
     const { pt_field, unit } = INSUMO_FIELDS[key];
     const val = selectedType && qty && selectedType[pt_field]
       ? (qty * selectedType[pt_field]).toFixed(4) : null;
     return { key, label: names[key], val, unit };
   }).filter(i => i.val);
 
-  const tracesQty = parseFloat(form.actual_traces_produced) || 0;
-  const linkedTrace = concreteTraces.find(t => t.id === selectedType?.concrete_trace_id);
-
-  // Lista de matérias-primas do traço (cimento + composição) + água, para lançamento manual
+  // Matérias-primas reais do traço (apenas insumos vinculados) + água, para lançamento manual
   const traceMaterials = [];
   if (linkedTrace) {
     const cementKg = linkedTrace.cement_kg_per_m3 || 0;
     const cementParts = linkedTrace.cement_parts || 1;
-    traceMaterials.push({
-      key: 'cement', label: names.cement, unit: INSUMO_FIELDS.cement.unit, field: 'actual_cement',
-      theo: tracesQty && cementKg ? +(tracesQty * cementKg).toFixed(4) : null,
-    });
-    Object.keys(linkedTrace.materials_composition || {}).forEach(key => {
-      if (key === 'cement') return;
+    visibleInsumos.forEach(key => {
+      if (key === 'water') return;
       const f = INSUMO_FIELDS[key];
       if (!f) return;
-      const partField = INSUMO_TRACE_PARTS[key];
-      const partVal = partField ? linkedTrace[partField] : null;
-      const theo = partVal && tracesQty && cementKg ? +(tracesQty * cementKg * (partVal / cementParts)).toFixed(4) : null;
+      let theo = null;
+      if (key === 'cement') {
+        theo = tracesQty && cementKg ? +(tracesQty * cementKg).toFixed(4) : null;
+      } else {
+        const partField = INSUMO_TRACE_PARTS[key];
+        const partVal = partField ? linkedTrace[partField] : null;
+        theo = partVal && tracesQty && cementKg ? +(tracesQty * cementKg * (partVal / cementParts)).toFixed(4) : null;
+      }
       traceMaterials.push({ key, label: names[key] || key, unit: f.unit, field: f.actual, theo });
     });
   }
