@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { getAllowedPaths } from '@/lib/permissions';
 import { isPlatformAdmin } from '@/lib/platformAdmin';
+import { setPlatformAdminScope } from '@/lib/companyScope';
 
 const CompanyContext = createContext();
 
@@ -123,6 +124,10 @@ export const CompanyProvider = ({ children }) => {
     ? (COMPANY_ROLE_TO_LEGACY[currentMembership.role] || currentMembership.role)
     : user?.role;
   const permissions = getAllowedPaths(legacyRole || 'user');
+
+  // Mantém o escopo global (scopedFilter) ciente do SUPER_ADMIN —
+  // consultas fora da árvore React preservam a visão de plataforma dele.
+  setPlatformAdminScope(isPlatformAdmin(user));
 
   return (
     <CompanyContext.Provider value={{

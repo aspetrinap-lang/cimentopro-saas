@@ -10,6 +10,9 @@ import { ROLE_LABELS } from '@/lib/permissions';
 import { usePermissions } from '@/lib/PermissionsContext';
 import { useToast } from '@/components/ui/use-toast';
 import CompanySelector from '@/components/CompanySelector';
+import NoCompanyScreen from '@/components/NoCompanyScreen';
+import CompanySelectionScreen from '@/components/CompanySelectionScreen';
+import { useCompany } from '@/lib/CompanyContext';
 import { logAudit } from '@/lib/audit';
 
 const navItems = [
@@ -43,11 +46,30 @@ export default function Layout() {
   useEnterToTab();
 
   const { allowedPaths, can } = usePermissions();
+  const { clearCompany, loading: loadingCompany, hasCompany, needsCompanySelection } = useCompany();
   const { toast } = useToast();
   const allowed = allowedPaths;
   const visibleNav = navItems.filter((i) => allowed.includes(i.to));
   const canManageOperators = can('SETTINGS_VIEW');
   const isPlatform = !activeOperator && can('PLATFORM_ADMIN');
+
+  // Isolamento multi-tenant: nenhuma página operacional monta (nem consulta
+  // dados) antes da empresa ativa existir. Sem vínculo → tela de bloqueio;
+  // múltiplas empresas → seleção obrigatória. SUPER_ADMIN mantém visão de
+  // plataforma (consultas globais via scopedFilter).
+  if (!activeOperator && loadingCompany) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (!isPlatform && !activeOperator && !hasCompany) {
+    return <NoCompanyScreen />;
+  }
+  if (!isPlatform && !activeOperator && needsCompanySelection) {
+    return <CompanySelectionScreen />;
+  }
 
   // Guarda de rotas: esconder o menu é apenas experiência — a decisão
   // real de acesso acontece aqui, antes de renderizar qualquer página.
@@ -63,6 +85,8 @@ export default function Layout() {
   }
   async function handleLogout() {
     await logAudit({ action: 'LOGOUT', entity_name: 'User' });
+    // Limpa a empresa ativa e a chave persistida por usuário no navegador
+    clearCompany();
     logout(true);
   }
 
