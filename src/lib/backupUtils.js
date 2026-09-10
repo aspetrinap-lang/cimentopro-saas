@@ -61,6 +61,20 @@ export function downloadBackup(backupObj) {
 // Entidades globais (sem escopo de empresa) — não recebem company_id
 const GLOBAL_ENTITIES = ['UserRoleProfile'];
 
+// Vínculos (FKs) por entidade: campo → entidade referenciada. Os IDs são
+// recriados na importação, então as referências precisam ser remapeadas
+// id antigo (do arquivo) → id novo (criado agora).
+const FK_SPECS = {
+  ProductionOrder: { machine_id: 'Machine', product_type_id: 'ProductType', operator_id: 'UserPin', production_line_id: 'ProductionLine' },
+  QualityReport: { order_id: 'ProductionOrder', product_type_id: 'ProductType' },
+  MachineDowntime: { machine_id: 'Machine', order_id: 'ProductionOrder' },
+  PreventiveMaintenance: { machine_id: 'Machine', mold_id: 'Mold' },
+  ProductType: { mold_id: 'Mold', concrete_trace_id: 'ConcreteTrace' },
+  Mold: { product_type_ids: 'ProductType' },
+  FailurePattern: { applies_to_machines: 'Machine' },
+  ProductionLine: { machines: 'Machine', shared_resources: 'SharedResource' },
+};
+
 export async function importAllData(backupObj, { replace } = { replace: false }) {
   // Multi-tenant: todo registro importado precisa pertencer à empresa ativa,
   // senão fica invisível nas telas (fora do escopo de company_id)
@@ -69,6 +83,7 @@ export async function importAllData(backupObj, { replace } = { replace: false })
     throw new Error('Selecione uma empresa ativa antes de importar o backup — os dados importados precisam pertencer a uma empresa.');
   }
   const results = {};
+  const idMaps = {};
   for (const entity of BACKUP_ENTITIES) {
     const records = backupObj.data?.[entity] || [];
     if (records.length === 0) {
@@ -95,6 +110,50 @@ export async function importAllData(backupObj, { replace } = { replace: false })
 
     const created = await base44.entities[entity].bulkCreate(cleanRecords);
     results[entity] = Array.isArray(created) ? created.length : 0;
+    // Mapa id antigo (do arquivo) → id novo (criado agora), por entidade
+    idMaps[entity] = {};
+    (Array.isArray(created) ? created : []).forEach((c, i) => {
+      if (records[i] && c.id) idMaps[entity][records[i].id] = c.id;
+    });
+  }
+
+  // Passo 2: remapeia os vínculos usando o mapa id antigo → novo do arquivo
+  for (const [entity, spec] of Object.entries(FK_SPECS)) {
+    const records = backupObj.data?.[entity] || [];
+    const idMap = idMaps[entity];
+    if (!idMap || records.length === 0) continue;
+    const updates = [];
+    records.forEach((r, i) => {
+      const newId = idMap[r.id];
+      if (!newId) return;
+      const patch = { id: newId };
+      for (const [field, refEntity] of Object.entries(spec)) {
+        const refMap = idMaps[refEntity] || {};
+        if (Array.isArray(r[field])) {
+          if (entity === 'ProductionLine') {
+            // array de objetos: remapeia a chave interna (machine_id / resource_id)
+            const idKey = field === 'machines' ? 'machine_id' : 'resource_id';
+            const remapped = r[field].map(item =>
+              item && typeof item === 'object'
+                ? { ...item, [idKey]: refMap[item[idKey]] || item[idKey] }
+                : item
+            );
+            if (JSON.stringify(remapped) !== JSON.stringify(r[field])) patch[field] = remapped;
+          } else {
+            // array de IDs
+            const remapped = r[field].map(id => refMap[id] || id);
+            if (JSON.stringify(remapped) !== JSON.stringify(r[field])) patch[field] = remapped;
+          }
+        } else if (r[field]) {
+          const mapped = refMap[r[field]] || r[field];
+          if (mapped !== r[field]) patch[field] = mapped;
+        }
+      }
+      if (Object.keys(patch).length > 1) updates.push(patch);
+    });
+    for (let i = 0; i < updates.length; i += 400) {
+      await base44.entities[entity].bulkUpdate(updates.slice(i, i + 400));
+    }
   }
   return results;
 }
