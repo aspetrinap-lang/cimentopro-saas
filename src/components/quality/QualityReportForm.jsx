@@ -8,16 +8,19 @@ import {
   NORM_OPTIONS, AGE_PRESETS, TRAFFIC_TYPES,
   MIN_RESISTANCE_BY_TRAFFIC, MIN_THICKNESS_BY_TRAFFIC, DIMENSIONAL_TOLERANCE_MM,
   inferNorm, computeSpecimen, groupByAge, ageStats,
-  checkThickness, buildAlerts, checkApproval, estimateFck,
+  checkThickness, buildAlerts, checkApproval, estimateFck, getClassFbk,
 } from '@/lib/qualityNorms';
 
-// Resolve o fck de referência: usa o fck de projeto informado, ou a resistência
-// mínima da NBR 9781 para o tipo de tráfego quando não houver fck de projeto.
+// Resolve o fck de referência: usa o fck de projeto informado; na NBR 9781 sem
+// fck de projeto, vale a classe da norma (35 → 35 MPa; 50 → 50 MPa) e, como
+// último recurso, o mínimo padronizado de 35 MPa por tráfego.
 function resolveTargetFck(form) {
   const target = Number(form.target_resistance) || 0;
   if (target > 0) return target;
   if (form.norm_reference === 'NBR 9781') {
-    return MIN_RESISTANCE_BY_TRAFFIC[form.traffic_type] || 0;
+    const byClass = form.norm_class ? getClassFbk('NBR 9781', form.norm_class) : 0;
+    if (byClass > 0) return byClass;
+    return MIN_RESISTANCE_BY_TRAFFIC[form.traffic_type] || 35;
   }
   return 0;
 }
@@ -139,7 +142,14 @@ export default function QualityReportForm({ order, productType, report, onClose,
   const displayEstimatedFck = useMemo(() => estimateFck(displayGroup.specimens), [displayGroup]);
   const displayApproval = checkApproval({ estimatedFck: displayEstimatedFck, target });
 
-  const thicknessOk = checkThickness(form.nominal_thickness_mm, form.measured_thickness_mm);
+  // Espessura medida: média automática das medições (alturas) dos corpos de prova
+  const measuredThickness = useMemo(() => {
+    const hs = computedSpecimens.map(s => Number(s.height_mm) || 0).filter(h => h > 0);
+    return hs.length ? +(hs.reduce((a, b) => a + b, 0) / hs.length).toFixed(1) : null;
+  }, [computedSpecimens]);
+
+  const effectiveMeasured = measuredThickness ?? (Number(form.measured_thickness_mm) || null);
+  const thicknessOk = checkThickness(form.nominal_thickness_mm, effectiveMeasured);
   const hasFinalAge = groups.some(g => g.age_days === finalAge && g.specimens.some(s => s.resistance_mpa > 0));
 
   const alerts = buildAlerts({
@@ -164,8 +174,9 @@ export default function QualityReportForm({ order, productType, report, onClose,
       thickness_ok: thicknessOk,
       alerts,
       final_age_days: finalAge,
+      measured_thickness_mm: measuredThickness != null ? measuredThickness : f.measured_thickness_mm,
     }));
-  }, [compliant, average, min, estimatedFck, thicknessOk, alerts, finalAge]);
+  }, [compliant, average, min, estimatedFck, thicknessOk, alerts, finalAge, measuredThickness]);
 
   function setField(field, value) {
     setForm(f => ({ ...f, [field]: value }));
@@ -229,8 +240,8 @@ export default function QualityReportForm({ order, productType, report, onClose,
   const pavimento = isPavimento(form);
   const minResist = MIN_RESISTANCE_BY_TRAFFIC[form.traffic_type];
   const minThick = MIN_THICKNESS_BY_TRAFFIC[form.traffic_type];
-  const thicknessVariation = (form.nominal_thickness_mm != null && form.measured_thickness_mm != null)
-    ? Math.abs(Number(form.measured_thickness_mm) - Number(form.nominal_thickness_mm))
+  const thicknessVariation = (form.nominal_thickness_mm != null && effectiveMeasured != null)
+    ? Math.abs(effectiveMeasured - Number(form.nominal_thickness_mm))
     : 0;
 
   return (
@@ -352,9 +363,12 @@ export default function QualityReportForm({ order, productType, report, onClose,
                         value={form.nominal_thickness_mm || ''} onChange={e => setField('nominal_thickness_mm', parseFloat(e.target.value))} />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-muted-foreground mb-1">Espessura Medida (mm)</label>
-                      <input type="number" step="0.1" className="w-full px-3 py-2 border border-input rounded-lg text-sm bg-background"
-                        value={form.measured_thickness_mm || ''} onChange={e => setField('measured_thickness_mm', parseFloat(e.target.value))} />
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">
+                        Espessura Medida (mm) <span className="text-muted-foreground/60 font-normal">(média dos CPs)</span>
+                      </label>
+                      <input type="number" step="0.1"
+                        className="w-full px-3 py-2 border border-input rounded-lg text-sm bg-muted/40 text-muted-foreground"
+                        value={form.measured_thickness_mm || ''} readOnly />
                       <p className={`text-xs mt-1 ${thicknessOk ? 'text-green-600' : 'text-red-600'}`}>
                         Variação: {thicknessVariation.toFixed(1)} mm (tol. ±{DIMENSIONAL_TOLERANCE_MM} mm) — {thicknessOk ? 'OK' : 'FORA'}
                       </p>

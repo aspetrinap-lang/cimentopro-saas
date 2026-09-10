@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
-import { X, Plus, Pencil, Trash2, Wrench, Zap, Droplets, Wind, Settings, CheckSquare, RefreshCw, HelpCircle, Calendar, Clock, User, Package } from 'lucide-react';
+import { X, Plus, Pencil, Trash2, Wrench, Zap, Droplets, Wind, Settings, CheckSquare, RefreshCw, HelpCircle, Calendar, Clock, User, Package, AlertTriangle } from 'lucide-react';
 import MoldLifecycleBar from './MoldLifecycleBar';
 import MoldMaintenanceForm from './MoldMaintenanceForm';
 import { useBackButtonClose } from '@/hooks/useBackButtonClose';
+import { resolveMoldLinks, cleanMoldOrphans } from '@/lib/moldLinks';
+import { usePermissions } from '@/lib/PermissionsContext';
 
 const TYPE_CONFIG = {
   'Elétrico':       { icon: Zap,          color: 'bg-indigo-100 text-indigo-700' },
@@ -22,16 +24,31 @@ export default function MoldDetailDrawer({ mold, onClose, onMoldUpdated }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [moldData, setMoldData] = useState(mold);
+  const [productTypes, setProductTypes] = useState([]);
+  const { can } = usePermissions();
   useBackButtonClose(onClose);
+
+  useEffect(() => {
+    base44.entities.ProductType.filter(scopedFilter({}), 'name', 500)
+      .then(setProductTypes).catch(() => {});
+  }, []);
+
+  // Limpa vínculos órfãos (artefatos deletados) — persiste no registro do molde
+  async function handleCleanOrphans() {
+    const cleaned = await cleanMoldOrphans(moldData, productTypes);
+    setMoldData(prev => ({ ...prev, ...cleaned }));
+    onMoldUpdated?.();
+  }
 
   async function loadMaintenances() {
     setLoading(true);
-    const data = await base44.entities.PreventiveMaintenance.filter(scopedFilter({ mold_id: mold.id }), '-date', 200);
+    const data = await base44.entities.PreventiveMaintenance.filter(scopedFilter({ mold_id: moldData.id }), '-date', 200);
     setMaintenances(data);
     setLoading(false);
   }
 
-  useEffect(() => { loadMaintenances(); }, [mold.id]);
+  useEffect(() => { loadMaintenances(); }, [moldData.id]);
 
   async function handleDelete(m) {
     if (!window.confirm('Excluir este registro de manutenção?')) return;
@@ -49,8 +66,8 @@ export default function MoldDetailDrawer({ mold, onClose, onMoldUpdated }) {
         {/* Header */}
         <div className="flex items-start justify-between px-6 py-5 border-b border-border bg-card">
           <div className="flex-1 min-w-0 pr-4">
-            <h2 className="font-bold text-lg text-foreground truncate">{mold.name}</h2>
-            <p className="text-xs text-muted-foreground font-mono mt-0.5">{mold.code}</p>
+            <h2 className="font-bold text-lg text-foreground truncate">{moldData.name}</h2>
+            <p className="text-xs text-muted-foreground font-mono mt-0.5">{moldData.code}</p>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors mt-0.5">
             <X className="w-5 h-5" />
@@ -60,41 +77,52 @@ export default function MoldDetailDrawer({ mold, onClose, onMoldUpdated }) {
         <div className="flex-1 overflow-y-auto">
           {/* Info do molde */}
           <div className="px-6 py-4 space-y-4 border-b border-border">
-            <MoldLifecycleBar cyclesUsed={mold.cycles_used || 0} maxCycles={mold.max_cycles} />
+            <MoldLifecycleBar cyclesUsed={moldData.cycles_used || 0} maxCycles={moldData.max_cycles} />
 
             <div className="grid grid-cols-2 gap-3 text-sm">
-              {mold.units_per_cycle && (
+              {moldData.units_per_cycle && (
                 <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-xs text-muted-foreground">Peças/ciclo</p>
-                  <p className="font-semibold text-foreground mt-0.5">{mold.units_per_cycle}</p>
+                  <p className="font-semibold text-foreground mt-0.5">{moldData.units_per_cycle}</p>
                 </div>
               )}
-              {mold.acquisition_date && (
+              {moldData.acquisition_date && (
                 <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-xs text-muted-foreground">Aquisição</p>
-                  <p className="font-semibold text-foreground mt-0.5">{mold.acquisition_date}</p>
+                  <p className="font-semibold text-foreground mt-0.5">{moldData.acquisition_date}</p>
                 </div>
               )}
-              {mold.last_maintenance_date && (
+              {moldData.last_maintenance_date && (
                 <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-xs text-muted-foreground">Última Manutenção</p>
-                  <p className="font-semibold text-foreground mt-0.5">{mold.last_maintenance_date}</p>
+                  <p className="font-semibold text-foreground mt-0.5">{moldData.last_maintenance_date}</p>
                 </div>
               )}
-              {mold.product_type_names?.length > 0 && (
-                <div className="bg-muted/50 rounded-lg p-3 col-span-2">
-                  <p className="text-xs text-muted-foreground mb-1">Artefatos</p>
-                  <div className="flex flex-wrap gap-1">
-                    {mold.product_type_names.map((n, i) => (
-                      <span key={i} className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full font-medium">{n}</span>
-                    ))}
+              {(() => {
+                const links = resolveMoldLinks(moldData, productTypes);
+                if (links.names.length === 0 && links.orphanIds.length === 0) return null;
+                return (
+                  <div className="bg-muted/50 rounded-lg p-3 col-span-2">
+                    <p className="text-xs text-muted-foreground mb-1">Artefatos</p>
+                    <div className="flex flex-wrap gap-1">
+                      {links.names.map(n => (
+                        <span key={n} className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full font-medium">{n}</span>
+                      ))}
+                      {links.orphanIds.length > 0 && can('MACHINES_EDIT') && (
+                        <button onClick={handleCleanOrphans}
+                          className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 font-medium hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors"
+                          title="Remover vínculos de artefatos que não existem mais">
+                          <AlertTriangle className="w-3 h-3" /> {links.orphanIds.length} órfão(s) — limpar
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
-            {mold.notes && (
-              <p className="text-xs text-muted-foreground italic bg-muted/40 rounded-lg px-3 py-2">{mold.notes}</p>
+            {moldData.notes && (
+              <p className="text-xs text-muted-foreground italic bg-muted/40 rounded-lg px-3 py-2">{moldData.notes}</p>
             )}
           </div>
 
@@ -184,7 +212,7 @@ export default function MoldDetailDrawer({ mold, onClose, onMoldUpdated }) {
       {showForm && (
         <MoldMaintenanceForm
           item={editing}
-          mold={mold}
+          mold={moldData}
           onClose={() => setShowForm(false)}
           onSaved={() => { loadMaintenances(); onMoldUpdated(); }}
         />

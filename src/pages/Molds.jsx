@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { scopedFilter } from '@/lib/companyScope';
-import { Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Wrench, XCircle, ClipboardList, Printer } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Wrench, XCircle, ClipboardList, Printer, Search } from 'lucide-react';
 import MoldForm from '@/components/molds/MoldForm';
 import MoldsReport from '@/components/reports/MoldsReport';
 import MoldLifecycleBar from '@/components/molds/MoldLifecycleBar';
 import MoldDetailDrawer from '@/components/molds/MoldDetailDrawer';
+import { resolveMoldLinks, cleanMoldOrphans } from '@/lib/moldLinks';
 import { usePermissions } from '@/lib/PermissionsContext';
 
 const STATUS_CONFIG = {
@@ -23,11 +24,17 @@ export default function Molds() {
   const [detailMold, setDetailMold] = useState(null);
   const [showReport, setShowReport] = useState(false);
   const [filterStatus, setFilterStatus] = useState('todos');
+  const [search, setSearch] = useState('');
+  const [productTypes, setProductTypes] = useState([]);
 
   async function load() {
     setLoading(true);
-    const data = await base44.entities.Mold.filter(scopedFilter(), 'name');
+    const [data, pts] = await Promise.all([
+      base44.entities.Mold.filter(scopedFilter(), 'name'),
+      base44.entities.ProductType.filter(scopedFilter({}), 'name', 500),
+    ]);
     setMolds(data);
+    setProductTypes(pts);
     setLoading(false);
   }
 
@@ -39,9 +46,20 @@ export default function Molds() {
     load();
   }
 
-  const filtered = filterStatus === 'todos'
-    ? molds
-    : molds.filter(m => m.status === filterStatus);
+  // Limpa vínculos órfãos (artefatos deletados) — persiste no registro do molde
+  async function handleCleanOrphans(mold) {
+    await cleanMoldOrphans(mold, productTypes);
+    load();
+  }
+
+  // Busca tolerante a acentos/caixa por nome, código interno ou código do fornecedor
+  const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const searchNorm = norm(search.trim());
+  const filtered = molds.filter(m => {
+    if (filterStatus !== 'todos' && m.status !== filterStatus) return false;
+    if (!searchNorm) return true;
+    return [m.name, m.code, m.supplier_code].some(v => norm(v).includes(searchNorm));
+  });
 
   const criticalCount = molds.filter(m => {
     if (!m.max_cycles || m.status === 'Descartado') return false;
@@ -89,14 +107,24 @@ export default function Molds() {
         </div>
       )}
 
-      {/* Filter */}
-      <div className="flex gap-1 bg-muted rounded-xl p-1 w-fit flex-wrap">
-        {['todos', 'Ativo', 'Em Manutenção', 'Descartado'].map(s => (
-          <button key={s} onClick={() => setFilterStatus(s)}
-            className={`px-4 py-2 text-sm rounded-lg font-medium transition-all ${filterStatus === s ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
-            {s === 'todos' ? 'Todos' : s}
-          </button>
-        ))}
+      {/* Busca + Filtro */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[220px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por nome, código ou fornecedor..."
+            className="w-full pl-9 pr-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
+        </div>
+        <div className="flex gap-1 bg-muted rounded-xl p-1 w-fit flex-wrap">
+          {['todos', 'Ativo', 'Em Manutenção', 'Descartado'].map(s => (
+            <button key={s} onClick={() => setFilterStatus(s)}
+              className={`px-4 py-2 text-sm rounded-lg font-medium transition-all ${filterStatus === s ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+              {s === 'todos' ? 'Todos' : s}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Mold cards */}
@@ -135,17 +163,28 @@ export default function Molds() {
                   </div>
                 </div>
 
-                {/* Artefatos */}
-                {mold.product_type_names?.length > 0 && (
-                  <div className="text-xs text-muted-foreground">
-                    <span>Artefatos: </span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {mold.product_type_names.map((n, i) => (
-                        <span key={i} className="bg-muted px-2 py-0.5 rounded-full font-medium text-foreground">{n}</span>
-                      ))}
+                {/* Artefatos — apenas vínculos existentes, sem duplicatas + limpeza de órfãos */}
+                {(() => {
+                  const links = resolveMoldLinks(mold, productTypes);
+                  if (links.names.length === 0 && links.orphanIds.length === 0) return null;
+                  return (
+                    <div className="text-xs text-muted-foreground">
+                      <span>Artefatos: </span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {links.names.map(n => (
+                          <span key={n} className="bg-muted px-2 py-0.5 rounded-full font-medium text-foreground">{n}</span>
+                        ))}
+                        {links.orphanIds.length > 0 && can('MACHINES_EDIT') && (
+                          <button onClick={() => handleCleanOrphans(mold)}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 font-medium hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors"
+                            title="Remover vínculos de artefatos que não existem mais">
+                            <AlertTriangle className="w-3 h-3" /> {links.orphanIds.length} órfão(s) — limpar
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Peças por ciclo */}
                 {mold.units_per_cycle && (

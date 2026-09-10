@@ -7,6 +7,7 @@ import { useInsumoCosts } from '@/hooks/useInsumoCosts';
 import VirtualEngineer from '@/components/analysis/VirtualEngineer';
 import VirtualEngineerReport from '@/components/reports/VirtualEngineerReport';
 import OrderAnalysis from '@/components/analysis/OrderAnalysis';
+import QualityAnalysis from '@/components/analysis/QualityAnalysis';
 
 export default function VirtualEngineerPage() {
   const [orders, setOrders] = useState([]);
@@ -41,6 +42,7 @@ export default function VirtualEngineerPage() {
         <>
           <VirtualEngineer orders={orders} costs={costs} names={names} />
           <OrderAnalysis orders={orders} costs={costs} names={names} />
+          <QualityAnalysis orders={orders} />
         </>
       ) : (
         <div className="bg-card border border-border rounded-xl p-12 text-center text-muted-foreground text-sm">
