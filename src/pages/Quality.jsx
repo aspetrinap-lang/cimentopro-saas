@@ -41,15 +41,38 @@ export default function Quality() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
+  const [error, setError] = useState(null);
+
+  // Rate limit da plataforma é transitório: tenta de novo com uma pausa antes de falhar
+  async function fetchWithRetry(fn, attempts = 3) {
+    for (let i = 0; i < attempts; i++) {
+      try {
+        return await fn();
+      } catch (e) {
+        const isRateLimit = /rate limit/i.test(e.message || '');
+        if (!isRateLimit || i === attempts - 1) throw e;
+        await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+      }
+    }
+  }
 
   async function load() {
     setLoading(true);
-    const [r, o, p] = await Promise.all([
-      base44.entities.QualityReport.filter(scopedFilter(), '-created_date', 500),
-      base44.entities.ProductionOrder.filter(scopedFilter({}), '-production_date', 200),
-      base44.entities.ProductType.filter(scopedFilter({}), 'name'),
-    ]);
-    setReports(r); setOrders(o); setProductTypes(p);
+    setError(null);
+    try {
+      const [r, o, p] = await Promise.all([
+        fetchWithRetry(() => base44.entities.QualityReport.filter(scopedFilter(), '-created_date', 500)),
+        fetchWithRetry(() => base44.entities.ProductionOrder.filter(scopedFilter({}), '-production_date', 200)),
+        fetchWithRetry(() => base44.entities.ProductType.filter(scopedFilter({}), 'name')),
+      ]);
+      setReports(r); setOrders(o); setProductTypes(p);
+    } catch (e) {
+      setError(
+        /rate limit/i.test(e.message || '')
+          ? 'Muitas consultas em sequência. Aguarde alguns segundos e tente novamente.'
+          : e.message
+      );
+    }
     setLoading(false);
   }
 
@@ -99,6 +122,15 @@ export default function Quality() {
       {loading ? (
         <div className="flex items-center justify-center h-48">
           <div className="w-7 h-7 border-4 border-muted border-t-primary rounded-full animate-spin" />
+        </div>
+      ) : error ? (
+        <div className="bg-card rounded-xl border border-border p-8 text-center">
+          <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">{error}</p>
+          <button onClick={load}
+            className="mt-4 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90">
+            Tentar novamente
+          </button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="bg-card rounded-xl border border-border p-12 text-center text-muted-foreground text-sm">
