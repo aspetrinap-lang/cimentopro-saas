@@ -45,7 +45,7 @@ export default function Quality() {
   async function load() {
     setLoading(true);
     const [r, o, p] = await Promise.all([
-      base44.entities.QualityReport.list('-created_date', 500),
+      base44.entities.QualityReport.filter(scopedFilter(), '-created_date', 500),
       base44.entities.ProductionOrder.filter(scopedFilter({}), '-production_date', 200),
       base44.entities.ProductType.filter(scopedFilter({}), 'name'),
     ]);

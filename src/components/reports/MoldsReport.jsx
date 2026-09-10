@@ -24,7 +24,7 @@ export default function MoldsReport({ onClose }) {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Mold.list('name'),
+      base44.entities.Mold.filter(scopedFilter(), 'name'),
       base44.entities.PreventiveMaintenance.filter(scopedFilter({}), '-date', 500),
     ]).then(([molds, maintenances]) => setData({ molds, maintenances }));
   }, []);

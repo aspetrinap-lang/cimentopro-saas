@@ -41,7 +41,7 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
   useEffect(() => {
     Promise.all([
       base44.entities.ConcreteTrace.filter(scopedFilter({ active: true }), 'name'),
-      base44.entities.Mold.filter({ status: 'Ativo' }, 'name'),
+      base44.entities.Mold.filter(scopedFilter({ status: 'Ativo' }), 'name'),
       base44.entities.ProductCategory.filter(scopedFilter({ active: true }), 'name'),
     ]).then(([t, m, c]) => { setTraces(t); setMolds(m); setCategories(c); });
   }, []);

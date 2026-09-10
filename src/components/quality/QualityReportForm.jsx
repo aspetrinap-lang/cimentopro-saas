@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { scopedFilter, withCompany } from '@/lib/companyScope';
 import { X, Save, Plus, Trash2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import CalibrationTab from './CalibrationTab';
@@ -89,7 +90,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
   const [activeAge, setActiveAge] = useState(7);
 
   useEffect(() => {
-    base44.entities.QualityReport.list('-created_date', 500)
+    base44.entities.QualityReport.filter(scopedFilter(), '-created_date', 500)
       .then(data => { setExisting(data); setExistingLoaded(true); })
       .catch(() => { setExistingLoaded(true); });
   }, []);
@@ -216,7 +217,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
       if (report) {
         await base44.entities.QualityReport.update(report.id, payload);
       } else {
-        await base44.entities.QualityReport.create(payload);
+        await base44.entities.QualityReport.create(withCompany(payload));
       }
       onSaved?.();
       onClose?.();

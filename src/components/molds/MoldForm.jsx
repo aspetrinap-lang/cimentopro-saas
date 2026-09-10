@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { scopedFilter } from '@/lib/companyScope';
+import { scopedFilter, withCompany } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { X, CheckSquare, Square } from 'lucide-react';
 import { useBackButtonClose } from '@/hooks/useBackButtonClose';
@@ -31,7 +31,7 @@ export default function MoldForm({ item, onClose, onSaved }) {
     setGeneratingCode(true);
     const year = new Date().getFullYear();
     const yearShort = String(year).slice(-2);
-    const existing = await base44.entities.Mold.filter({ code_year: year }, 'code_sequence', 500);
+    const existing = await base44.entities.Mold.filter(scopedFilter({ code_year: year }), 'code_sequence', 500);
     const maxSeq = existing.length > 0 ? Math.max(...existing.map(m => m.code_sequence || 0)) : 0;
     const nextSeq = maxSeq + 1;
     setForm(f => ({
@@ -76,7 +76,7 @@ export default function MoldForm({ item, onClose, onSaved }) {
     if (item?.id) {
       await base44.entities.Mold.update(item.id, payload);
     } else {
-      await base44.entities.Mold.create(payload);
+      await base44.entities.Mold.create(withCompany(payload));
     }
     setSaving(false);
     onSaved();

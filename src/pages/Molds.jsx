@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { scopedFilter } from '@/lib/companyScope';
 import { Plus, Pencil, Trash2, AlertTriangle, CheckCircle2, Wrench, XCircle, ClipboardList, Printer } from 'lucide-react';
 import MoldForm from '@/components/molds/MoldForm';
 import MoldsReport from '@/components/reports/MoldsReport';
@@ -25,7 +26,7 @@ export default function Molds() {
 
   async function load() {
     setLoading(true);
-    const data = await base44.entities.Mold.list('name');
+    const data = await base44.entities.Mold.filter(scopedFilter(), 'name');
     setMolds(data);
     setLoading(false);
   }
