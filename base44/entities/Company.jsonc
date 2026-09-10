@@ -59,7 +59,25 @@
     "name"
   ],
   "rls": {
-    "read": {},
+    "read": {
+      "$or": [
+        {
+          "id": {
+            "$in": "{{user.data.company_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "is_platform_admin": true
+          }
+        }
+      ]
+    },
     "create": {
       "$or": [
         {
