@@ -2,6 +2,10 @@
   "name": "Mold",
   "type": "object",
   "properties": {
+    "company_id": {
+      "type": "string",
+      "description": "ID da empresa (Company) \u2014 escopo multi-tenant, definido pela empresa ativa na cria\u00e7\u00e3o"
+    },
     "name": {
       "type": "string",
       "description": "Nome do molde (ex: Molde Bloco 14 - A)"
@@ -84,42 +88,58 @@
     "code"
   ],
   "rls": {
-    "create": {
+    "read": {
       "$or": [
+        {
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
+          }
+        },
         {
           "user_condition": {
             "role": "admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "administrador"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "supervisor"
           }
         }
       ]
     },
-    "read": null,
-    "update": null,
-    "delete": {
+    "create": {
       "$or": [
+        {
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
+          }
+        },
         {
           "user_condition": {
             "role": "admin"
           }
-        },
+        }
+      ]
+    },
+    "update": {
+      "$or": [
         {
-          "user_condition": {
-            "role": "administrador"
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
           }
         },
         {
           "user_condition": {
-            "role": "supervisor"
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "data.company_id": {
+            "$in": "{{user.data.company_ids}}"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "admin"
           }
         }
       ]
