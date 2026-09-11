@@ -5,7 +5,7 @@ import { CalendarRange, Printer, X, FileText } from 'lucide-react';
 // Casca reutilizável das fichas técnicas A4: barra de ações com filtro de
 // datas (fora da área de impressão) + folha A4 com cabeçalho padrão.
 // O conteúdo entra como render-prop: children({ start, end, days }).
-export default function ReportSheet({ title, subtitle, icon: Icon, initialStart, initialEnd, onClose, children }) {
+export default function ReportSheet({ title, subtitle, icon: Icon, initialStart, initialEnd, hidePeriod = false, onClose, children }) {
   const [start, setStart] = useState(initialStart || format(subDays(new Date(), 29), 'yyyy-MM-dd'));
   const [end, setEnd] = useState(initialEnd || format(new Date(), 'yyyy-MM-dd'));
 
@@ -28,35 +28,39 @@ export default function ReportSheet({ title, subtitle, icon: Icon, initialStart,
       {/* Barra de ações e filtro de período (fora da área de impressão) */}
       <div className="max-w-[800px] mx-auto mb-3">
         <div className="flex items-center gap-2 flex-wrap rounded-xl bg-white/95 border border-slate-200 shadow px-3 py-2.5">
-          <CalendarRange className="w-4 h-4 text-slate-500 shrink-0" />
-          <button className={shortcutBtn(isShortcut(7))} onClick={() => applyShortcut(7)}>7 dias</button>
-          <button className={shortcutBtn(isShortcut(30))} onClick={() => applyShortcut(30)}>30 dias</button>
-          <button className={shortcutBtn(isShortcut(90))} onClick={() => applyShortcut(90)}>90 dias</button>
-          <div className="flex items-center gap-1.5 ml-1">
-            <input
-              type="date"
-              value={start}
-              max={end}
-              onChange={(e) => {
-                if (!e.target.value) return;
-                setStart(e.target.value);
-                if (e.target.value > end) setEnd(e.target.value);
-              }}
-              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <span className="text-xs text-slate-500">até</span>
-            <input
-              type="date"
-              value={end}
-              min={start}
-              onChange={(e) => {
-                if (!e.target.value) return;
-                setEnd(e.target.value);
-                if (e.target.value < start) setStart(e.target.value);
-              }}
-              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
+          {!hidePeriod && (
+            <>
+              <CalendarRange className="w-4 h-4 text-slate-500 shrink-0" />
+              <button className={shortcutBtn(isShortcut(7))} onClick={() => applyShortcut(7)}>7 dias</button>
+              <button className={shortcutBtn(isShortcut(30))} onClick={() => applyShortcut(30)}>30 dias</button>
+              <button className={shortcutBtn(isShortcut(90))} onClick={() => applyShortcut(90)}>90 dias</button>
+              <div className="flex items-center gap-1.5 ml-1">
+                <input
+                  type="date"
+                  value={start}
+                  max={end}
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    setStart(e.target.value);
+                    if (e.target.value > end) setEnd(e.target.value);
+                  }}
+                  className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <span className="text-xs text-slate-500">até</span>
+                <input
+                  type="date"
+                  value={end}
+                  min={start}
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    setEnd(e.target.value);
+                    if (e.target.value < start) setStart(e.target.value);
+                  }}
+                  className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+            </>
+          )}
           <div className="flex items-center gap-2 ml-auto">
             <button
               onClick={() => window.print()}
@@ -84,13 +88,15 @@ export default function ReportSheet({ title, subtitle, icon: Icon, initialStart,
           <HeadIcon className="w-8 h-8 text-slate-300 shrink-0" />
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-6 text-xs">
-          <div className="border border-slate-200 rounded-lg p-2.5">
-            <p className="text-slate-500 font-semibold uppercase tracking-wide text-[10px]">Período analisado</p>
-            <p className="font-medium mt-1">
-              {format(new Date(start + 'T00:00:00'), 'dd/MM/yyyy')} a {format(new Date(end + 'T00:00:00'), 'dd/MM/yyyy')} ({days} {days === 1 ? 'dia' : 'dias'})
-            </p>
-          </div>
+        <div className={`grid gap-3 mb-6 text-xs ${hidePeriod ? 'grid-cols-1' : 'grid-cols-2'}`}>
+          {!hidePeriod && (
+            <div className="border border-slate-200 rounded-lg p-2.5">
+              <p className="text-slate-500 font-semibold uppercase tracking-wide text-[10px]">Período analisado</p>
+              <p className="font-medium mt-1">
+                {format(new Date(start + 'T00:00:00'), 'dd/MM/yyyy')} a {format(new Date(end + 'T00:00:00'), 'dd/MM/yyyy')} ({days} {days === 1 ? 'dia' : 'dias'})
+              </p>
+            </div>
+          )}
           <div className="border border-slate-200 rounded-lg p-2.5">
             <p className="text-slate-500 font-semibold uppercase tracking-wide text-[10px]">Emissão</p>
             <p className="font-medium mt-1">{issued}</p>
