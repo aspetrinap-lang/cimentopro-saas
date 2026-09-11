@@ -109,24 +109,10 @@ async function isAllowedUrl(rawUrl) {
     if (isBlockedIPv4(host)) return false;
     return true;
   }
-  // Storage oficial: host conhecido, DNS split-horizon esperado — isento do
-  // check de IP privado, mas não das demais validações.
-  if (isAllowedStorageHost(host)) return true;
-  // Demais hosts: valida o IP resolvido por DNS (proteção contra rebinding).
-  const resolveDns = typeof Deno !== 'undefined' && typeof Deno.resolveDns === 'function' ? Deno.resolveDns : null;
-  if (resolveDns) {
-    try {
-      const [aRecs, aaaaRecs] = await Promise.all([
-        resolveDns(host, 'A').catch(() => []),
-        resolveDns(host, 'AAAA').catch(() => []),
-      ]);
-      if ((aRecs || []).some(isBlockedIPv4)) return false;
-      if ((aaaaRecs || []).some(isBlockedIPv6)) return false;
-    } catch {
-      return false;
-    }
-  }
-  return true;
+  // Allowlist EXCLUSIVA: somente o storage oficial da plataforma é aceito.
+  // Qualquer outro hostname — inclusive https público com IP público — é
+  // bloqueado (política fechada da auditoria SSRF/CWE-918).
+  return isAllowedStorageHost(host);
 }
 
 // Fetch que nunca segue redirects sozinho: cada hop é revalidado com isAllowedUrl.
