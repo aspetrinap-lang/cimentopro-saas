@@ -217,7 +217,7 @@ export default function PricingSimulator() {
         <div className="inline-flex rounded-lg border border-border overflow-hidden">
           <button onClick={() => setMode('normalized')}
             className={`text-xs px-3 py-1.5 transition-colors ${mode === 'normalized' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}>
-            Média normalizada — 3 DREs
+            Média normalizada
           </button>
           <button onClick={() => setMode('weighted')}
             className={`text-xs px-3 py-1.5 border-l border-border transition-colors ${mode === 'weighted' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}>
