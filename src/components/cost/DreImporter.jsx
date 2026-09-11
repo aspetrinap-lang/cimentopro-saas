@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { scopedFilter, withCompany } from '@/lib/companyScope';
-import { X, Upload, Save, Plus, Trash2, FileSpreadsheet, Calendar, DollarSign, ListTree, Lock, Unlock } from 'lucide-react';
+import { scopedFilter, withCompany, activeCompanyId } from '@/lib/companyScope';
+import { useAuth } from '@/lib/AuthContext';
+import { X, Upload, Save, Plus, Trash2, FileSpreadsheet, Calendar, DollarSign, ListTree, Lock, Unlock, Zap } from 'lucide-react';
 import DreAccountsPanel from './DreAccountsPanel';
 
 const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -39,6 +40,10 @@ export default function DreImporter({ onClose, onSaved }) {
   const [showStructure, setShowStructure] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const [editingClosed, setEditingClosed] = useState(false);
+  const [editingMeta, setEditingMeta] = useState(null); // { ever_closed, adjustments, prev_total_actual } do registro editado
+  const [syncingId, setSyncingId] = useState(null);
+  const [syncMsg, setSyncMsg] = useState('');
+  const { user } = useAuth();
 
   useEffect(() => { load(); }, []);
 
@@ -62,12 +67,18 @@ export default function DreImporter({ onClose, onSaved }) {
     const now = new Date();
     const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     setEditingClosed(false);
+    setEditingMeta(null);
     setEditing('new');
     setForm({ reference_month: ym, month_label: `${MONTH_NAMES[now.getMonth()]}/${now.getFullYear()}`, items: [emptyItem()], faturamento: { account_name: '', planned_value: '', actual_value: '' }, notes: '' });
   }
 
   function startEdit(d) {
     setEditingClosed(d.closed === true);
+    setEditingMeta({
+      ever_closed: d.ever_closed === true,
+      adjustments: [...(d.adjustments || [])],
+      prev_total_actual: Number(d.total_actual) || 0,
+    });
     setEditing(d.id);
     setForm({
       reference_month: d.reference_month || '',
@@ -201,6 +212,17 @@ export default function DreImporter({ onClose, onSaved }) {
     const totalDespesaPlanned = items
       .filter((i) => i.category !== 'Receita')
       .reduce((s, i) => s + (i.planned_value || 0), 0);
+    // Fechamento: alterações em período que já foi fechado ficam registradas
+    // como ajustes no histórico (trilha dos valores anteriores).
+    const adjustments = editing !== 'new' && editingMeta?.ever_closed
+      ? [...editingMeta.adjustments, {
+          adjusted_date: new Date().toISOString(),
+          user_email: user?.email || '',
+          description: 'Ajuste manual após fechamento',
+          previous_total_actual: editingMeta.prev_total_actual,
+          new_total_actual: +totalActual.toFixed(2),
+        }]
+      : null;
     const payload = {
       reference_month: form.reference_month,
       month_label: form.month_label || form.reference_month,
@@ -216,6 +238,7 @@ export default function DreImporter({ onClose, onSaved }) {
       total_despesa_planned: +totalDespesaPlanned.toFixed(2),
       total_despesa_actual: +totalDespesaActual.toFixed(2),
       notes: form.notes || '',
+      ...(adjustments ? { adjustments } : {}),
     };
     try {
       if (editing === 'new') {
@@ -244,9 +267,32 @@ export default function DreImporter({ onClose, onSaved }) {
   async function toggleClosed(d) {
     const closing = !d.closed;
     if (closing && !confirm(`Fechar a DRE de ${d.month_label}? Os valores ficam preservados e a edição é bloqueada nesta tela.`)) return;
-    await base44.entities.MonthlyDre.update(d.id, { closed: closing });
+    await base44.entities.MonthlyDre.update(d.id, { closed: closing, ...(closing ? { ever_closed: true } : {}) });
     load();
     onSaved?.();
+  }
+
+  // Fase 2 — automação: preenche as contas com origem em módulo (matéria-prima,
+  // energia, vendas) com os dados de produção do mês. Idempotente — lançamentos
+  // manuais são preservados; os automáticos são regenerados a cada execução.
+  async function syncMonth(d) {
+    const companyId = activeCompanyId();
+    if (!companyId) { setSyncMsg('Selecione uma empresa ativa antes de sincronizar.'); return; }
+    setSyncingId(d.id);
+    setSyncMsg('');
+    try {
+      const res = await base44.functions.invoke('dreManagement', { action: 'sync_period', company_id: companyId, reference_month: d.reference_month });
+      const r = res?.data ?? res;
+      const filled = (r?.filled || []).map((f) => `${f.account_name}: ${fmtFat(Number(f.value) || 0)}`).join(' · ');
+      const skipped = (r?.skipped || []).map((s) => s.account_name).join(', ');
+      setSyncMsg(`Sincronização de ${d.month_label}: ${r?.automatic_items ?? 0} lançamento(s) automático(s) · ${r?.manual_items ?? 0} manual(is) preservado(s). ${filled || 'Nenhuma conta preenchida.'}${skipped ? ` Pendentes: ${skipped}` : ''}`);
+      await load();
+      onSaved?.();
+    } catch (e) {
+      setSyncMsg(e?.response?.data?.error || 'Falha na sincronização com os módulos.');
+    } finally {
+      setSyncingId(null);
+    }
   }
 
   const totals = (form.items || []).reduce(
@@ -287,6 +333,8 @@ export default function DreImporter({ onClose, onSaved }) {
                   <ListTree className="w-3.5 h-3.5" /> Estrutura da DRE
                 </button>
               </div>
+
+              {syncMsg && <div className="text-xs bg-primary/10 text-primary rounded-lg p-2">{syncMsg}</div>}
 
               {parsing && (
                 <div className="flex items-center justify-center gap-2 py-8 text-sm text-primary">
@@ -330,12 +378,15 @@ export default function DreImporter({ onClose, onSaved }) {
                           <DollarSign className="w-3.5 h-3.5" /> Faturamento: <strong>R$ {Number(d.faturamento_actual || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {d.items?.length || 0} contas • Rateável: <strong className="text-foreground">R$ {Number(d.total_apportionable || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                          {d.items?.length || 0} contas{(d.items || []).some((i) => i.automatic) ? ` • ${(d.items || []).filter((i) => i.automatic).length} automática(s)` : ''} • Rateável: <strong className="text-foreground">R$ {Number(d.total_apportionable || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
                         </p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {d.closed && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground flex items-center gap-1"><Lock className="w-3 h-3" /> Fechada</span>}
                         <button onClick={() => startEdit(d)} className="text-xs text-primary hover:underline">Editar</button>
+                        <button onClick={() => syncMonth(d)} disabled={syncingId === d.id} title="Preencher contas com origem em módulo (matéria-prima, energia, vendas)" className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted disabled:opacity-50">
+                          {syncingId === d.id ? <div className="w-3.5 h-3.5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                        </button>
                         <button onClick={() => toggleClosed(d)} title={d.closed ? 'Reabrir período' : 'Fechar período'} className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted">
                           {d.closed ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
                         </button>
@@ -356,6 +407,18 @@ export default function DreImporter({ onClose, onSaved }) {
                 </div>
               )}
               {parseMsg && <div className="text-xs bg-primary/10 text-primary rounded-lg p-2">{parseMsg}</div>}
+              {editing !== 'new' && editingMeta?.ever_closed && (
+                <div className="border border-border rounded-xl p-3">
+                  <p className="text-xs font-semibold text-foreground mb-1.5">Ajustes após fechamento ({editingMeta.adjustments.length})</p>
+                  {editingMeta.adjustments.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground">Nenhum ajuste registrado. Toda alteração salva neste período já fechado será registrada aqui como ajuste.</p>
+                  ) : editingMeta.adjustments.map((adj, i) => (
+                    <p key={i} className="text-[11px] text-muted-foreground">
+                      {new Date(adj.adjusted_date).toLocaleString('pt-BR')} — {adj.description} · Total das linhas: {fmtFat(Number(adj.previous_total_actual) || 0)} → {fmtFat(Number(adj.new_total_actual) || 0)}
+                    </p>
+                  ))}
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1">Mês de Referência</label>
@@ -438,6 +501,9 @@ export default function DreImporter({ onClose, onSaved }) {
                         value={it.apportionment_method} onChange={(e) => setItem(idx, 'apportionment_method', e.target.value)}>
                         {METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
                       </select>
+                      {it.automatic && (
+                        <p className="col-span-12 text-[10px] text-muted-foreground -mt-0.5">Lançamento automático (origem: {it.source_type}) — regenerado pela sincronização da lista de meses.</p>
+                      )}
                     </div>
                   ))}
                   {form.items.length === 0 && <p className="text-xs text-muted-foreground text-center py-2">Nenhuma linha. Adicione ou importe.</p>}

@@ -121,6 +121,40 @@
       "default": false,
       "description": "Fechamento mensal: per\u00edodo fechado preserva os valores \u2014 altera\u00e7\u00f5es posteriores entram como ajustes, sem rec\u00e1lculo autom\u00e1tico"
     },
+    "ever_closed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Indica que o per\u00edodo j\u00e1 foi fechado ao menos uma vez \u2014 edi\u00e7\u00f5es posteriores s\u00e3o registradas como ajustes no hist\u00f3rico (adjustments)"
+    },
+    "adjustments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "adjusted_date": {
+            "type": "string",
+            "description": "Data/hora do ajuste (ISO 8601)"
+          },
+          "user_email": {
+            "type": "string",
+            "description": "Usu\u00e1rio que realizou o ajuste"
+          },
+          "description": {
+            "type": "string",
+            "description": "Descri\u00e7\u00e3o do ajuste"
+          },
+          "previous_total_actual": {
+            "type": "number",
+            "description": "Total realizado das linhas antes do ajuste (R$)"
+          },
+          "new_total_actual": {
+            "type": "number",
+            "description": "Total realizado das linhas ap\u00f3s o ajuste (R$)"
+          }
+        }
+      },
+      "description": "Hist\u00f3rico de ajustes realizados ap\u00f3s o primeiro fechamento do per\u00edodo (trilha de auditoria dos valores)"
+    },
     "notes": {
       "type": "string",
       "description": "Observa\u00e7\u00f5es da importa\u00e7\u00e3o"
