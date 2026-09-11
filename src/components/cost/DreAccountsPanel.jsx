@@ -4,7 +4,8 @@ import { scopedFilter, withCompany, activeCompanyId } from '@/lib/companyScope';
 import { useToast } from '@/components/ui/use-toast';
 import DreAccountEditor, { DRE_SOURCES } from './DreAccountEditor';
 import { COMPONENT_LABELS, BASIS_LABELS } from '@/lib/industrialCostEngine';
-import { X, Plus, Copy, Pencil, Trash2, ArrowUp, ArrowDown, ListTree, Power } from 'lucide-react';
+import { X, Plus, Copy, Pencil, Trash2, ArrowUp, ArrowDown, ListTree, Power, Wand2 } from 'lucide-react';
+import ClassificationProposalPanel from './ClassificationProposalPanel';
 
 const CATEGORY_TONE = {
   'Receita': 'text-green-600 dark:text-green-400',
@@ -22,6 +23,7 @@ export default function DreAccountsPanel({ onClose }) {
   const [dres, setDres] = useState([]);
   const [editing, setEditing] = useState(null); // 'new' | account
   const [applying, setApplying] = useState(false);
+  const [showClassify, setShowClassify] = useState(false);
   const { toast } = useToast();
 
   async function load() {
@@ -43,6 +45,7 @@ export default function DreAccountsPanel({ onClose }) {
     if (it.account_name) usedNames.add(norm(it.account_name));
   }));
   const hasHistory = (a) => usedIds.has(a.id) || usedNames.has(norm(a.name));
+  const unclassifiedCount = accounts ? accounts.filter((a) => a.active !== false && !a.cost_component_type).length : 0;
 
   async function handleSave(values) {
     if (editing === 'new') {
@@ -121,6 +124,9 @@ export default function DreAccountsPanel({ onClose }) {
             <button onClick={applyTemplate} disabled={applying} className="flex items-center gap-1.5 text-xs border border-border px-3 py-1.5 rounded-lg text-foreground hover:bg-muted transition-colors disabled:opacity-60">
               <Copy className="w-3.5 h-3.5" /> {applying ? 'Aplicando...' : 'Aplicar DRE Padrão CimentoPro'}
             </button>
+            <button onClick={() => setShowClassify(true)} className="flex items-center gap-1.5 text-xs border border-border px-3 py-1.5 rounded-lg text-foreground hover:bg-muted transition-colors">
+              <Wand2 className="w-3.5 h-3.5 text-primary" /> Assistente de Classificação{unclassifiedCount > 0 ? ` (${unclassifiedCount})` : ''}
+            </button>
           </div>
 
           {accounts == null ? (
@@ -167,6 +173,10 @@ export default function DreAccountsPanel({ onClose }) {
           )}
         </div>
       </div>
+
+      {showClassify && (
+        <ClassificationProposalPanel onClose={() => { setShowClassify(false); load(); }} />
+      )}
 
       {editing && (
         <DreAccountEditor
