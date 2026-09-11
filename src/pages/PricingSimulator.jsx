@@ -9,6 +9,7 @@ import { buildCostModel, calculateSellingCost, unitLabel } from '@/lib/industria
 import FinancialBaseSection from '@/components/pricing/FinancialBaseSection';
 import CostCompositionPanel from '@/components/pricing/CostCompositionPanel';
 import PricingReport from '@/components/reports/PricingReport';
+import CostingV2Report from '@/components/reports/CostingV2Report';
 
 const DEFAULTS_KEY = 'pricing_simulator_defaults';
 const ROWS_KEY = 'pricing_simulator_rows';
@@ -55,6 +56,7 @@ export default function PricingSimulator() {
   const [savingId, setSavingId] = useState(null);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showReport, setShowReport] = useState(false);
+  const [showV2Report, setShowV2Report] = useState(false);
   const [composingId, setComposingId] = useState(null);
   const { costs: insumoCosts } = useInsumoCosts();
   const { taxes, setTaxes, currentRate } = useCompanyTaxes();
@@ -198,10 +200,16 @@ export default function PricingSimulator() {
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">Custeio industrial v{model.calculation_version} — composição auditável, sem duplicidades, baseada nas suas DREs.</p>
         </div>
-        <button onClick={() => setShowReport(true)}
-          className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors">
-          <Printer className="w-4 h-4" /> Relatório (cálculo antigo)
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowV2Report(true)}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+            <Printer className="w-4 h-4" /> Relatório de Custeio
+          </button>
+          <button onClick={() => setShowReport(true)}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors">
+            <Printer className="w-4 h-4" /> Cálculo antigo
+          </button>
+        </div>
       </div>
 
       {/* Método de cálculo + mês */}
@@ -353,8 +361,11 @@ export default function PricingSimulator() {
                   const suggestedColor = current > 0 && diff > 0 ? 'text-red-600 font-bold' : current > 0 && diff < 0 ? 'text-green-600' : 'text-foreground';
                   return (
                     <tr key={pt.id} className="border-b border-border/50">
-                      <td className="py-1.5 text-foreground">
-                        {pt.name}
+                      <td className="py-1.5">
+                        <button onClick={() => setComposingId(pt.id)} title="Ver composição de custos e origem de cada valor"
+                          className="text-foreground hover:text-primary underline decoration-dotted underline-offset-2 text-left transition-colors">
+                          {pt.name}
+                        </button>
                         {p.weightEstimated && <span className="text-[10px] text-amber-600 ml-1" title="Peso estimado — atualize o cadastro">⚠</span>}
                       </td>
                       <td className="py-1.5 text-center text-muted-foreground">{unitLabel(pt)}</td>
@@ -412,6 +423,15 @@ export default function PricingSimulator() {
           product={composing}
           row={rowFor(composingPt)}
           onClose={() => setComposingId(null)}
+        />
+      )}
+
+      {showV2Report && (
+        <CostingV2Report
+          model={model}
+          products={visibleProducts.map((pt) => ({ pt, product: modelByProduct[pt.id] }))}
+          rowFor={rowFor}
+          onClose={() => setShowV2Report(false)}
         />
       )}
 
