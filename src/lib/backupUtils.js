@@ -27,6 +27,16 @@ export const BACKUP_ENTITIES = [
 
 const BUILTIN_FIELDS = ['id', 'created_date', 'updated_date', 'created_by_id'];
 
+// Campos sensíveis de operador (UserPin) que jamais saem no backup nem entram
+// dele na importação — o hash do PIN é gerado só pelo backend (operatorPins).
+const PIN_FIELDS = ['pin_hash', 'pin_salt', 'pin'];
+
+function sanitizePinRecord(record) {
+  const clean = { ...record };
+  PIN_FIELDS.forEach((f) => delete clean[f]);
+  return clean;
+}
+
 const LOCAL_BACKUP_KEY = 'cimentopro_local_backup';
 const LOCAL_BACKUP_DATE_KEY = 'cimentopro_last_backup_date';
 
@@ -34,7 +44,7 @@ export async function exportAllData() {
   const data = {};
   for (const entity of BACKUP_ENTITIES) {
     const records = await base44.entities[entity].list('-created_date', 10000);
-    data[entity] = records;
+    data[entity] = entity === 'UserPin' ? records.map(sanitizePinRecord) : records;
   }
   return {
     _meta: {
@@ -173,6 +183,7 @@ export async function importAllData(backupObj, { replace } = { replace: false })
       if (key) firstByKey.set(key, r.id);
       const clean = { ...r };
       BUILTIN_FIELDS.forEach(f => delete clean[f]);
+      if (entity === 'UserPin') PIN_FIELDS.forEach(f => delete clean[f]);
       if (!GLOBAL_ENTITIES.includes(entity)) {
         clean.company_id = clean.company_id || companyId;
       }

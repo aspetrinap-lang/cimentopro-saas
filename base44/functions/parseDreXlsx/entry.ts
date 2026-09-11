@@ -41,6 +41,120 @@ function findFaturamento(subtotals) {
   return f;
 }
 
+// --- Proteção SSRF (CWE-918): nenhuma URL é buscada sem passar por estas validações ---
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_REDIRECTS = 3;
+
+// Faixas IPv4 reservadas/privadas/locais — nunca podem ser destino de fetch
+const BLOCKED_V4_RANGES = [
+  [0x00000000, 0x000000ff], // 0.0.0.0/8
+  [0x0a000000, 0x0affffff], // 10.0.0.0/8
+  [0x64400000, 0x647fffff], // 100.64.0.0/10 (CGNAT)
+  [0x7f000000, 0x7fffffff], // 127.0.0.0/8 (loopback)
+  [0xa9fe0000, 0xa9feffff], // 169.254.0.0/16 (link-local / cloud metadata)
+  [0xac100000, 0xac1fffff], // 172.16.0.0/12 (privada)
+  [0xc0000000, 0xc00000ff], // 192.0.0.0/24
+  [0xc0a80000, 0xc0a8ffff], // 192.168.0.0/16 (privada)
+  [0xc6120000, 0xc613ffff], // 198.18.0.0/15 (benchmark)
+  [0xe0000000, 0xefffffff], // 224.0.0.0/4 (multicast)
+  [0xf0000000, 0xffffffff], // 240.0.0.0/4 (reservada)
+];
+
+function ipv4ToLong(ip) {
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4 || parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) return null;
+  return parts.reduce((n, o) => n * 256 + o, 0);
+}
+
+function isBlockedIPv4(ip) {
+  const n = ipv4ToLong(ip);
+  return n == null || BLOCKED_V4_RANGES.some(([lo, hi]) => n >= lo && n <= hi);
+}
+
+function isBlockedIPv6(ip) {
+  const h = String(ip).toLowerCase();
+  return h === '::1' || h === '::' || h.startsWith('fc') || h.startsWith('fd') ||
+    ['fe8', 'fe9', 'fea', 'feb'].some((p) => h.startsWith(p));
+}
+
+// Storage oficial da plataforma (domínios confirmados em uploads reais do
+// Core.UploadFile/UploadPublicFile): o endpoint base44.app responde 302 para o
+// CDN media.base44.com. Dentro do runtime o DNS é split-horizon (resolve para
+// IP interno da própria infra), então os hosts autorizados são isentos do
+// check de IP privado — mas continuam sujeitos a scheme, credenciais, porta e
+// IP-literal. Qualquer outro host passa pelo check de DNS completo.
+const ALLOWED_STORAGE_HOSTS = ['base44.app', 'media.base44.com'];
+
+function isAllowedStorageHost(host) {
+  return ALLOWED_STORAGE_HOSTS.some((allowed) => host === allowed || host.endsWith('.' + allowed));
+}
+
+// Valida a URL antes de qualquer fetch: scheme, credenciais, porta, hostname
+// e (quando disponível no runtime) o IP resolvido por DNS — protege contra
+// DNS rebinding. Fail-open apenas se a API de DNS não existir no runtime.
+async function isAllowedUrl(rawUrl) {
+  let url;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'https:') return false;
+  if (url.username || url.password) return false;
+  if (url.port && url.port !== '443') return false;
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host.endsWith('.localhost')) return false;
+  if (host.includes(':')) return false; // IP literal IPv6 — bloqueado
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+    if (isBlockedIPv4(host)) return false;
+    return true;
+  }
+  // Storage oficial: host conhecido, DNS split-horizon esperado — isento do
+  // check de IP privado, mas não das demais validações.
+  if (isAllowedStorageHost(host)) return true;
+  // Demais hosts: valida o IP resolvido por DNS (proteção contra rebinding).
+  const resolveDns = typeof Deno !== 'undefined' && typeof Deno.resolveDns === 'function' ? Deno.resolveDns : null;
+  if (resolveDns) {
+    try {
+      const [aRecs, aaaaRecs] = await Promise.all([
+        resolveDns(host, 'A').catch(() => []),
+        resolveDns(host, 'AAAA').catch(() => []),
+      ]);
+      if ((aRecs || []).some(isBlockedIPv4)) return false;
+      if ((aaaaRecs || []).some(isBlockedIPv6)) return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Fetch que nunca segue redirects sozinho: cada hop é revalidado com isAllowedUrl.
+async function fetchValidatedUrl(rawUrl) {
+  let current = rawUrl;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    if (!(await isAllowedUrl(current))) return null;
+    let resp;
+    try {
+      resp = await fetch(current, { redirect: 'manual' });
+    } catch {
+      return null;
+    }
+    if (resp.status >= 300 && resp.status < 400) {
+      const location = resp.headers.get('location');
+      if (!location) return null;
+      try {
+        current = new URL(location, current).href;
+      } catch {
+        return null;
+      }
+      continue;
+    }
+    return resp;
+  }
+  return null;
+}
+
 export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
@@ -49,11 +163,22 @@ export default async function(req) {
 
     const body = await req.json().catch(() => ({}));
     const fileUrl = body.file_url;
-    if (!fileUrl) return Response.json({ error: 'file_url é obrigatório' }, { status: 400 });
+    if (!fileUrl || typeof fileUrl !== 'string') return Response.json({ error: 'file_url é obrigatório' }, { status: 400 });
 
-    const resp = await fetch(fileUrl);
+    // SSRF: só passam daqui URLs https públicas, sem credenciais/portas
+    // exóticas, com IP resolvido público e redirects revalidados hop a hop.
+    const resp = await fetchValidatedUrl(fileUrl);
+    if (!resp) return Response.json({ error: 'URL de arquivo não autorizada.' }, { status: 400 });
     if (!resp.ok) return Response.json({ error: 'Falha ao baixar o arquivo' }, { status: 502 });
+
+    const declaredLength = Number(resp.headers.get('content-length'));
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_FILE_BYTES) {
+      return Response.json({ error: 'Arquivo maior que o limite permitido.' }, { status: 413 });
+    }
     const buf = await resp.arrayBuffer();
+    if (buf.byteLength > MAX_FILE_BYTES) {
+      return Response.json({ error: 'Arquivo maior que o limite permitido.' }, { status: 413 });
+    }
     const wb = XLSX.read(buf, { type: 'array' });
 
     const sheetName = wb.SheetNames[0];
