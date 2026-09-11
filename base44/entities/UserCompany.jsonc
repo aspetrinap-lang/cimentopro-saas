@@ -53,6 +53,20 @@
     "role"
   ],
   "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        }
+      ]
+    },
     "read": {
       "$or": [
         {
@@ -63,20 +77,6 @@
             "$in": "{{user.data.company_ids}}"
           }
         },
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        },
-        {
-          "user_condition": {
-            "is_platform_admin": true
-          }
-        }
-      ]
-    },
-    "create": {
-      "$or": [
         {
           "user_condition": {
             "role": "admin"

@@ -47,6 +47,20 @@
     "status"
   ],
   "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        }
+      ]
+    },
     "read": {
       "$or": [
         {
@@ -61,21 +75,7 @@
         },
         {
           "user_condition": {
-            "is_platform_admin": true
-          }
-        }
-      ]
-    },
-    "create": {
-      "$or": [
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        },
-        {
-          "user_condition": {
-            "is_platform_admin": true
+            "role": "administrador"
           }
         }
       ]
@@ -89,7 +89,7 @@
         },
         {
           "user_condition": {
-            "is_platform_admin": true
+            "role": "administrador"
           }
         }
       ]
@@ -103,7 +103,7 @@
         },
         {
           "user_condition": {
-            "is_platform_admin": true
+            "role": "administrador"
           }
         }
       ]
