@@ -27,7 +27,7 @@
         "Despesa Fixa",
         "Despesa Financeira"
       ],
-      "description": "Categoria para rateio no custo do artefato (mesma estrutura da DRE atual)"
+      "description": "Categoria cont\u00e1bil da DRE (rateio legado \u2014 o motor v2 usa cost_component_type/rate_basis)"
     },
     "apportionment_method": {
       "type": "string",
@@ -37,7 +37,64 @@
         "machine_hours"
       ],
       "default": "none",
-      "description": "M\u00e9todo de rateio: none (n\u00e3o aloca no produto), volume (por pe\u00e7as/peso produzido), machine_hours (por horas de m\u00e1quina)"
+      "description": "M\u00e9todo de rateio legado (volume/horas) \u2014 o motor de custeio v2 usa rate_basis"
+    },
+    "cost_component_type": {
+      "type": "string",
+      "enum": [
+        "material_direct",
+        "mold",
+        "energy",
+        "direct_labor",
+        "maintenance",
+        "depreciation",
+        "factory_overhead",
+        "loss",
+        "selling_expense",
+        "tax",
+        "commission",
+        "freight",
+        "financial",
+        "other"
+      ],
+      "description": "Classifica\u00e7\u00e3o de custeio (motor v2): papel desta conta na forma\u00e7\u00e3o do custo industrial. Conta sem classifica\u00e7\u00e3o N\u00c3O entra no custo do produto at\u00e9 ser classificada na Estrutura da DRE"
+    },
+    "include_in_product_cost": {
+      "type": "boolean",
+      "default": false,
+      "description": "Inclui a conta no custo industrial do produto. Considerada somente quando cost_component_type \u00e9 industrial e rate_basis n\u00e3o \u00e9 'none'"
+    },
+    "rate_basis": {
+      "type": "string",
+      "enum": [
+        "kg",
+        "unit",
+        "machine_hours",
+        "production_hours",
+        "percentage",
+        "none"
+      ],
+      "default": "none",
+      "description": "Base de rateio da conta no custo do produto: kg (peso produzido), unit (pe\u00e7as produzidas), machine_hours/production_hours (horas), percentage (percentual dos demais custos industriais), none (n\u00e3o rateia)"
+    },
+    "cost_source": {
+      "type": "string",
+      "enum": [
+        "dre",
+        "module"
+      ],
+      "default": "dre",
+      "description": "Origem do valor da conta no custeio: dre (valor financeiro da DRE) ou module (valor alimentado por m\u00f3dulo do CimentoPro \u2014 informativo, complementa source_type)"
+    },
+    "already_included_in_direct_material": {
+      "type": "boolean",
+      "default": false,
+      "description": "Marca que o valor desta conta J\u00c1 est\u00e1 representado no custo operacional (tra\u00e7o/produ\u00e7\u00e3o/molde) \u2014 o motor v2 N\u00c3O soma novamente (evita dupla contabiliza\u00e7\u00e3o)"
+    },
+    "already_included_in_energy": {
+      "type": "boolean",
+      "default": false,
+      "description": "Marca que o valor desta conta J\u00c1 est\u00e1 representado na energia operacional das linhas (kW \u00d7 h \u00d7 tarifa) \u2014 o motor v2 N\u00c3O soma novamente"
     },
     "parent_id": {
       "type": "string",
@@ -58,7 +115,7 @@
         "sales"
       ],
       "default": "manual",
-      "description": "Origem dos valores da conta: manual (lan\u00e7amento/importa\u00e7\u00e3o) ou m\u00f3dulo alimentador do CimentoPro (mat\u00e9ria-prima, energia, manuten\u00e7\u00e3o, vendas)"
+      "description": "Origem dos valores da conta para a automa\u00e7\u00e3o (sync_period): manual (lan\u00e7amento/importa\u00e7\u00e3o) ou m\u00f3dulo alimentador do CimentoPro"
     },
     "active": {
       "type": "boolean",

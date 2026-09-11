@@ -1,34 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { scopedFilter } from '@/lib/companyScope';
-import { Calculator, Printer, Save, RotateCcw, SlidersHorizontal, Truck, Percent, ShieldCheck } from 'lucide-react';
+import { Calculator, Printer, Save, RotateCcw, SlidersHorizontal, Truck, Percent, ShieldCheck, PieChart, AlertTriangle } from 'lucide-react';
 import { useInsumoCosts } from '@/hooks/useInsumoCosts';
+import { useCompanyTaxes, DEFAULT_REGIME_TAXES } from '@/hooks/useCompanyTaxes';
 import { fmtBRL, fmtNum } from '@/lib/statsUtils';
-import {
-  weightPerSaleUnit, unitLabel, saleFactor,
-  directMaterialCostPerUnit, totalProductionCostPerUnit,
-  calculateSuggestedPrice,
-  orderRealWeightKg, orderHasRealWeight,
-} from '@/lib/costUtils';
+import { buildCostModel, calculateSellingCost, unitLabel } from '@/lib/industrialCostEngine';
+import FinancialBaseSection from '@/components/pricing/FinancialBaseSection';
+import CostCompositionPanel from '@/components/pricing/CostCompositionPanel';
 import PricingReport from '@/components/reports/PricingReport';
 
 const DEFAULTS_KEY = 'pricing_simulator_defaults';
 const ROWS_KEY = 'pricing_simulator_rows';
-const REGIME_TAXES_KEY = 'pricing_simulator_regime_taxes';
-
-// Alíquota padrão sugerida por regime (valor inicial — pode ser editada e persistida pelo usuário)
-const REGIME_DEFAULT_TAX = {
-  simples: 13,
-  real: 21.5,
-};
 
 function loadDefaults() {
   try {
     const raw = localStorage.getItem(DEFAULTS_KEY);
-    return raw ? JSON.parse(raw) : { regime: 'simples', taxRate: REGIME_DEFAULT_TAX.simples, commission: 3, freight: 0, other: 0, margin: 20 };
-  } catch {
-    return { regime: 'simples', taxRate: REGIME_DEFAULT_TAX.simples, commission: 3, freight: 0, other: 0, margin: 20 };
-  }
+    if (raw) {
+      const d = JSON.parse(raw);
+      return { commission: 3, freight: 0, other: 0, margin: 20, ...d };
+    }
+  } catch { /* ignore */ }
+  return { commission: 3, freight: 0, other: 0, margin: 20 };
 }
 
 function saveDefaults(d) {
@@ -37,8 +30,7 @@ function saveDefaults(d) {
 
 function loadRows() {
   try {
-    const raw = localStorage.getItem(ROWS_KEY);
-    return raw ? JSON.parse(raw) : {};
+    return JSON.parse(localStorage.getItem(ROWS_KEY)) || {};
   } catch {
     return {};
   }
@@ -48,37 +40,24 @@ function saveRows(r) {
   localStorage.setItem(ROWS_KEY, JSON.stringify(r));
 }
 
-function loadRegimeTaxes() {
-  try {
-    const raw = localStorage.getItem(REGIME_TAXES_KEY);
-    const stored = raw ? JSON.parse(raw) : {};
-    return { ...REGIME_DEFAULT_TAX, ...stored };
-  } catch {
-    return { ...REGIME_DEFAULT_TAX };
-  }
-}
-
-function saveRegimeTaxes(t) {
-  localStorage.setItem(REGIME_TAXES_KEY, JSON.stringify(t));
-}
-
-
-
 export default function PricingSimulator() {
   const [orders, setOrders] = useState([]);
   const [lines, setLines] = useState([]);
   const [dres, setDres] = useState([]);
   const [productTypes, setProductTypes] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState('normalized'); // 'normalized' (padrão) | 'weighted' | 'single'
   const [selectedMonth, setSelectedMonth] = useState('');
-  const [calcMode, setCalcMode] = useState('average'); // 'average' (média dos últimos 3 meses — padrão) | 'single'
+  const [excludedMonths, setExcludedMonths] = useState([]);
   const [defaults, setDefaults] = useState(loadDefaults);
   const [rows, setRows] = useState(loadRows); // productId -> { commission, freight, other, margin, taxRate }
-  const [regimeTaxes, setRegimeTaxes] = useState(loadRegimeTaxes); // { simples, real } — alíquota por regime (editável)
   const [savingId, setSavingId] = useState(null);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showReport, setShowReport] = useState(false);
+  const [composingId, setComposingId] = useState(null);
   const { costs: insumoCosts } = useInsumoCosts();
+  const { taxes, setTaxes, currentRate } = useCompanyTaxes();
 
   useEffect(() => {
     let active = true;
@@ -88,17 +67,19 @@ export default function PricingSimulator() {
       base44.entities.ProductionLine.filter(scopedFilter({}), 'name', 200),
       base44.entities.MonthlyDre.filter(scopedFilter(), '-reference_month', 100),
       base44.entities.ProductType.filter(scopedFilter({}), 'name', 500),
-    ]).then(([o, l, d, pt]) => {
+      base44.entities.DreAccount.filter(scopedFilter(), 'sort_order', 500),
+    ]).then(([o, l, d, pt, acc]) => {
       if (!active) return;
       setOrders(o);
       setLines(l);
       setDres(d);
       setProductTypes(pt);
+      setAccounts(acc);
       if (d.length && !selectedMonth) {
         const latest = [...d].sort((a, b) => String(b.reference_month).localeCompare(String(a.reference_month)))[0];
         setSelectedMonth(latest.reference_month);
       }
-    }).catch(() => {}).finally(() => active && setLoading(false));
+    }).catch(() => {}).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
 
@@ -107,140 +88,23 @@ export default function PricingSimulator() {
     [dres]
   );
 
-  const currentDre = useMemo(() => dres.find((d) => d.reference_month === selectedMonth) || null, [dres, selectedMonth]);
+  const model = useMemo(() => buildCostModel({
+    dres,
+    orders,
+    productTypes,
+    lines,
+    accounts,
+    insumoCosts,
+    mode,
+    excludedMonths,
+    selectedMonth,
+  }), [dres, orders, productTypes, lines, accounts, insumoCosts, mode, excludedMonths, selectedMonth]);
 
-  const monthOrders = useMemo(() => {
-    if (!selectedMonth) return [];
-    const [y, m] = selectedMonth.split('-').map(Number);
-    return orders.filter((o) => {
-      if (!o.production_date) return false;
-      const d = new Date(o.production_date + 'T00:00:00');
-      return d.getFullYear() === y && (d.getMonth() + 1) === m;
-    });
-  }, [orders, selectedMonth]);
-
-  const ptMap = useMemo(() => {
+  const modelByProduct = useMemo(() => {
     const m = {};
-    productTypes.forEach((p) => { m[p.id] = p; });
+    model.products.forEach((p) => { m[p.pt.id] = p; });
     return m;
-  }, [productTypes]);
-
-  const monthWeightKg = useMemo(() => monthOrders.reduce((s, o) => {
-    const pt = ptMap[o.product_type_id];
-    if (orderHasRealWeight(o)) return s + orderRealWeightKg(o);
-    return s + (Number(o.actual_quantity) || 0) * weightPerSaleUnit(pt);
-  }, 0), [monthOrders, ptMap]);
-
-  const machineToLine = useMemo(() => {
-    const map = {};
-    lines.forEach((line) => {
-      (line.machines || []).forEach((m) => {
-        if (m.machine_id) map[m.machine_id] = line.id;
-      });
-    });
-    return map;
-  }, [lines]);
-
-  const lineCosts = useMemo(() => lines.map((line) => {
-    const lineOrders = monthOrders.filter((o) =>
-      o.production_line_id ? o.production_line_id === line.id : o.machine_id && machineToLine[o.machine_id] === line.id
-    );
-    const prodMinutes = lineOrders.reduce((s, o) => s + (Number(o.production_minutes) || 0), 0);
-    const prodHours = prodMinutes / 60;
-    const usedPower = Number(line.used_power_kw) || 0;
-    const energyCost = prodHours * usedPower * (Number(line.energy_cost_per_kwh) || 0);
-    return { line, prodHours, energyCost };
-  }), [lines, monthOrders, machineToLine]);
-
-  const monthTotals = useMemo(() => {
-    const prodMinutes = monthOrders.reduce((s, o) => s + (Number(o.production_minutes) || 0), 0);
-    return { prodHours: prodMinutes / 60 };
-  }, [monthOrders]);
-
-  const apportionment = useMemo(() => {
-    if (!currentDre) return { costPerKg: 0, costPerMachineHour: 0 };
-    const items = (currentDre.items || []).filter((i) => i.apportionment_method !== 'none');
-    const volumeTotal = items.filter((i) => i.apportionment_method === 'volume').reduce((s, i) => s + (Number(i.actual_value) || 0), 0);
-    const hoursTotal = items.filter((i) => i.apportionment_method === 'machine_hours').reduce((s, i) => s + (Number(i.actual_value) || 0), 0);
-    return {
-      costPerKg: monthWeightKg > 0 ? volumeTotal / monthWeightKg : 0,
-      costPerMachineHour: monthTotals.prodHours > 0 ? hoursTotal / monthTotals.prodHours : 0,
-    };
-  }, [currentDre, monthWeightKg, monthTotals]);
-
-  const avgEnergyPerKg = useMemo(() => {
-    const totalEnergy = lineCosts.reduce((s, lc) => s + lc.energyCost, 0);
-    return monthWeightKg > 0 ? totalEnergy / monthWeightKg : 0;
-  }, [lineCosts, monthWeightKg]);
-
-  // Horas por unidade por produto (média real)
-  const productHoursPerUnit = useMemo(() => {
-    const map = {};
-    monthOrders.forEach((o) => {
-      const pid = o.product_type_id;
-      if (!pid) return;
-      if (!map[pid]) map[pid] = { hours: 0, produced: 0 };
-      map[pid].hours += (Number(o.production_minutes) || 0) / 60;
-      map[pid].produced += Number(o.actual_quantity) || 0;
-    });
-    const out = {};
-    Object.keys(map).forEach((pid) => {
-      out[pid] = map[pid].produced > 0 ? map[pid].hours / map[pid].produced : 0;
-    });
-    return out;
-  }, [monthOrders]);
-
-  // Média dos últimos 3 meses de DRE (média móvel trimestral) — rateio, energia e horas/un
-  const averageData = useMemo(() => {
-    const last3 = [...sortedDres].slice(-3);
-    if (last3.length === 0) return { costPerKg: 0, costPerMachineHour: 0, avgEnergyPerKg: 0, productHoursPerUnit: {}, monthsCount: 0 };
-    let totalVol = 0, totalHoursCost = 0, totalWeight = 0, totalProdHours = 0, totalEnergy = 0;
-    const phuMap = {};
-    last3.forEach((dre) => {
-      const items = (dre.items || []).filter((i) => i.apportionment_method !== 'none');
-      totalVol += items.filter((i) => i.apportionment_method === 'volume').reduce((s, i) => s + (Number(i.actual_value) || 0), 0);
-      totalHoursCost += items.filter((i) => i.apportionment_method === 'machine_hours').reduce((s, i) => s + (Number(i.actual_value) || 0), 0);
-      const [y, m] = dre.reference_month.split('-').map(Number);
-      const mo = orders.filter((o) => {
-        if (!o.production_date) return false;
-        const d = new Date(o.production_date + 'T00:00:00');
-        return d.getFullYear() === y && (d.getMonth() + 1) === m;
-      });
-      const w = mo.reduce((s, o) => {
-        const pt = ptMap[o.product_type_id];
-        if (orderHasRealWeight(o)) return s + orderRealWeightKg(o);
-        return s + (Number(o.actual_quantity) || 0) * weightPerSaleUnit(pt);
-      }, 0);
-      totalWeight += w;
-      totalProdHours += mo.reduce((s, o) => s + (Number(o.production_minutes) || 0), 0) / 60;
-      lines.forEach((line) => {
-        const lineOrders = mo.filter((o) => o.production_line_id ? o.production_line_id === line.id : o.machine_id && machineToLine[o.machine_id] === line.id);
-        const lph = lineOrders.reduce((s, o) => s + (Number(o.production_minutes) || 0), 0) / 60;
-        totalEnergy += lph * (Number(line.used_power_kw) || 0) * (Number(line.energy_cost_per_kwh) || 0);
-      });
-      mo.forEach((o) => {
-        const pid = o.product_type_id;
-        if (!pid) return;
-        if (!phuMap[pid]) phuMap[pid] = { hours: 0, produced: 0 };
-        phuMap[pid].hours += (Number(o.production_minutes) || 0) / 60;
-        phuMap[pid].produced += Number(o.actual_quantity) || 0;
-      });
-    });
-    const phu = {};
-    Object.keys(phuMap).forEach((pid) => { phu[pid] = phuMap[pid].produced > 0 ? phuMap[pid].hours / phuMap[pid].produced : 0; });
-    return {
-      costPerKg: totalWeight > 0 ? totalVol / totalWeight : 0,
-      costPerMachineHour: totalProdHours > 0 ? totalHoursCost / totalProdHours : 0,
-      avgEnergyPerKg: totalWeight > 0 ? totalEnergy / totalWeight : 0,
-      productHoursPerUnit: phu,
-      monthsCount: last3.length,
-    };
-  }, [sortedDres, orders, ptMap, lines, machineToLine]);
-
-  const isAverage = calcMode === 'average';
-  const activeApportionment = isAverage ? averageData : apportionment;
-  const activeEnergyPerKg = isAverage ? averageData.avgEnergyPerKg : avgEnergyPerKg;
-  const activeProductHours = isAverage ? averageData.productHoursPerUnit : productHoursPerUnit;
+  }, [model]);
 
   const categories = useMemo(() => {
     const set = new Set();
@@ -248,50 +112,32 @@ export default function PricingSimulator() {
     return ['all', ...Array.from(set)];
   }, [productTypes]);
 
-  const visibleProducts = useMemo(() => {
-    return productTypes.filter((p) => p.active !== false && (categoryFilter === 'all' || p.category === categoryFilter));
-  }, [productTypes, categoryFilter]);
+  const visibleProducts = useMemo(
+    () => productTypes.filter((p) => p.active !== false && (categoryFilter === 'all' || p.category === categoryFilter)),
+    [productTypes, categoryFilter]
+  );
 
-  function rowFor(ptId) {
-    return rows[ptId] || { commission: defaults.commission, freight: defaults.freight, other: defaults.other, margin: defaults.margin, taxRate: defaults.taxRate };
+  // Parâmetros de venda do produto: exceção por produto (tax_rate_percent do
+  // cadastro) > valor editado na linha > alíquota da empresa por regime (banco).
+  function rowFor(pt) {
+    const stored = rows[pt.id] || {};
+    const defaultTax = Number(pt.tax_rate_percent) > 0 ? Number(pt.tax_rate_percent) : currentRate;
+    return {
+      commission: defaults.commission,
+      freight: defaults.freight,
+      other: defaults.other,
+      margin: defaults.margin,
+      ...stored,
+      taxRate: stored.taxRate ?? defaultTax,
+    };
   }
 
   function setRow(ptId, field, val) {
     setRows((prev) => {
-      const next = { ...prev, [ptId]: { ...rowFor(ptId), [field]: val } };
+      const next = { ...prev, [ptId]: { ...rowFor({ id: ptId, tax_rate_percent: 0 }), [field]: val } };
       saveRows(next);
       return next;
     });
-  }
-
-  function applyRegime(regime) {
-    const tax = regimeTaxes[regime] ?? REGIME_DEFAULT_TAX[regime] ?? 0;
-    const next = { ...defaults, regime, taxRate: tax };
-    setDefaults(next);
-    saveDefaults(next);
-  }
-
-  function updateRegimeTax(tax) {
-    const t = Number(tax) || 0;
-    updateDefaults('taxRate', t);
-    setRegimeTaxes((prev) => {
-      const next = { ...prev, [defaults.regime]: t };
-      saveRegimeTaxes(next);
-      return next;
-    });
-  }
-
-  function applyDefaultsToAll() {
-    const next = {};
-    visibleProducts.forEach((p) => {
-      next[p.id] = { ...defaults };
-    });
-    setRows((prev) => {
-      const merged = { ...prev, ...next };
-      saveRows(merged);
-      return merged;
-    });
-    saveDefaults(defaults);
   }
 
   function updateDefaults(field, val) {
@@ -300,23 +146,48 @@ export default function PricingSimulator() {
     saveDefaults(next);
   }
 
-  async function handleApplyPrice(pt) {
-    const baseCost = totalProductionCostPerUnit(pt, {
-      insumoCosts,
-      avgEnergyPerKg: activeEnergyPerKg,
-      costPerKg: activeApportionment.costPerKg,
-      costPerMachineHour: activeApportionment.costPerMachineHour,
-      hoursPerUnit: activeProductHours[pt.id] || 0,
+  function applyRegime(regime) {
+    const next = { regime, tax_rates: { ...taxes.tax_rates } };
+    setTaxes(next);
+  }
+
+  function updateRegimeTax(tax) {
+    const t = Number(tax) || 0;
+    setTaxes({ regime: taxes.regime, tax_rates: { ...taxes.tax_rates, [taxes.regime]: t } });
+  }
+
+  function applyDefaultsToAll() {
+    const next = {};
+    visibleProducts.forEach((p) => {
+      next[p.id] = { ...defaults, taxRate: Number(p.tax_rate_percent) > 0 ? Number(p.tax_rate_percent) : currentRate };
     });
-    const price = calculateSuggestedPrice(baseCost, rowFor(pt.id));
+    setRows((prev) => {
+      const merged = { ...prev, ...next };
+      saveRows(merged);
+      return merged;
+    });
+  }
+
+  function toggleExclude(referenceMonth) {
+    setExcludedMonths((prev) =>
+      prev.includes(referenceMonth)
+        ? prev.filter((m) => m !== referenceMonth)
+        : [...prev, referenceMonth]
+    );
+  }
+
+  async function handleApplyPrice(pt, price) {
     setSavingId(pt.id);
     try {
       await base44.entities.ProductType.update(pt.id, { selling_price: +price.toFixed(2) });
-      setProductTypes((prev) => prev.map((p) => p.id === pt.id ? { ...p, selling_price: +price.toFixed(2) } : p));
+      setProductTypes((prev) => prev.map((p) => (p.id === pt.id ? { ...p, selling_price: +price.toFixed(2) } : p)));
     } finally {
       setSavingId(null);
     }
   }
+
+  const composing = composingId ? modelByProduct[composingId] : null;
+  const composingPt = composingId ? productTypes.find((p) => p.id === composingId) : null;
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-5">
@@ -325,29 +196,31 @@ export default function PricingSimulator() {
           <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
             <Calculator className="w-5 h-5 text-primary" /> Simulador de Preços
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Ajuste margem, comissão, frete e outros custos de venda para definir o preço sugerido.</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Custeio industrial v{model.calculation_version} — composição auditável, sem duplicidades, baseada nas suas DREs.</p>
         </div>
         <button onClick={() => setShowReport(true)}
-          className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-          <Printer className="w-4 h-4" /> Relatório
+          className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors">
+          <Printer className="w-4 h-4" /> Relatório (cálculo antigo)
         </button>
       </div>
 
-      {/* Seletor de modo de cálculo + mês */}
+      {/* Método de cálculo + mês */}
       <div className="flex items-center gap-3 flex-wrap">
-        {sortedDres.length > 0 && (
-          <div className="inline-flex rounded-lg border border-border overflow-hidden">
-            <button onClick={() => setCalcMode('single')}
-              className={`text-xs px-3 py-1.5 transition-colors ${calcMode === 'single' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}>
-              Mês selecionado
-            </button>
-            <button onClick={() => setCalcMode('average')}
-              className={`text-xs px-3 py-1.5 border-l border-border transition-colors ${calcMode === 'average' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}>
-              Média trimestral
-            </button>
-          </div>
-        )}
-        {calcMode === 'single' ? (
+        <div className="inline-flex rounded-lg border border-border overflow-hidden">
+          <button onClick={() => setMode('normalized')}
+            className={`text-xs px-3 py-1.5 transition-colors ${mode === 'normalized' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}>
+            Média normalizada — 3 DREs
+          </button>
+          <button onClick={() => setMode('weighted')}
+            className={`text-xs px-3 py-1.5 border-l border-border transition-colors ${mode === 'weighted' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}>
+            Média ponderada
+          </button>
+          <button onClick={() => setMode('single')}
+            className={`text-xs px-3 py-1.5 border-l border-border transition-colors ${mode === 'single' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}>
+            Mês selecionado
+          </button>
+        </div>
+        {mode === 'single' ? (
           <>
             <span className="text-xs text-muted-foreground">Mês de referência:</span>
             <div className="flex flex-wrap gap-1.5">
@@ -361,15 +234,28 @@ export default function PricingSimulator() {
           </>
         ) : (
           <span className="text-xs text-muted-foreground">
-            Base de custos: média móvel dos últimos {averageData.monthsCount || 3} meses de DRE (suaviza variações sazonais).
+            {model.mode === 'normalized'
+              ? 'Média dos indicadores unitários (R$/kg, R$/hora, R$/un) de cada uma das últimas 3 DREs — cada mês pesa igual, mês atípico não distorce.'
+              : 'Somatório dos custos ÷ somatório da base produtiva dos meses utilizados (método antigo).'}
           </span>
         )}
-        {sortedDres.length === 0 && (
-          <span className="text-xs text-amber-600">Nenhuma DRE importada — usando apenas custo direto.</span>
+        {dres.length === 0 && (
+          <span className="text-xs text-amber-600">Nenhuma DRE cadastrada — usando apenas custos diretos de cadastro.</span>
         )}
       </div>
 
-      {/* Defaults globais */}
+      {/* Avisos de dados insuficientes / duplicidade */}
+      {model.insufficient?.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-xl p-3 space-y-1">
+          {model.insufficient.map((msg, i) => (
+            <p key={i} className="text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-1.5">
+              <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> {msg}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {/* Parâmetros padrão de venda */}
       <section className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center gap-2 mb-3">
           <SlidersHorizontal className="w-4 h-4 text-primary" />
@@ -383,7 +269,7 @@ export default function PricingSimulator() {
             <label className="block text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> Regime Tributário</label>
             <select
               className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-              value={defaults.regime} onChange={(e) => applyRegime(e.target.value)}>
+              value={taxes.regime} onChange={(e) => applyRegime(e.target.value)}>
               <option value="simples">Simples Nacional</option>
               <option value="real">Lucro Real/Presumido</option>
             </select>
@@ -392,7 +278,8 @@ export default function PricingSimulator() {
             <label className="block text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1"><Percent className="w-3 h-3" /> Alíquota Imposto (%)</label>
             <input type="number" min="0" max="100" step="0.01"
               className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-              value={defaults.taxRate} onChange={(e) => updateRegimeTax(e.target.value)} />
+              value={taxes.regime === 'real' ? taxes.tax_rates.real : taxes.tax_rates.simples} onChange={(e) => updateRegimeTax(e.target.value)} />
+            <p className="text-[10px] text-muted-foreground mt-0.5">Configurado por empresa (banco). Padrão: Simples ≈ {DEFAULT_REGIME_TAXES.simples}%, Real ≈ {DEFAULT_REGIME_TAXES.real}%.</p>
           </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1"><Percent className="w-3 h-3" /> Comissão (%)</label>
@@ -407,12 +294,6 @@ export default function PricingSimulator() {
               value={defaults.freight} onChange={(e) => updateDefaults('freight', e.target.value)} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Outros Custos (R$)</label>
-            <input type="number" min="0" step="0.01"
-              className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-              value={defaults.other} onChange={(e) => updateDefaults('other', e.target.value)} />
-          </div>
-          <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Margem Desejada (%)</label>
             <input type="number" min="0" max="99" step="0.1"
               className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
@@ -420,6 +301,14 @@ export default function PricingSimulator() {
           </div>
         </div>
       </section>
+
+      {/* Base financeira do cálculo */}
+      {mode !== 'single' && (
+        <FinancialBaseSection model={model} mode={mode} onToggleExclude={toggleExclude} />
+      )}
+      {mode === 'single' && model.months.length > 0 && (
+        <FinancialBaseSection model={model} mode="single" />
+      )}
 
       {/* Filtro de categoria */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -442,36 +331,35 @@ export default function PricingSimulator() {
                 <tr className="text-muted-foreground border-b border-border">
                   <th className="text-left py-2 font-medium">Artefato</th>
                   <th className="text-center py-2 font-medium">Un.</th>
-                  <th className="text-right py-2 font-medium">Custo Prod.</th>
+                  <th className="text-right py-2 font-medium">Custo Industrial</th>
+                  <th className="text-right py-2 font-medium">Custo p/ Venda</th>
                   <th className="text-right py-2 font-medium">% Imposto</th>
                   <th className="text-right py-2 font-medium">% Comis.</th>
                   <th className="text-right py-2 font-medium">Frete (R$)</th>
-                  <th className="text-right py-2 font-medium">Outros (R$)</th>
                   <th className="text-right py-2 font-medium">Margem (%)</th>
                   <th className="text-right py-2 font-medium">Preço Sugerido</th>
                   <th className="text-right py-2 font-medium">Preço Atual</th>
-                  <th className="text-center py-2 font-medium">Ação</th>
+                  <th className="text-center py-2 font-medium">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {visibleProducts.map((pt) => {
-                  const baseCost = totalProductionCostPerUnit(pt, {
-                    insumoCosts,
-                    avgEnergyPerKg: activeEnergyPerKg,
-                    costPerKg: activeApportionment.costPerKg,
-                    costPerMachineHour: activeApportionment.costPerMachineHour,
-                    hoursPerUnit: activeProductHours[pt.id] || 0,
-                  });
-                  const row = rowFor(pt.id);
-                  const suggested = calculateSuggestedPrice(baseCost, row);
+                  const p = modelByProduct[pt.id];
+                  if (!p) return null;
+                  const row = rowFor(pt);
+                  const sell = calculateSellingCost(p.industrialPerUnit, row);
                   const current = Number(pt.selling_price) || 0;
-                  const diff = suggested - current;
+                  const diff = sell.price - current;
                   const suggestedColor = current > 0 && diff > 0 ? 'text-red-600 font-bold' : current > 0 && diff < 0 ? 'text-green-600' : 'text-foreground';
                   return (
                     <tr key={pt.id} className="border-b border-border/50">
-                      <td className="py-1.5 text-foreground">{pt.name}</td>
+                      <td className="py-1.5 text-foreground">
+                        {pt.name}
+                        {p.weightEstimated && <span className="text-[10px] text-amber-600 ml-1" title="Peso estimado — atualize o cadastro">⚠</span>}
+                      </td>
                       <td className="py-1.5 text-center text-muted-foreground">{unitLabel(pt)}</td>
-                      <td className="py-1.5 text-right text-muted-foreground">{fmtBRL(baseCost)}</td>
+                      <td className="py-1.5 text-right text-muted-foreground" title="Clique em Composição para ver a origem de cada componente">{fmtBRL(p.industrialPerUnit)}</td>
+                      <td className="py-1.5 text-right text-muted-foreground">{fmtBRL(sell.sellingCost)}</td>
                       <td className="py-1.5 text-right">
                         <input type="number" min="0" max="100" step="0.01" className="w-16 border border-input rounded-md px-1.5 py-1 text-xs bg-background text-right focus:outline-none focus:ring-1 focus:ring-ring"
                           value={row.taxRate} onChange={(e) => setRow(pt.id, 'taxRate', e.target.value)} />
@@ -485,18 +373,21 @@ export default function PricingSimulator() {
                           value={row.freight} onChange={(e) => setRow(pt.id, 'freight', e.target.value)} />
                       </td>
                       <td className="py-1.5 text-right">
-                        <input type="number" min="0" step="0.01" className="w-20 border border-input rounded-md px-1.5 py-1 text-xs bg-background text-right focus:outline-none focus:ring-1 focus:ring-ring"
-                          value={row.other} onChange={(e) => setRow(pt.id, 'other', e.target.value)} />
-                      </td>
-                      <td className="py-1.5 text-right">
                         <input type="number" min="0" max="99" step="0.1" className="w-16 border border-input rounded-md px-1.5 py-1 text-xs bg-background text-right focus:outline-none focus:ring-1 focus:ring-ring"
                           value={row.margin} onChange={(e) => setRow(pt.id, 'margin', e.target.value)} />
                       </td>
-                      <td className={`py-1.5 text-right font-bold ${suggestedColor}`}>{fmtBRL(suggested)}</td>
+                      <td className={`py-1.5 text-right font-bold ${suggestedColor}`}>
+                        {sell.invalid ? <span className="text-red-600 font-medium text-[10px]">inválido</span> : fmtBRL(sell.price)}
+                      </td>
                       <td className="py-1.5 text-right text-muted-foreground">{current ? fmtBRL(current) : '—'}</td>
-                      <td className="py-1.5 text-center">
-                        <button onClick={() => handleApplyPrice(pt)} disabled={savingId === pt.id}
-                          className="flex items-center gap-1 mx-auto text-xs bg-primary text-primary-foreground px-2.5 py-1 rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50">
+                      <td className="py-1.5 text-center whitespace-nowrap">
+                        <button onClick={() => setComposingId(pt.id)} title="Composição do custo e origem dos valores"
+                          className="p-1.5 text-muted-foreground hover:text-primary rounded-lg hover:bg-muted">
+                          <PieChart className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleApplyPrice(pt, sell.price)} disabled={savingId === pt.id || sell.invalid}
+                          title="Aplicar o preço sugerido ao cadastro do produto (explícito)"
+                          className="ml-0.5 flex items-center gap-1 inline-flex text-xs bg-primary text-primary-foreground px-2.5 py-1 rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50">
                           {savingId === pt.id ? <div className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" /> : <Save className="w-3 h-3" />}
                           Aplicar
                         </button>
@@ -508,9 +399,20 @@ export default function PricingSimulator() {
             </table>
           </div>
           <p className="text-[11px] text-muted-foreground mt-3">
-            <strong>Preço Sugerido</strong> = (Custo Produção + Frete + Outros) ÷ (1 − Margem% − Comissão% − Imposto%). O imposto incide sobre o preço final (markup "por dentro"), conforme legislação brasileira. Alíquota padrão do Simples Nacional ≈ 12,5%; Lucro Real/Presumido ≈ 18% (ajuste com a carga efetiva do seu contador). <span className="text-red-600 font-medium">Vermelho: preço atual defasado (abaixo do sugerido)</span>; <span className="text-green-600 font-medium">verde: preço atual acima do sugerido</span>. Clique em <strong>Aplicar</strong> para gravar no cadastro do produto.
+            <strong>Custo Industrial</strong> = matéria-prima + molde + energia + mão de obra + manutenção + depreciação + custos fixos industriais, absorvidos pela produção boa (peça em <strong>Composição</strong> mostra a origem de cada valor).
+            <strong> Preço Sugerido</strong> = (Custo Industrial + Frete + Outros) ÷ (1 − Margem% − Comissão% − Imposto%), com imposto sobre o preço final.
+            Impostos, comissão, frete e despesas financeiras da DRE <strong>não</strong> entram no custo industrial.
+            <span className="text-red-600 font-medium"> Vermelho: preço atual defasado</span>; <span className="text-green-600 font-medium">verde: acima do sugerido</span>. Aplicar é sempre explícito.
           </p>
         </section>
+      )}
+
+      {composing && composingPt && (
+        <CostCompositionPanel
+          product={composing}
+          row={rowFor(composingPt)}
+          onClose={() => setComposingId(null)}
+        />
       )}
 
       {showReport && (
@@ -520,7 +422,7 @@ export default function PricingSimulator() {
           dres={sortedDres}
           productTypes={productTypes}
           insumoCosts={insumoCosts}
-          defaults={defaults}
+          defaults={{ ...defaults, regime: taxes.regime, taxRate: currentRate }}
           rows={rows}
           onClose={() => setShowReport(false)}
         />

@@ -65,7 +65,7 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
   // volume_per_unit_m3 representa o PESO da unidade em kg
   function applyTrace() {
     const trace = traces.find(t => t.id === form.concrete_trace_id);
-    const weightKg = parseFloat(form.volume_per_unit_m3); // peso em kg da peça
+    const weightKg = parseFloat(form.weight_kg_per_unit ?? form.volume_per_unit_m3); // peso em kg da peça
     if (!trace || !weightKg) return;
 
     const cp = parseFloat(trace.cement_parts) || 1;
@@ -131,7 +131,10 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
       const { pt_field } = INSUMO_FIELDS[key];
       payload[pt_field] = parseFloat(form[pt_field]) || 0;
     });
-    payload.volume_per_unit_m3 = parseFloat(form.volume_per_unit_m3) || null;
+    payload.weight_kg_per_unit = parseFloat(form.weight_kg_per_unit ?? form.volume_per_unit_m3) || null;
+    payload.volume_m3_per_unit = parseFloat(form.volume_m3_per_unit) || null;
+    // Espelho legado durante a transição do motor v2 (campo antigo preservado)
+    payload.volume_per_unit_m3 = payload.weight_kg_per_unit;
     payload.length_mm = parseFloat(form.length_mm) || null;
     payload.width_mm = parseFloat(form.width_mm) || null;
     payload.height_mm = parseFloat(form.height_mm) || null;
@@ -249,6 +252,17 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
                 </select>
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Volume Geométrico (m³)</label>
+                <input type="number" min="0" step="0.0001"
+                  className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={form.volume_m3_per_unit ?? ''} onChange={e => set('volume_m3_per_unit', e.target.value)} placeholder="ex: 0.011" />
+              </div>
+              <div className="flex items-end">
+                <p className="text-[11px] text-muted-foreground">Volume ≠ peso. O custeio usa o <strong>peso (kg)</strong>; o volume é informativo.</p>
+              </div>
+            </div>
           </div>
 
           {/* ── Classe da Norma ── */}
@@ -329,10 +343,13 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Peso por Unidade (kg)</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Peso por Unidade (kg) — base do custeio</label>
                 <input type="number" min="0" step="0.001"
                   className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                  value={form.volume_per_unit_m3} onChange={e => set('volume_per_unit_m3', e.target.value)} placeholder="ex: 8.5" />
+                  value={form.weight_kg_per_unit ?? form.volume_per_unit_m3 ?? ''} onChange={e => set('weight_kg_per_unit', e.target.value)} placeholder="ex: 8.5" />
+                {!form.weight_kg_per_unit && form.volume_per_unit_m3 && (
+                  <p className="text-[11px] text-amber-600 mt-1">Peso estimado — valor herdado do campo antigo. Salve para atualizar o cadastro.</p>
+                )}
               </div>
             </div>
             {selectedTrace && (

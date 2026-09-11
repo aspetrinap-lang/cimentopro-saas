@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { scopedFilter, withCompany, activeCompanyId } from '@/lib/companyScope';
 import { useToast } from '@/components/ui/use-toast';
 import DreAccountEditor, { DRE_SOURCES } from './DreAccountEditor';
+import { COMPONENT_LABELS, BASIS_LABELS } from '@/lib/industrialCostEngine';
 import { X, Plus, Copy, Pencil, Trash2, ArrowUp, ArrowDown, ListTree, Power } from 'lucide-react';
 
 const CATEGORY_TONE = {
@@ -143,6 +144,9 @@ export default function DreAccountsPanel({ onClose }) {
                         {' • '}
                         {a.apportionment_method === 'volume' ? 'Rateio por volume' : a.apportionment_method === 'machine_hours' ? 'Rateio por horas' : 'Não aloca'}
                         {a.source_type && a.source_type !== 'manual' && <> {' • '} Origem: {source?.label}</>}
+                        {a.cost_component_type
+                          ? <> {' • '} <span className="text-foreground">{COMPONENT_LABELS[a.cost_component_type]}</span>{a.rate_basis && a.rate_basis !== 'none' ? ` (${BASIS_LABELS[a.rate_basis]})` : ''}{a.include_in_product_cost === false ? ' — não incluída' : ''}</>
+                          : <> {' • '} <span className="text-amber-600 dark:text-amber-400">Sem classificação de custeio</span></>}
                         {parent && <> {' • '} Subconta de: {parent.name}</>}
                         {a.active === false && <> {' • '} <span className="text-red-600 dark:text-red-400">Inativa</span></>}
                       </p>
@@ -169,6 +173,7 @@ export default function DreAccountsPanel({ onClose }) {
           account={editing === 'new' ? null : editing}
           accounts={accounts || []}
           allowSource
+          allowClassification
           onClose={() => setEditing(null)}
           onSave={handleSave}
         />
