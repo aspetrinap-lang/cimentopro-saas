@@ -61,7 +61,7 @@ export default function CompanyUsersTab() {
   async function handleUnlink(m) {
     if (!window.confirm(`Remover o acesso de ${m.user_email || m.user_name || 'este usuário'} a esta empresa?`)) return;
     try {
-      await base44.functions.invoke('companyMembers', { action: 'unlink', company_id: currentCompanyId, user_id: m.user_id });
+      await base44.functions.invoke('companyMembers', { action: 'unlink', company_id: currentCompanyId, link_id: m.id });
       toast({ title: 'Acesso removido' });
       load();
     } catch (err) {
@@ -144,7 +144,9 @@ export default function CompanyUsersTab() {
                       {ROLE_LABELS[m.role] || m.role}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 text-muted-foreground">{m.status === 'active' ? 'Ativo' : m.status}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground">
+                    {m.status === 'active' ? 'Ativo' : m.status === 'invited' ? 'Convite pendente' : m.status}
+                  </td>
                   <td className="px-4 py-2.5 text-right">
                     <button
                       onClick={() => handleUnlink(m)}

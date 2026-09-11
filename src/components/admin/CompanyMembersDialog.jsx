@@ -65,7 +65,7 @@ export default function CompanyMembersDialog({ open, company, onClose, onChanged
   async function handleUnlink(m) {
     if (!window.confirm(`Remover o acesso de ${m.user_email || m.user_name || 'este usuário'} a ${company.name}?`)) return;
     try {
-      await base44.functions.invoke('companyMembers', { action: 'unlink', company_id: company.id, user_id: m.user_id });
+      await base44.functions.invoke('companyMembers', { action: 'unlink', company_id: company.id, link_id: m.id });
       toast({ title: 'Acesso removido' });
       load();
       onChanged?.();
@@ -133,8 +133,13 @@ export default function CompanyMembersDialog({ open, company, onClose, onChanged
                 {members.map((m) => (
                   <tr key={m.id} className="border-t border-border">
                     <td className="px-3 py-2">
-                      <p className="font-medium text-foreground">{m.user_name || '—'}</p>
-                      <p className="text-xs text-muted-foreground">{m.user_email || '—'}</p>
+                      <p className="font-medium text-foreground">{m.user_name || m.user_email || '—'}</p>
+                      <p className="text-xs text-muted-foreground">{m.user_name ? m.user_email : ''}</p>
+                      {m.status === 'invited' && (
+                        <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-medium">
+                          Convite pendente
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">

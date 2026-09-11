@@ -45,6 +45,7 @@ export const CompanyProvider = ({ children }) => {
   const [companies, setCompanies] = useState([]);
   const [currentCompanyId, setCurrentCompanyId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [activatedInvites, setActivatedInvites] = useState([]);
 
   const applyCompanyId = useCallback((companyId) => {
     activeCompanyIdGlobal = companyId;
@@ -57,6 +58,7 @@ export const CompanyProvider = ({ children }) => {
     if (!isLoadingAuth && !user) {
       setMemberships([]);
       setCompanies([]);
+      setActivatedInvites([]);
       setCurrentCompanyId(null);
       activeCompanyIdGlobal = null;
     }
@@ -69,6 +71,14 @@ export const CompanyProvider = ({ children }) => {
     setLoading(true);
     (async () => {
       try {
+        // Convite direto: ativa os convites pendentes enviados a este e-mail
+        // ANTES de carregar as empresas — o primeiro acesso já entra vinculado.
+        let activated = [];
+        try {
+          const res = await base44.functions.invoke('companyMembers', { action: 'activateInvites' });
+          activated = res.data?.activated || [];
+        } catch { /* sem convites pendentes — segue o fluxo normal */ }
+        setActivatedInvites(activated);
         const all = await base44.entities.UserCompany.filter({ user_id: user.id });
         const activeMbs = (all || []).filter((m) => m.status === 'active');
         const ids = [...new Set(activeMbs.map((m) => m.company_id))];
@@ -120,6 +130,9 @@ export const CompanyProvider = ({ children }) => {
   const currentCompany = companies.find((c) => c.id === currentCompanyId) || null;
   const currentMembership = memberships.find((m) => m.company_id === currentCompanyId) || null;
   const currentRole = currentMembership?.role || user?.role || null;
+  // Convites recém-ativados cuja empresa não carrega nesta sessão: o token foi
+  // emitido antes do vínculo existir — basta sair e entrar novamente.
+  const sessionRefreshNeeded = activatedInvites.length > 0 && memberships.length > 0 && companies.length === 0;
   const legacyRole = currentMembership
     ? (COMPANY_ROLE_TO_LEGACY[currentMembership.role] || currentMembership.role)
     : user?.role;
@@ -140,6 +153,8 @@ export const CompanyProvider = ({ children }) => {
       permissions,          // rotas permitidas (mesma base do sistema atual)
       loading,              // carregando vínculos/empresas
       hasCompany: companies.length > 0,
+      activatedInvites,      // convites ativados nesta sessão
+      sessionRefreshNeeded,  // convite ativado, mas o token não enxerga a empresa ainda
       needsCompanySelection: isAuthenticated && companies.length > 1 && !currentCompanyId,
       selectCompany,        // seleciona a empresa ativa
       clearCompany: () => applyCompanyId(null),
