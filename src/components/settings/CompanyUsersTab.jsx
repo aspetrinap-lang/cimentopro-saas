@@ -40,10 +40,15 @@ export default function CompanyUsersTab() {
     if (!email.trim()) return;
     setSaving(true);
     try {
-      await base44.functions.invoke('companyMembers', {
+      const res = await base44.functions.invoke('companyMembers', {
         action: 'link', company_id: currentCompanyId, email: email.trim(), role,
       });
-      toast({ title: 'Usuário vinculado', description: `${email.trim()} agora tem acesso a ${currentCompany?.name || 'esta empresa'}.` });
+      toast({
+        title: res.data?.invited ? 'Convite enviado e usuário vinculado' : 'Usuário vinculado',
+        description: res.data?.invited
+          ? `${email.trim()} recebeu o convite de acesso e já está vinculado a ${currentCompany?.name || 'esta empresa'}.`
+          : `${email.trim()} agora tem acesso a ${currentCompany?.name || 'esta empresa'}.`,
+      });
       setEmail('');
       load();
     } catch (err) {
@@ -83,7 +88,7 @@ export default function CompanyUsersTab() {
       <div>
         <h2 className="text-lg font-semibold text-foreground">Usuários da Empresa</h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Vincule contas CimentoPro a {currentCompany?.name || 'esta empresa'} e defina o papel de cada uma (donos e administradores gerenciam a empresa; supervisores acompanham os módulos operacionais).
+          Vincule usuários a {currentCompany?.name || 'esta empresa'} e defina o papel de cada um (donos e administradores gerenciam a empresa; supervisores acompanham os módulos operacionais). E-mails ainda sem conta no CimentoPro recebem o convite da plataforma e entram direto na empresa no primeiro acesso.
         </p>
       </div>
 
@@ -92,7 +97,7 @@ export default function CompanyUsersTab() {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="E-mail da conta CimentoPro do usuário"
+          placeholder="E-mail do usuário (sem conta, recebe convite)"
           className={`${inputCls} flex-1 min-w-[220px]`}
           required
         />

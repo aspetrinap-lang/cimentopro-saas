@@ -63,9 +63,23 @@ export default async function(req) {
         return Response.json({ error: 'E-mail e papel (owner, admin ou supervisor) são obrigatórios' }, { status: 400 });
       }
       const users = await svc.entities.User.filter({ email });
-      const target = users && users[0];
+      let target = users && users[0];
+      let invited = false;
       if (!target) {
-        return Response.json({ error: 'Usuário não encontrado. A pessoa precisa criar a conta no CimentoPro antes de ser vinculada.' }, { status: 404 });
+        // E-mail sem conta: apenas o SUPER ADMIN da plataforma pode convidar
+        // (o convite cria a conta e envia o e-mail de acesso). O vínculo é
+        // criado na mesma ação, garantindo que o primeiro login já entre na
+        // empresa com o cache company_ids sincronizado.
+        if (!isPlatformAdmin) {
+          return Response.json({ error: 'Usuário não encontrado. A pessoa precisa criar a conta no CimentoPro antes — ou peça ao administrador da plataforma para enviá-la um convite de acesso.' }, { status: 404 });
+        }
+        await base44.users.inviteUser(email, 'user');
+        const invitedUsers = await svc.entities.User.filter({ email });
+        target = invitedUsers && invitedUsers[0];
+        if (!target) {
+          return Response.json({ error: 'Convite enviado, mas a conta ainda não foi criada pelo servidor. Tente vincular novamente em instantes.' }, { status: 409 });
+        }
+        invited = true;
       }
       const existing = await svc.entities.UserCompany.filter({ user_id: target.id, company_id: companyId });
       if (existing.length) {
@@ -91,8 +105,8 @@ export default async function(req) {
         is_owner: role === 'owner',
       });
       await syncUserCompanies(target.id);
-      await audit('CREATE', created.id, null, { user_email: target.email, role });
-      return Response.json({ member: created });
+      await audit('CREATE', created.id, null, { user_email: target.email, role, invited });
+      return Response.json({ member: created, invited });
     }
 
     if (action === 'unlink') {

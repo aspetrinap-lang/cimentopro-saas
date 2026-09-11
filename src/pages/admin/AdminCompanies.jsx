@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, Pencil, Ban, RefreshCw, Search, Building2 } from 'lucide-react';
+import { Plus, Pencil, Ban, RefreshCw, Search, Building2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -12,6 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import CompanyFormDialog from '@/components/admin/CompanyFormDialog';
+import CompanyMembersDialog from '@/components/admin/CompanyMembersDialog';
 
 const STATUS_STYLES = {
   active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -41,6 +42,7 @@ export default function AdminCompanies() {
   const [editing, setEditing] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [membersCompany, setMembersCompany] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -147,6 +149,10 @@ export default function AdminCompanies() {
                   <TableCell className="text-center text-slate-600 font-medium">{c.user_count}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1.5">
+                      <Button variant="ghost" size="sm" onClick={() => setMembersCompany(c)}
+                        className="h-8 w-8 p-0 text-slate-500 hover:text-indigo-600" title="Usuários da empresa">
+                        <Users className="w-4 h-4" />
+                      </Button>
                       <Button variant="ghost" size="sm" onClick={() => { setEditing(c); setDialogOpen(true); }}
                         className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900" title="Editar">
                         <Pencil className="w-4 h-4" />
@@ -176,6 +182,13 @@ export default function AdminCompanies() {
         company={editing}
         onClose={() => setDialogOpen(false)}
         onSaved={() => { setDialogOpen(false); load(); }}
+      />
+
+      <CompanyMembersDialog
+        open={!!membersCompany}
+        company={membersCompany}
+        onClose={() => setMembersCompany(null)}
+        onChanged={load}
       />
 
       <AlertDialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)}>
