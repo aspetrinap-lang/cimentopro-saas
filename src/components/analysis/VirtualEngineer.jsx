@@ -3,6 +3,7 @@ import { scopedFilter } from '@/lib/companyScope';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
+import { analyzeConsumptionByArtifact, mergeAnalyses } from '@/lib/consumptionEngine';
 import { Bot, RefreshCw, ChevronRight, AlertCircle, Sparkles } from 'lucide-react';
 
 const PRIORITY = {
@@ -21,11 +22,32 @@ const PAGE_LABELS = {
   analysis: 'Análise', orders: 'Ordens', molds: 'Moldes', settings: 'Configurações',
 };
 
-function buildSummary(orders, downtimes, costs, names) {
+function buildSummary(orders, downtimes, costs, names, productTypesById) {
   const concluded = orders.filter(o => o.status === 'Concluída');
-  const cancelled = orders.filter(o => o.status === 'Cancelada');
   let s = '';
-  s += `TOTAL: ${orders.length} ordens (${concluded.length} concluídas, ${cancelled.length} canceladas).\n\n`;
+  s += `TOTAL: ${orders.length} ordens (${concluded.length} concluídas).\n\n`;
+
+  // Motor de consumo: esperado p/ a produção boa vs real — nunca planejado × real
+  const analyses = analyzeConsumptionByArtifact(concluded, productTypesById);
+  const merged = mergeAnalyses(analyses);
+  if (merged) {
+    const f = merged.flow;
+    s += `PRODUÇÃO (base do consumo): bruta ${Math.round(f.gross)} peças | refugo ${Math.round(f.refugo)} peças (${f.refugoPct.toFixed(1)}%) | boa (aprovada) ${Math.round(f.good)} peças\n\n`;
+    s += 'CONSUMO — esperado para a produção boa vs real, consumo específico por 1.000 peças e por m³:\n';
+    merged.rows.forEach(r => {
+      const label = names[r.key] || (r.key === 'water' ? 'Água' : r.key);
+      s += `- ${label}: esperado ${r.expected.toFixed(0)}${r.unit} | real ${r.actual.toFixed(0)}${r.unit}`;
+      if (r.deviationPct != null) s += ` | desvio ${r.deviationPct >= 0 ? '+' : ''}${r.deviationPct.toFixed(1)}%`;
+      else s += ' | SEM padrão cadastrado no artefato';
+      if (r.per1000 != null) s += ` | ${r.per1000.toFixed(1)}${r.unit}/1.000 peças`;
+      if (r.perM3 != null) s += ` | ${r.perM3.toFixed(1)}${r.unit}/m³`;
+      s += '\n';
+    });
+    if (merged.confidence !== 'alta') {
+      s += `\nCONFIABILIDADE DA ANÁLISE: ${merged.confidence.toUpperCase()} — insumos sem traço/padrão cadastrado reduzem a confiabilidade.\n`;
+    }
+    s += '\n';
+  }
 
   // Machine efficiency + downtime
   const byMachine = {};
@@ -48,19 +70,18 @@ function buildSummary(orders, downtimes, costs, names) {
     s += `- ${name}: eficiência ${eff}%, ${d.orders} ordens, ${d.actual} un produzidas, ${d.minutes} min produção, ${d.downtime} min parada\n`;
   });
 
-  // Input consumption
-  const insP = {}, insA = {};
-  INSUMO_KEYS.forEach(k => { insP[k] = 0; insA[k] = 0; });
-  concluded.forEach(o => {
-    INSUMO_KEYS.forEach(k => {
-      insP[k] += o[INSUMO_FIELDS[k].planned] || 0;
-      insA[k] += o[INSUMO_FIELDS[k].actual] || 0;
-    });
-  });
-  s += '\nINSUMOS (planejado vs real, desvio %):\n';
-  INSUMO_KEYS.forEach(k => {
-    const dev = insP[k] > 0 ? ((insA[k] / insP[k] - 1) * 100).toFixed(1) : '—';
-    s += `- ${names[k]}: ${insP[k].toFixed(0)} → ${insA[k].toFixed(0)} (desvio ${dev}%)\n`;
+  // Proporções do traço por artefato (real vs padrão)
+  analyses.forEach(a => {
+    const p = a.proportions;
+    const lines = [];
+    if (p.cementAggregate.actual != null) lines.push(`Cimento/Agregados ${p.cementAggregate.actual.toFixed(3)} (padrão ${p.cementAggregate.standard != null ? p.cementAggregate.standard.toFixed(3) : '—'})`);
+    if (p.aggregateCement.actual != null) lines.push(`Agregado total/Cimento ${p.aggregateCement.actual.toFixed(3)} (padrão ${p.aggregateCement.standard != null ? p.aggregateCement.standard.toFixed(3) : '—'})`);
+    if (p.waterCement.actual != null) lines.push(`Água/Cimento ${p.waterCement.actual.toFixed(3)} (padrão ${p.waterCement.standard != null ? p.waterCement.standard.toFixed(3) : '—'})`);
+    if (p.sandAggregate.actual != null) lines.push(`Areia/Agregado total ${p.sandAggregate.actual.toFixed(3)} (padrão ${p.sandAggregate.standard != null ? p.sandAggregate.standard.toFixed(3) : '—'})`);
+    if (lines.length > 0) {
+      s += `\nPROPORÇÕES DO TRAÇO — ${a.artifactName} (real vs padrão):\n`;
+      lines.forEach(l => { s += `- ${l}\n`; });
+    }
   });
 
   // Downtime by category
@@ -92,7 +113,7 @@ function buildSummary(orders, downtimes, costs, names) {
     s += `- ${n}: ${d.qty} un, R$ ${uc}/un\n`;
   });
 
-  // Historical comparison
+  // Historical comparison — consumo específico (kg/1.000 peças boas)
   if (concluded.length >= 4) {
     const sorted = [...concluded].sort((a, b) => (a.production_date || '').localeCompare(b.production_date || ''));
     const mid = Math.floor(sorted.length / 2);
@@ -102,18 +123,22 @@ function buildSummary(orders, downtimes, costs, names) {
       const e = arr.filter(o => o.planned_quantity > 0).map(o => (o.actual_quantity || 0) / o.planned_quantity * 100);
       return e.length > 0 ? (e.reduce((a, b) => a + b, 0) / e.length).toFixed(1) : null;
     };
-    const oEff = avgEff(older), rEff = avgEff(recent);
-    const cemOld = older.reduce((sm, o) => sm + (o.actual_cement || 0), 0);
-    const cemRec = recent.reduce((sm, o) => sm + (o.actual_cement || 0), 0);
+    const specCement = arr => {
+      const good = arr.reduce((sm, o) => sm + Math.max((Number(o.actual_quantity) || 0) - (Number(o.loss_second_line) || 0) - (Number(o.loss_discarded) || 0), 0), 0);
+      const cem = arr.reduce((sm, o) => sm + (Number(o.actual_cement) || 0), 0);
+      return good > 0 ? (cem / good) * 1000 : null;
+    };
     s += '\nHISTÓRICO (período anterior → recente):\n';
+    const oEff = avgEff(older), rEff = avgEff(recent);
     if (oEff && rEff) s += `- Eficiência média: ${oEff}% → ${rEff}%\n`;
-    s += `- Cimento consumido: ${cemOld.toFixed(0)}kg → ${cemRec.toFixed(0)}kg\n`;
+    const oCem = specCement(older), rCem = specCement(recent);
+    if (oCem != null && rCem != null) s += `- Consumo específico de cimento: ${oCem.toFixed(1)} → ${rCem.toFixed(1)} kg/1.000 peças boas\n`;
   }
 
   return s;
 }
 
-export default function VirtualEngineer({ orders, costs, names }) {
+export default function VirtualEngineer({ orders, costs, names, productTypesById }) {
   const navigate = useNavigate();
   const [recommendations, setRecommendations] = useState([]);
   const [analyzing, setAnalyzing] = useState(false);
@@ -134,25 +159,32 @@ export default function VirtualEngineer({ orders, costs, names }) {
     setAnalyzing(true);
     setError(null);
     try {
-      const summary = buildSummary(orders, downtimes, costs, names);
+      const summary = buildSummary(orders, downtimes, costs, names, productTypesById);
       const prompt = `Você é o "Engenheiro Virtual", um assistente de IA especializado em análise de fábricas de artefatos de cimento.
-Analise os dados de produção abaixo e emita recomendações automáticas, práticas e acionáveis.
+Analise os dados abaixo e emita recomendações automáticas, práticas e acionáveis.
+
+METODOLOGIA OBRIGATÓRIA DE CONSUMO:
+1. Compare SEMPRE o consumo REAL com o "esperado para a produção boa" (já calculado nos dados). NUNCA compare com o consumo planejado.
+2. NUNCA conclua "economia de material" porque o consumo real ficou abaixo do planejado — produção menor naturalmente consome menos. Uma redução de consumo só pode ser classificada como "possível otimização" quando produção, refugo e qualidade seguem estáveis; caso contrário, recomende investigação do processo.
+3. O indicador principal de consumo é o específico por 1.000 peças (e por m³, quando disponível). Use-o para avaliar o comportamento do processo.
+4. Nas recomendações, diferencie FATO (desvio medido), PADRÃO (eventos simultâneos) e HIPÓTESE ("os dados indicam possível associação — recomenda-se investigar"). Nunca apresente hipótese como fato e nunca afirme causalidade.
+5. Insumos marcados "SEM padrão cadastrado" devem gerar recomendação de cadastrar o traço no artefato.
 
 Analise continuamente:
-1. Eficiência das máquinas (quedas de performance, máquinas abaixo do esperado)
-2. Consumo de insumos (desvios do planejado, consumo acima da média histórica)
-3. Custos (produtos mais caros, desperdícios com impacto financeiro)
-4. Tempo de parada (máquinas com mais paradas, categorias frequentes)
-5. Produção (produtos com baixa eficiência ou baixo volume)
-6. Histórico (tendências, piora ou melhora entre períodos)
+1. Consumo de insumos (desvios do esperado para a produção boa, consumo específico fora do comportamento)
+2. Proporções do traço (cimento/agregados, água/cimento, areia/agregado) frente ao padrão cadastrado
+3. Eficiência das máquinas (quedas de performance, máquinas abaixo do esperado)
+4. Custos (produtos mais caros, desperdícios com impacto financeiro)
+5. Tempo de parada (máquinas com mais paradas, categorias frequentes)
+6. Histórico (tendências entre períodos, com base no consumo específico)
 
 Exemplos do tom e estilo esperado:
-- "A máquina Blocopac perdeu 8% de eficiência após aumento do consumo de areia."
-- "O consumo de cimento está acima da média histórica."
+- "O consumo específico de cimento está 7% acima do esperado para a produção realizada."
+- "Os dados indicam possível associação entre a queda da relação cimento/agregados e o aumento de refugo — recomenda-se investigar a dosagem."
 
 Para cada recomendação, retorne:
 - priority: "critical", "high", "medium" ou "info"
-- category: categoria da análise (ex: "Máquinas", "Insumos", "Custos", "Paradas", "Produção", "Histórico")
+- category: categoria da análise (ex: "Consumo", "Traço", "Máquinas", "Custos", "Paradas", "Produção", "Histórico")
 - title: título curto (máx 5 palavras)
 - text: descrição em linguagem natural, 1-2 frases em português
 - action_page: página recomendada para ação ("machines", "maintenance", "history", "analysis", "orders", "molds", "settings")

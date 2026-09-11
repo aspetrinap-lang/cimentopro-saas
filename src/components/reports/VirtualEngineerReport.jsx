@@ -5,12 +5,13 @@ import { Bot } from 'lucide-react';
 import ReportSheet from './ReportSheet';
 import Section from './Section';
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
+import { analyzeConsumptionByArtifact, mergeAnalyses } from '@/lib/consumptionEngine';
 import { inRange, fmtDur, signedPct, pctBR } from '@/lib/reportUtils';
 import { fmtNum, fmtBRL } from '@/lib/statsUtils';
 
 // Ficha técnica do Engenheiro Virtual: diagnóstico consolidado do período em
 // linguagem direta — produção, consumo, máquinas, paradas e custo por produto.
-export default function VirtualEngineerReport({ orders, costs, names, onClose }) {
+export default function VirtualEngineerReport({ orders, costs, names, productTypesById, onClose }) {
   const [downtimes, setDowntimes] = useState(null);
 
   useEffect(() => {
@@ -28,16 +29,17 @@ export default function VirtualEngineerReport({ orders, costs, names, onClose })
         downtimes == null ? (
           <p className="text-sm text-slate-500 text-center py-10">Carregando dados do período...</p>
         ) : (
-          <Content orders={orders} downtimes={downtimes} costs={costs} names={names} start={start} end={end} />
+          <Content orders={orders} downtimes={downtimes} costs={costs} names={names} productTypesById={productTypesById} start={start} end={end} />
         )
       }
     </ReportSheet>
   );
 }
 
-function Content({ orders, downtimes, costs, names, start, end }) {
+function Content({ orders, downtimes, costs, names, productTypesById, start, end }) {
   const rangeOrders = orders.filter((o) => inRange(o.production_date, start, end));
   const dt = downtimes.filter((d) => inRange(d.date, start, end));
+  const merged = mergeAnalyses(analyzeConsumptionByArtifact(rangeOrders, productTypesById));
 
   // Panorama da produção
   const pieces = rangeOrders.reduce((s, o) => s + (Number(o.actual_quantity) || 0), 0);
@@ -46,12 +48,10 @@ function Content({ orders, downtimes, costs, names, start, end }) {
   const eff = planned > 0 ? (pieces / planned) * 100 : null;
   const scrap = rangeOrders.reduce((s, o) => s + (Number(o.loss_second_line) || 0) + (Number(o.loss_discarded) || 0), 0);
 
-  // Consumo por insumo (planejado × real)
-  const insumos = INSUMO_KEYS.map((k) => {
-    const p = rangeOrders.reduce((s, o) => s + (Number(o[INSUMO_FIELDS[k].planned]) || 0), 0);
-    const a = rangeOrders.reduce((s, o) => s + (Number(o[INSUMO_FIELDS[k].actual]) || 0), 0);
-    return { label: names[k] || k, p, a, dev: p > 0 ? (a / p - 1) * 100 : null };
-  }).filter((i) => i.p > 0 || i.a > 0);
+  // Consumo por insumo — esperado para a produção boa × real (normalizado)
+  const insumos = merged
+    ? merged.rows.map((r) => ({ label: names[r.key] || (r.key === 'water' ? 'Água' : r.key), r }))
+    : [];
 
   // Situação por máquina
   const byMachine = {};
@@ -101,11 +101,16 @@ function Content({ orders, downtimes, costs, names, start, end }) {
           Foram concluídas <strong>{rangeOrders.length} ordem(ns)</strong> no período, produzindo{' '}
           <strong>{fmtNum(pieces, 0)} peças</strong> (planejado: {fmtNum(planned, 0)}). A eficiência média foi de{' '}
           <strong>{pctBR(eff, 1)}</strong> do planejado, com {fmtDur(prodMin)} de produção efetiva e{' '}
-          <strong>{fmtNum(scrap, 0)} peça(s)</strong> de refugo/descarte registradas.
+          <strong>{fmtNum(scrap, 0)} peça(s)</strong> de refugo/descarte registradas — produção boa (aprovada):{' '}
+          {merged ? <strong>{fmtNum(merged.flow.good, 0)} peças</strong> : '—'}.
         </p>
       </Section>
 
-      <Section title="Consumo de matéria-prima — planejado × real">
+      <Section title="Consumo de matéria-prima — esperado × real">
+        <p className="text-[10px] text-slate-500 leading-relaxed mb-2">
+          Esperado = produção boa × consumo padrão do artefato (traço cadastrado). O desvio é calculado sobre a
+          produção efetivamente realizada — consumo abaixo do planejado não significa economia.
+        </p>
         {insumos.length === 0 ? (
           <p className="text-xs text-slate-500">Nenhum consumo registrado no período.</p>
         ) : (
@@ -113,19 +118,23 @@ function Content({ orders, downtimes, costs, names, start, end }) {
             <thead>
               <tr className="text-left text-slate-500 border-b border-slate-300">
                 <th className="py-1.5 font-semibold">Insumo</th>
-                <th className="py-1.5 font-semibold text-right">Planejado (kg)</th>
-                <th className="py-1.5 font-semibold text-right">Real (kg)</th>
+                <th className="py-1.5 font-semibold text-right">Padrão/un</th>
+                <th className="py-1.5 font-semibold text-right">Esperado</th>
+                <th className="py-1.5 font-semibold text-right">Real</th>
                 <th className="py-1.5 font-semibold text-right">Desvio</th>
               </tr>
             </thead>
             <tbody>
-              {insumos.map((i) => (
-                <tr key={i.label} className="border-b border-slate-200">
-                  <td className="py-1.5 font-medium text-slate-900">{i.label}</td>
-                  <td className="py-1.5 text-right">{fmtNum(i.p, 0)}</td>
-                  <td className="py-1.5 text-right">{fmtNum(i.a, 0)}</td>
-                  <td className={`py-1.5 text-right font-semibold ${i.dev != null && i.dev > 5 ? 'text-red-600' : ''}`}>
-                    {i.dev != null ? `${signedPct(i.dev)} ${i.dev > 5 ? '⚠' : ''}` : '—'}
+              {insumos.map(({ label, r }) => (
+                <tr key={label} className="border-b border-slate-200">
+                  <td className="py-1.5 font-medium text-slate-900">{label}</td>
+                  <td className="py-1.5 text-right">{r.standardPerUnit != null ? fmtNum(r.standardPerUnit, 2) : '—'}</td>
+                  <td className="py-1.5 text-right">{r.expected > 0 ? fmtNum(r.expected, 0) : '—'}</td>
+                  <td className="py-1.5 text-right">{fmtNum(r.actual, 0)} {r.unit}</td>
+                  <td className={`py-1.5 text-right font-semibold ${r.deviationPct != null && Math.abs(r.deviationPct) > 5 ? 'text-red-600' : ''}`}>
+                    {r.deviationPct != null
+                      ? `${signedPct(r.deviationPct)} ${Math.abs(r.deviationPct) > 5 ? '⚠' : ''}`
+                      : 'sem padrão'}
                   </td>
                 </tr>
               ))}
@@ -178,7 +187,8 @@ function Content({ orders, downtimes, costs, names, start, end }) {
 
       <Section title="Leitura executiva">
         <p className="text-xs text-slate-600 leading-relaxed">
-          Priorize: (1) insumos com desvio acima de 5% marcados com ⚠ — indicam desperdício ou dosagem descalibrada;
+          Priorize: (1) insumos com desvio do esperado acima de 5% marcados com ⚠ — indicam desperdício, dosagem
+          descalibrada ou consumo abaixo do traço (verificar qualidade antes de tratar como otimização);
           (2) máquinas com eficiência abaixo de 90% ou paradas recorrentes; (3) produtos com custo/un em alta — revise
           traço ou preço de venda.
         </p>
