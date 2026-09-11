@@ -11,6 +11,7 @@ import UnitConsumptionChart from '@/components/dashboard/UnitConsumptionChart.js
 import UnitCostCard from '@/components/dashboard/UnitCostCard';
 import RawMaterialCostChart from '@/components/dashboard/RawMaterialCostChart';
 import ProductionLossCard from '@/components/dashboard/ProductionLossCard';
+import DreSummaryCard from '@/components/dashboard/DreSummaryCard';
 import { Printer, RefreshCw } from 'lucide-react';
 import { subDays, format } from 'date-fns';
 import DashboardReport from '@/components/reports/DashboardReport';
@@ -85,6 +86,7 @@ export default function Dashboard() {
       ) : (
         <>
           <SummaryCards orders={filteredOrders} periodLabel={`${period} dias`} />
+          <DreSummaryCard />
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <TrendChart orders={filteredOrders} />
             <ProductComparison orders={filteredOrders} />

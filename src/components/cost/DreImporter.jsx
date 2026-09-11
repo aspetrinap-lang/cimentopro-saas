@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { scopedFilter, withCompany } from '@/lib/companyScope';
-import { X, Upload, Save, Plus, Trash2, FileSpreadsheet, Calendar, DollarSign } from 'lucide-react';
+import { X, Upload, Save, Plus, Trash2, FileSpreadsheet, Calendar, DollarSign, ListTree, Lock, Unlock } from 'lucide-react';
+import DreAccountsPanel from './DreAccountsPanel';
 
 const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
@@ -35,14 +36,21 @@ export default function DreImporter({ onClose, onSaved }) {
   const [parsing, setParsing] = useState(false);
   const [parseMsg, setParseMsg] = useState('');
   const [parsedMonths, setParsedMonths] = useState(null); // { months: [...], year }
+  const [showStructure, setShowStructure] = useState(false);
+  const [accounts, setAccounts] = useState([]);
+  const [editingClosed, setEditingClosed] = useState(false);
 
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
     try {
-      const data = await base44.entities.MonthlyDre.filter(scopedFilter(), '-reference_month', 100);
+      const [data, accs] = await Promise.all([
+        base44.entities.MonthlyDre.filter(scopedFilter(), '-reference_month', 100),
+        base44.entities.DreAccount.filter(scopedFilter(), 'sort_order', 500).catch(() => []),
+      ]);
       setDres(data);
+      setAccounts(accs);
     } catch {
       setDres([]);
     } finally {
@@ -53,11 +61,13 @@ export default function DreImporter({ onClose, onSaved }) {
   function startNew() {
     const now = new Date();
     const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    setEditingClosed(false);
     setEditing('new');
     setForm({ reference_month: ym, month_label: `${MONTH_NAMES[now.getMonth()]}/${now.getFullYear()}`, items: [emptyItem()], faturamento: { account_name: '', planned_value: '', actual_value: '' }, notes: '' });
   }
 
   function startEdit(d) {
+    setEditingClosed(d.closed === true);
     setEditing(d.id);
     setForm({
       reference_month: d.reference_month || '',
@@ -158,16 +168,21 @@ export default function DreImporter({ onClose, onSaved }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.reference_month) return;
+    if (!form.reference_month || editingClosed) return;
     setSaving(true);
+    const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const accountByName = new Map(accounts.map((a) => [norm(a.name), a.id]));
     const items = form.items
       .filter((i) => i.account_name && i.account_name.trim())
       .map((i) => ({
         account_name: i.account_name.trim(),
+        account_id: accountByName.get(norm(i.account_name)) || null,
         planned_value: Number(i.planned_value) || 0,
         actual_value: Number(i.actual_value) || 0,
         category: i.category,
         apportionment_method: i.apportionment_method,
+        source_type: 'manual',
+        automatic: false,
       }));
     const totalPlanned = items.reduce((s, i) => s + (i.planned_value || 0), 0);
     const totalActual = items.reduce((s, i) => s + (i.actual_value || 0), 0);
@@ -224,6 +239,16 @@ export default function DreImporter({ onClose, onSaved }) {
     onSaved?.();
   }
 
+  // Fechamento mensal: período fechado preserva os valores — a edição é
+  // bloqueada; alterações posteriores entram pela reabertura, como ajustes.
+  async function toggleClosed(d) {
+    const closing = !d.closed;
+    if (closing && !confirm(`Fechar a DRE de ${d.month_label}? Os valores ficam preservados e a edição é bloqueada nesta tela.`)) return;
+    await base44.entities.MonthlyDre.update(d.id, { closed: closing });
+    load();
+    onSaved?.();
+  }
+
   const totals = (form.items || []).reduce(
     (acc, i) => {
       acc.planned += Number(i.planned_value) || 0;
@@ -258,6 +283,9 @@ export default function DreImporter({ onClose, onSaved }) {
                   <Upload className="w-3.5 h-3.5" /> Importar Planilha
                   <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleUpload} disabled={parsing} />
                 </label>
+                <button onClick={() => setShowStructure(true)} className="flex items-center gap-1.5 text-xs border border-border px-3 py-1.5 rounded-lg text-foreground hover:bg-muted transition-colors">
+                  <ListTree className="w-3.5 h-3.5" /> Estrutura da DRE
+                </button>
               </div>
 
               {parsing && (
@@ -306,7 +334,11 @@ export default function DreImporter({ onClose, onSaved }) {
                         </p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
+                        {d.closed && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground flex items-center gap-1"><Lock className="w-3 h-3" /> Fechada</span>}
                         <button onClick={() => startEdit(d)} className="text-xs text-primary hover:underline">Editar</button>
+                        <button onClick={() => toggleClosed(d)} title={d.closed ? 'Reabrir período' : 'Fechar período'} className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted">
+                          {d.closed ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                        </button>
                         <button onClick={() => handleDelete(d)} className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg hover:bg-muted"><Trash2 className="w-3.5 h-3.5" /></button>
                       </div>
                     </div>
@@ -318,6 +350,11 @@ export default function DreImporter({ onClose, onSaved }) {
 
           {editing && (
             <form onSubmit={handleSubmit} className="space-y-4">
+              {editingClosed && (
+                <div className="text-xs bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 rounded-lg p-2">
+                  Período fechado — os valores estão preservados. Reabra o período (ícone de cadeado na lista) para lançar ajustes.
+                </div>
+              )}
               {parseMsg && <div className="text-xs bg-primary/10 text-primary rounded-lg p-2">{parseMsg}</div>}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -414,7 +451,7 @@ export default function DreImporter({ onClose, onSaved }) {
 
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setEditing(null)} className="flex-1 border border-border rounded-lg py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">Cancelar</button>
-                <button type="submit" disabled={saving} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2.5 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+                <button type="submit" disabled={saving || editingClosed} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2.5 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
                   <Save className="w-4 h-4" /> {saving ? 'Salvando...' : 'Salvar DRE'}
                 </button>
               </div>
@@ -422,6 +459,8 @@ export default function DreImporter({ onClose, onSaved }) {
           )}
         </div>
       </div>
+
+      {showStructure && <DreAccountsPanel onClose={() => { setShowStructure(false); load(); }} />}
     </div>
   );
 }

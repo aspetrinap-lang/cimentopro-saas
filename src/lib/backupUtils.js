@@ -3,7 +3,8 @@ import { activeCompanyId } from '@/lib/companyScope';
 
 // Versão do formato de backup — incrementar ao adicionar campos/módulos
 // v2: norm_class e target_resistance em ProductType; norm_class em QualityReport
-export const BACKUP_VERSION = 2;
+// v3: DRE multiempresa — MonthlyDre com company_id/fechamento; nova entidade DreAccount
+export const BACKUP_VERSION = 3;
 
 export const BACKUP_ENTITIES = [
   'Machine',
@@ -16,6 +17,7 @@ export const BACKUP_ENTITIES = [
   'MachineDowntime',
   'PreventiveMaintenance',
   'MonthlyDre',
+  'DreAccount',
   'ProductionLine',
   'SharedResource',
   'QualityReport',
@@ -83,10 +85,12 @@ const FK_SPECS = {
   Mold: { product_type_ids: 'ProductType' },
   FailurePattern: { applies_to_machines: 'Machine' },
   ProductionLine: { machines: 'Machine', shared_resources: 'SharedResource' },
+  DreAccount: { parent_id: 'DreAccount' },
+  MonthlyDre: { items: 'DreAccount' },
 };
 
-// Entidades cuja chave natural não tem escopo de empresa (a DRE é global)
-const KEY_GLOBAL_ENTITIES = ['UserRoleProfile', 'MonthlyDre'];
+// Entidades cuja chave natural não tem escopo de empresa
+const KEY_GLOBAL_ENTITIES = ['UserRoleProfile'];
 
 function normalizeKeyPart(value) {
   return value == null ? '' : String(value).trim().toLowerCase().replace(/\s+/g, ' ');
@@ -111,6 +115,7 @@ const NATURAL_KEYS = {
   ProductCategory: r => [r.name],
   ArtifactModel: r => [r.name, r.category],
   MonthlyDre: r => [r.reference_month],
+  DreAccount: r => [r.name],
   MachineDowntime: (r, resolve) => [r.date, resolve('Machine', r.machine_id), r.start_time],
   PreventiveMaintenance: (r, resolve) => [r.date, resolve('Machine', r.machine_id), r.maintenance_type],
 };
@@ -219,7 +224,13 @@ export async function importAllData(backupObj, { replace } = { replace: false })
       for (const [field, refEntity] of Object.entries(spec)) {
         const refMap = idMaps[refEntity] || {};
         if (Array.isArray(r[field])) {
-          if (entity === 'ProductionLine') {
+          if (entity === 'MonthlyDre' && field === 'items') {
+            // array de lançamentos: remapeia account_id para o novo id da DreAccount
+            const remapped = r[field].map((it) => it && typeof it === 'object' && it.account_id && refMap[it.account_id]
+              ? { ...it, account_id: refMap[it.account_id] }
+              : it);
+            if (JSON.stringify(remapped) !== JSON.stringify(r[field])) patch[field] = remapped;
+          } else if (entity === 'ProductionLine') {
             // array de objetos: remapeia a chave interna (machine_id / resource_id)
             const idKey = field === 'machines' ? 'machine_id' : 'resource_id';
             const remapped = r[field].map(item =>

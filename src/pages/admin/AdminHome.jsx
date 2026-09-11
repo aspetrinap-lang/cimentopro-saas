@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Building2, Users, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Building2, Users, ShieldCheck, ArrowRight, FileSpreadsheet } from 'lucide-react';
 
 export default function AdminHome() {
   const [data, setData] = useState(null);
@@ -83,6 +83,17 @@ export default function AdminHome() {
               </div>
               <p className="font-semibold text-slate-900 mt-3">Ver Usuários</p>
               <p className="text-xs text-slate-500 mt-1">Usuários da plataforma e vínculos por empresa</p>
+            </Link>
+            <Link to="/admin/dre-template"
+              className="group bg-white border border-slate-200 rounded-xl p-5 hover:border-indigo-300 hover:shadow-sm transition-all sm:col-span-2">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all" />
+              </div>
+              <p className="font-semibold text-slate-900 mt-3">DRE Padrão CimentoPro</p>
+              <p className="text-xs text-slate-500 mt-1">Template oficial, migração de legados e cópia por empresa</p>
             </Link>
           </div>
         </>

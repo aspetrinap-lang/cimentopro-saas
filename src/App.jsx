@@ -35,6 +35,7 @@ import AdminHome from '@/pages/admin/AdminHome';
 import AdminCompanies from '@/pages/admin/AdminCompanies';
 import AdminUsers from '@/pages/admin/AdminUsers';
 import AdminAudit from '@/pages/admin/AdminAudit';
+import AdminDreTemplate from '@/pages/admin/AdminDreTemplate';
 import { OperatorProvider } from '@/lib/OperatorContext';
 import { CompanyProvider } from '@/lib/CompanyContext';
 import { PermissionsProvider } from '@/lib/PermissionsContext';
@@ -94,6 +95,7 @@ const AuthenticatedApp = () => {
         <Route path="companies" element={<AdminCompanies />} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="audit" element={<AdminAudit />} />
+        <Route path="dre-template" element={<AdminDreTemplate />} />
       </Route>
       <Route path="/pin-login" element={<PinLogin />} />
       <Route path="*" element={<PageNotFound />} />
