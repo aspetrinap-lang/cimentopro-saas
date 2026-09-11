@@ -27,22 +27,28 @@ export function ConfigProvider({ children }) {
   const { currentCompanyId } = useCompany();
 
   const refreshConfigs = useCallback(async () => {
-    const [matRows, costsRows, intervalsRows] = await Promise.all([
-      base44.entities.AppSettings.filter(scopedFilter({ key: 'raw_materials' })),
-      base44.entities.AppSettings.filter(scopedFilter({ key: 'insumo_costs' })),
-      base44.entities.AppSettings.filter(scopedFilter({ key: 'maintenance_intervals' })),
-    ]);
-
-    if (matRows.length > 0 && Array.isArray(matRows[0].value?.items)) {
-      setRawMaterials(matRows[0].value.items);
+    try {
+      // Uma única consulta por empresa (antes eram 3 em paralelo — estourava o
+      // limite de requisições da plataforma na inicialização) e seleção por chave.
+      const rows = await base44.entities.AppSettings.filter(scopedFilter());
+      const byKey = (key) => rows.find((r) => r.key === key);
+      const mat = byKey('raw_materials');
+      const costs = byKey('insumo_costs');
+      const intervals = byKey('maintenance_intervals');
+      if (mat && Array.isArray(mat.value?.items)) {
+        setRawMaterials(mat.value.items);
+      }
+      if (costs?.value) {
+        setInsumoCosts({ ...Object.fromEntries(INSUMO_KEYS.map(k => [k, 0])), ...costs.value });
+      }
+      if (intervals?.value) {
+        setMaintenanceIntervals({ ...DEFAULT_MAINTENANCE_INTERVALS, ...intervals.value });
+      }
+    } finally {
+      // Em falha transitória (ex: limite de requisições), o app continua com os
+      // valores padrão em vez de travar na tela de carregamento.
+      setLoading(false);
     }
-    if (costsRows.length > 0 && costsRows[0].value) {
-      setInsumoCosts({ ...Object.fromEntries(INSUMO_KEYS.map(k => [k, 0])), ...costsRows[0].value });
-    }
-    if (intervalsRows.length > 0 && intervalsRows[0].value) {
-      setMaintenanceIntervals({ ...DEFAULT_MAINTENANCE_INTERVALS, ...intervalsRows[0].value });
-    }
-    setLoading(false);
   }, []);
 
   useEffect(() => { refreshConfigs(); }, [refreshConfigs, currentCompanyId]);
@@ -58,7 +64,6 @@ export function ConfigProvider({ children }) {
       await base44.entities.AppSettings.create(withCompany({ key: 'insumo_costs', value: newCosts }));
     }
     setInsumoCosts(newCosts);
-    refreshConfigs();
   }
 
   async function saveRawMaterials(newList) {
@@ -70,7 +75,6 @@ export function ConfigProvider({ children }) {
       await base44.entities.AppSettings.create(withCompany({ key: 'raw_materials', value: valueObj }));
     }
     setRawMaterials(newList);
-    refreshConfigs();
   }
 
   async function saveMaintenanceIntervals(newIntervals) {
@@ -81,7 +85,6 @@ export function ConfigProvider({ children }) {
       await base44.entities.AppSettings.create(withCompany({ key: 'maintenance_intervals', value: newIntervals }));
     }
     setMaintenanceIntervals(newIntervals);
-    refreshConfigs();
   }
 
   return (
