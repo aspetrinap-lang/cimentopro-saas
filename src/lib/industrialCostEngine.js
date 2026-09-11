@@ -451,7 +451,7 @@ function fallbackProduct(pt, insumoCosts, labels) {
   };
 }
 
-// ── Média NORMALIZADA das últimas 3 DREs ────────────────────────────────────
+// ── Média NORMALIZADA de todas as DREs cadastradas ──────────────────────────
 // Média dos INDICADORES UNITÁRIOS de cada mês (não a soma dos totais):
 // para cada componente, média dos R$/un dos meses em que o artefato foi produzido.
 function averageProducts(usedAnalyses, productTypes, insumoCosts) {
@@ -590,12 +590,12 @@ export function buildCostModel({
 }) {
   const lookup = buildAccountLookup(accounts);
   const sorted = [...dres].sort((a, b) => String(a.reference_month).localeCompare(String(b.reference_month)));
-  const last3 = sorted.slice(-3);
+  const baseDres = sorted; // TODAS as DREs cadastradas da empresa entram na média
   const analyze = (dre) => analyzeDreMonth({ dre, orders, productTypes, lines, accountLookup: lookup, insumoCosts });
 
   const insufficient = [];
   if (!dres.length) insufficient.push('Nenhuma DRE cadastrada — o custo usa apenas estimativas de cadastro (matéria-prima e molde).');
-  else if (last3.length < 3) insufficient.push(`Apenas ${last3.length} DRE(s) disponível(is) — a média usa menos de 3 meses.`);
+  else if (baseDres.length < 3) insufficient.push(`Apenas ${baseDres.length} DRE(s) cadastrada(s) — a média usa menos de 3 meses.`);
 
   // ── Modo: mês selecionado ──
   if (mode === 'single') {
@@ -643,12 +643,12 @@ export function buildCostModel({
   }
 
   // ── Modos de média: últimas 3 DREs, com exclusão manual de meses ──
-  const allAnalyses = detectAnomalies(last3.map(analyze)).map((a) => ({
+  const allAnalyses = detectAnomalies(baseDres.map(analyze)).map((a) => ({
     ...a,
     userExcluded: excludedMonths.includes(a.reference_month),
   }));
   const used = allAnalyses.filter((a) => !a.userExcluded);
-  const usedDres = last3.filter((d) => !excludedMonths.includes(d.reference_month));
+  const usedDres = baseDres.filter((d) => !excludedMonths.includes(d.reference_month));
   if (!used.length) {
     return {
       calculation_version: CALCULATION_VERSION,

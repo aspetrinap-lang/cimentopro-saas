@@ -1,7 +1,7 @@
 import { AlertTriangle, Ban, Database, Info } from 'lucide-react';
 import { fmtBRL, fmtNum } from '@/lib/statsUtils';
 
-// BASE FINANCEIRA DO CÁLCULO — mostra as DREs utilizadas (últimas 3), os
+// BASE FINANCEIRA DO CÁLCULO — mostra todas as DREs cadastradas utilizadas, os
 // indicadores normalizados de cada mês, alertas de comportamento atípico e a
 // média efetivamente aplicada. Permite incluir/excluir cada DRE da média.
 export default function FinancialBaseSection({ model, mode, onToggleExclude }) {
@@ -63,7 +63,7 @@ export default function FinancialBaseSection({ model, mode, onToggleExclude }) {
                         ? 'border-border text-muted-foreground hover:bg-muted'
                         : 'bg-primary/10 text-primary border-transparent hover:bg-primary/20'}`}
                     >
-                      {m.userExcluded ? 'Incluir' : 'Excluir'}
+                      {m.userExcluded ? 'Incluir' : 'Não usar'}
                     </button>
                   </td>
                 )}
