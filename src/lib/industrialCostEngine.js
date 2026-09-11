@@ -77,11 +77,16 @@ const avg = (arr) => (arr.length ? arr.reduce((s, v) => s + num(v), 0) / arr.len
 // Peso real (weight_kg_per_unit) com fallback provisório do campo legado
 // (volume_per_unit_m3, que historicamente guardou o peso). Nunca assume
 // volume = peso: valores ausentes ficam 0 e marcados como estimados.
+export function pieceWeightKg(pt) {
+  if (!pt) return 0;
+  const realKg = num(pt.weight_kg_per_unit);
+  return realKg > 0 ? realKg : num(pt.volume_per_unit_m3);
+}
+
 export function weightPerSaleUnit(pt) {
   if (!pt) return { kg: 0, estimated: true };
   const realKg = num(pt.weight_kg_per_unit);
-  const legacy = num(pt.volume_per_unit_m3);
-  const perPiece = realKg > 0 ? realKg : legacy;
+  const perPiece = pieceWeightKg(pt);
   const unit = String(pt.unit || 'un').toLowerCase();
   const ppm = num(pt.pieces_per_m);
   const kg = unit !== 'un' && ppm > 0 ? ppm * perPiece : perPiece;
@@ -154,13 +159,13 @@ export function buildAccountLookup(accounts) {
 function bucketCost(rates, comp, { weightKg, hoursPerUnit, sf }) {
   return (
     num(rates.perKg?.[comp]) * weightKg +
-    num(rates.perHour?.[comp]) * hoursPerUnit * sf +
+    num(rates.perHour?.[comp]) * hoursPerUnit +
     num(rates.perUnit?.[comp]) * sf
   );
 }
 
-export function calculateMachineHourCost(perHour, hoursPerUnit, sf) {
-  return Object.keys(perHour || {}).reduce((s, k) => s + num(perHour[k]) * hoursPerUnit * sf, 0);
+export function calculateMachineHourCost(perHour, hoursPerUnit) {
+  return Object.keys(perHour || {}).reduce((s, k) => s + num(perHour[k]) * hoursPerUnit, 0);
 }
 
 export function calculateLaborCost(rates, ctx) { return bucketCost(rates, 'direct_labor', ctx); }
@@ -202,14 +207,15 @@ export function analyzeDreMonth({ dre, orders, productTypes, lines, accountLooku
     const gross = num(o.actual_quantity);
     const refugo = num(o.loss_second_line) + num(o.loss_discarded);
     const good = Math.max(gross - refugo, 0);
-    const wu = weightPerSaleUnit(pt);
     const hours = num(o.production_minutes) / 60;
     agg.orders += 1;
     agg.gross += gross;
     agg.refugo += refugo;
     agg.good += good;
     agg.hours += hours;
-    agg.weightKg += good * wu.kg; // base de rateio: produção BOA
+    // Base de rateio por kg: peso POR PEÇA × produção BOA — nunca mistura
+    // kg/un (blocos) com kg/m² (pavimentos) na mesma base
+    agg.weightKg += good * pieceWeightKg(pt);
     const line = (o.production_line_id && (lines || []).find((l) => l.id === o.production_line_id)) || machineToLine.get(o.machine_id);
     if (line) agg.lineEnergy += hours * num(line.used_power_kw) * num(line.energy_cost_per_kwh);
     else if (hours > 0) agg.missingLine = true;

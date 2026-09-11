@@ -132,7 +132,6 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
       payload[pt_field] = parseFloat(form[pt_field]) || 0;
     });
     payload.weight_kg_per_unit = parseFloat(form.weight_kg_per_unit ?? form.volume_per_unit_m3) || null;
-    payload.volume_m3_per_unit = parseFloat(form.volume_m3_per_unit) || null;
     // Espelho legado durante a transição do motor v2 (campo antigo preservado)
     payload.volume_per_unit_m3 = payload.weight_kg_per_unit;
     payload.length_mm = parseFloat(form.length_mm) || null;
@@ -252,17 +251,6 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Volume Geométrico (m³)</label>
-                <input type="number" min="0" step="0.0001"
-                  className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                  value={form.volume_m3_per_unit ?? ''} onChange={e => set('volume_m3_per_unit', e.target.value)} placeholder="ex: 0.011" />
-              </div>
-              <div className="flex items-end">
-                <p className="text-[11px] text-muted-foreground">Volume ≠ peso. O custeio usa o <strong>peso (kg)</strong>; o volume é informativo.</p>
-              </div>
-            </div>
           </div>
 
           {/* ── Classe da Norma ── */}
@@ -358,7 +346,7 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
               </p>
             )}
             <button type="button" onClick={applyTrace}
-              disabled={!form.concrete_trace_id || !form.volume_per_unit_m3}
+              disabled={!form.concrete_trace_id || !(parseFloat(form.weight_kg_per_unit ?? form.volume_per_unit_m3) > 0)}
               className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-40">
               <Zap className="w-3.5 h-3.5" /> Calcular Automaticamente
             </button>
