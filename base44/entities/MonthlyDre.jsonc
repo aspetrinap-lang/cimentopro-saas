@@ -4,7 +4,7 @@
   "properties": {
     "company_id": {
       "type": "string",
-      "description": "ID da empresa (Company) \u2014 escopo multi-tenant, definido pela empresa ativa na cria\u00e7\u00e3o"
+      "description": "ID da empresa (Company) \u2014 escopo multi-tenant, definido pela empresa ativa na cria\u00e7\u00e3o/importa\u00e7\u00e3o"
     },
     "reference_month": {
       "type": "string",
@@ -22,6 +22,10 @@
           "account_name": {
             "type": "string",
             "description": "Nome da conta da DRE (ex: Receita Bruta de Vendas)"
+          },
+          "account_id": {
+            "type": "string",
+            "description": "ID da conta na estrutura da empresa (DreAccount) \u2014 v\u00ednculo do lan\u00e7amento com a configura\u00e7\u00e3o da DRE da empresa"
           },
           "planned_value": {
             "type": "number",
@@ -50,6 +54,23 @@
               "machine_hours"
             ],
             "description": "M\u00e9todo de rateio: none (n\u00e3o aloca no produto), volume (por pe\u00e7as produzidas), machine_hours (por horas de m\u00e1quina)"
+          },
+          "source_type": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "raw_material",
+              "energy",
+              "maintenance",
+              "sales"
+            ],
+            "default": "manual",
+            "description": "Origem do lan\u00e7amento: manual (digita\u00e7\u00e3o/importa\u00e7\u00e3o Excel) ou m\u00f3dulo alimentador do CimentoPro (mat\u00e9ria-prima, energia, manuten\u00e7\u00e3o, vendas)"
+          },
+          "automatic": {
+            "type": "boolean",
+            "default": false,
+            "description": "TRUE quando o valor foi gerado automaticamente pelos m\u00f3dulos do CimentoPro; FALSE para lan\u00e7amento manual/importado"
           }
         }
       },
@@ -94,6 +115,11 @@
     "total_despesa_actual": {
       "type": "number",
       "description": "Soma dos valores realizados das contas que n\u00e3o s\u00e3o Receita (cache)"
+    },
+    "closed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Fechamento mensal: per\u00edodo fechado preserva os valores \u2014 altera\u00e7\u00f5es posteriores entram como ajustes, sem rec\u00e1lculo autom\u00e1tico"
     },
     "notes": {
       "type": "string",
