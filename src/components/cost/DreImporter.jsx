@@ -66,10 +66,22 @@ export default function DreImporter({ onClose, onSaved }) {
   function startNew() {
     const now = new Date();
     const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    // Pré-preenche com as contas ATIVAS da estrutura da DRE da empresa, na
+    // ordem configurada — o usuário apenas digita orçado/realizado de cada conta.
+    const structureItems = (accounts || [])
+      .filter((a) => a.active !== false)
+      .map((a) => ({
+        account_name: a.name,
+        account_id: a.id,
+        planned_value: '',
+        actual_value: '',
+        category: a.category,
+        apportionment_method: a.apportionment_method || 'none',
+      }));
     setEditingClosed(false);
     setEditingMeta(null);
     setEditing('new');
-    setForm({ reference_month: ym, month_label: `${MONTH_NAMES[now.getMonth()]}/${now.getFullYear()}`, items: [emptyItem()], faturamento: { account_name: '', planned_value: '', actual_value: '' }, notes: '' });
+    setForm({ reference_month: ym, month_label: `${MONTH_NAMES[now.getMonth()]}/${now.getFullYear()}`, items: structureItems.length ? structureItems : [emptyItem()], faturamento: { account_name: '', planned_value: '', actual_value: '' }, notes: '' });
   }
 
   function startEdit(d) {
@@ -187,7 +199,7 @@ export default function DreImporter({ onClose, onSaved }) {
       .filter((i) => i.account_name && i.account_name.trim())
       .map((i) => ({
         account_name: i.account_name.trim(),
-        account_id: accountByName.get(norm(i.account_name)) || null,
+        account_id: accountByName.get(norm(i.account_name)) || i.account_id || null,
         planned_value: Number(i.planned_value) || 0,
         actual_value: Number(i.actual_value) || 0,
         category: i.category,
@@ -325,10 +337,6 @@ export default function DreImporter({ onClose, onSaved }) {
                 <button onClick={startNew} className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">
                   <Plus className="w-3.5 h-3.5" /> Nova DRE
                 </button>
-                <label className="flex items-center gap-1.5 text-xs border border-border px-3 py-1.5 rounded-lg text-foreground hover:bg-muted transition-colors cursor-pointer">
-                  <Upload className="w-3.5 h-3.5" /> Importar Planilha
-                  <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleUpload} disabled={parsing} />
-                </label>
                 <button onClick={() => setShowStructure(true)} className="flex items-center gap-1.5 text-xs border border-border px-3 py-1.5 rounded-lg text-foreground hover:bg-muted transition-colors">
                   <ListTree className="w-3.5 h-3.5" /> Estrutura da DRE
                 </button>
