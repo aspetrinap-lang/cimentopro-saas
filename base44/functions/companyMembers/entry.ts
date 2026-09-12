@@ -64,6 +64,37 @@ export default async function(req) {
       return Response.json({ activated });
     }
 
+    // ── Vínculos e empresas do próprio usuário (acesso de serviço) ──
+    // Retorna os vínculos ativos e as empresas selecionáveis SEM depender do
+    // cache company_ids embutido na sessão (que pode estar desatualizado).
+    // Usado no início do acesso para reconstruir o contexto de empresa e
+    // sincronizar o cache da sessão pelo caminho oficial da plataforma.
+    if (action === 'myCompanies') {
+      const links = await svc.entities.UserCompany.filter({ user_id: auth.id, status: 'active' }, '-created_date', 500);
+      const ids = [...new Set(links.map((l) => l.company_id))];
+      const linked = ids.length
+        ? (await Promise.all(ids.map((id) => svc.entities.Company.get(id).catch(() => null)))).filter(Boolean)
+        : [];
+      let selectable = linked.filter((c) => ['active', 'trial'].includes(c.status));
+      const platformAdmin = auth.is_platform_admin === true || (auth.data && auth.data.is_platform_admin) === true;
+      if (platformAdmin) {
+        const all = await svc.entities.Company.list('name', 500).catch(() => []);
+        const byId = new Map(selectable.map((c) => [c.id, c]));
+        all.filter((c) => ['active', 'trial'].includes(c.status)).forEach((c) => byId.set(c.id, c));
+        selectable = [...byId.values()];
+      }
+      return Response.json({
+        memberships: links.map((l) => ({
+          id: l.id,
+          company_id: l.company_id,
+          company_name: l.company_name,
+          role: l.role,
+          is_owner: l.is_owner,
+        })),
+        companies: selectable.map((c) => ({ id: c.id, name: c.name, status: c.status })),
+      });
+    }
+
     const companyId = body.company_id;
     if (!companyId) return Response.json({ error: 'company_id é obrigatório' }, { status: 400 });
 

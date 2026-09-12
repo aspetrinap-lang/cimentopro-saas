@@ -6,19 +6,19 @@ import { useCompany } from '@/lib/CompanyContext';
 // Nenhuma página operacional monta (nem consulta dados) enquanto ativa.
 export default function NoCompanyScreen() {
   const { user, logout } = useAuth();
-  const { sessionRefreshNeeded, activatedInvites } = useCompany();
+  const { sessionRefreshNeeded, activatedInvites, memberships } = useCompany();
 
   // Convite direto: o vínculo foi ativado neste acesso, mas o token da sessão
   // foi emitido antes dele existir — sair e entrar novamente resolve.
   if (sessionRefreshNeeded) {
-    const names = activatedInvites.map((a) => a.company_name).join(', ');
+    const names = [...new Set([...activatedInvites, ...memberships].map((a) => a.company_name).filter(Boolean))].join(', ');
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-background px-4">
         <div className="w-full max-w-md bg-card border border-border rounded-2xl p-8 text-center shadow-sm">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 mb-4">
             <MailCheck className="w-7 h-7 text-primary" />
           </div>
-          <h1 className="text-lg font-bold text-foreground">Convite ativado!</h1>
+          <h1 className="text-lg font-bold text-foreground">Vínculo confirmado!</h1>
           <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
             Sua conta <span className="font-medium text-foreground">{user?.email}</span> foi vinculada a
             <span className="font-medium text-foreground"> {names || 'sua empresa'}</span>.

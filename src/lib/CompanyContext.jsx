@@ -20,8 +20,6 @@ const COMPANY_ROLE_TO_LEGACY = {
   supervisor: 'supervisor',
 };
 
-const SELECTABLE_COMPANY_STATUS = ['active', 'trial'];
-
 function readStoredCompanyId(userId) {
   try {
     return localStorage.getItem(`cimentopro:active-company:${userId}`);
@@ -79,20 +77,21 @@ export const CompanyProvider = ({ children }) => {
           activated = res.data?.activated || [];
         } catch { /* sem convites pendentes — segue o fluxo normal */ }
         setActivatedInvites(activated);
-        const all = await base44.entities.UserCompany.filter({ user_id: user.id });
-        const activeMbs = (all || []).filter((m) => m.status === 'active');
-        const ids = [...new Set(activeMbs.map((m) => m.company_id))];
-        const comps = ids.length
-          ? (await Promise.all(ids.map((id) => base44.entities.Company.get(id).catch(() => null)))).filter(Boolean)
-          : [];
-        let selectable = comps.filter((c) => SELECTABLE_COMPANY_STATUS.includes(c.status));
-        // SUPER_ADMIN administra a plataforma: pode selecionar qualquer empresa ativa
-        if (isPlatformAdmin(user)) {
-          const all = await base44.entities.Company.list('name', 500).catch(() => []);
-          const byId = new Map(selectable.map((c) => [c.id, c]));
-          all.filter((c) => SELECTABLE_COMPANY_STATUS.includes(c.status)).forEach((c) => byId.set(c.id, c));
-          selectable = [...byId.values()];
-        }
+        // Vínculos e empresas vêm do backend (acesso de serviço): não dependem
+        // do cache de empresas embutido na sessão, que pode estar desatualizado.
+        let activeMbs = [];
+        let selectable = [];
+        try {
+          const res = await base44.functions.invoke('companyMembers', { action: 'myCompanies' });
+          activeMbs = res.data?.memberships || [];
+          selectable = res.data?.companies || [];
+        } catch { /* sem vínculos legíveis — segue com lista vazia */ }
+        // Sincroniza o cache de empresas na própria sessão pelo caminho oficial
+        // da plataforma (dados do usuário): RLS e consultas passam a enxergar o
+        // vínculo já neste acesso, sem precisar sair e entrar novamente.
+        try {
+          await base44.auth.updateMe({ company_ids: [...new Set(activeMbs.map((m) => m.company_id))] });
+        } catch { /* indisponível — o próximo acesso sincroniza */ }
         if (cancelled) return;
         setMemberships(activeMbs);
         setCompanies(selectable);
@@ -132,7 +131,7 @@ export const CompanyProvider = ({ children }) => {
   const currentRole = currentMembership?.role || user?.role || null;
   // Convites recém-ativados cuja empresa não carrega nesta sessão: o token foi
   // emitido antes do vínculo existir — basta sair e entrar novamente.
-  const sessionRefreshNeeded = activatedInvites.length > 0 && memberships.length > 0 && companies.length === 0;
+  const sessionRefreshNeeded = memberships.length > 0 && companies.length === 0;
   const legacyRole = currentMembership
     ? (COMPANY_ROLE_TO_LEGACY[currentMembership.role] || currentMembership.role)
     : user?.role;
