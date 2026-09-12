@@ -11,6 +11,9 @@ import { usePermissions } from '@/lib/PermissionsContext';
 import { useToast } from '@/components/ui/use-toast';
 import CompanySelector from '@/components/CompanySelector';
 import NoCompanyScreen from '@/components/NoCompanyScreen';
+import BlockedSubscriptionScreen from '@/components/BlockedSubscriptionScreen';
+import ModuleBlockedScreen from '@/components/ModuleBlockedScreen';
+import { useSubscription } from '@/lib/SubscriptionContext';
 import CompanySelectionScreen from '@/components/CompanySelectionScreen';
 import { useCompany } from '@/lib/CompanyContext';
 import { logAudit } from '@/lib/audit';
@@ -49,9 +52,16 @@ export default function Layout() {
   const { clearCompany, loading: loadingCompany, hasCompany, needsCompanySelection } = useCompany();
   const { toast } = useToast();
   const allowed = allowedPaths;
-  const visibleNav = navItems.filter((i) => allowed.includes(i.to));
   const canManageOperators = can('SETTINGS_VIEW');
   const isPlatform = !activeOperator && can('PLATFORM_ADMIN');
+  // Plano e assinatura: a empresa só vê (e acessa) os módulos incluídos no
+  // plano vigente. SUPER_ADMIN mantém a visão completa da plataforma.
+  const {
+    blocked, blockReason, plan: currentPlan, subscription,
+    moduleAllowed, loading: loadingSubscription,
+  } = useSubscription();
+  const visibleNav = navItems.filter((i) => allowed.includes(i.to) && (isPlatform || moduleAllowed(i.to)));
+  const fallbackPath = visibleNav[0]?.to || '/';
 
   // Isolamento multi-tenant: nenhuma página operacional monta (nem consulta
   // dados) antes da empresa ativa existir. Sem vínculo → tela de bloqueio;
@@ -71,11 +81,33 @@ export default function Layout() {
     return <CompanySelectionScreen />;
   }
 
+  // Assinatura vigente carregando: evita renderizar páginas que podem ser
+  // bloqueadas pelo plano logo em seguida (pisca de tela).
+  if (!isPlatform && loadingSubscription) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Assinatura vencida/suspensa/cancelada: a empresa inteira é bloqueada com
+  // orientação clara — nenhum dado é apagado, apenas o acesso é interrompido.
+  if (!isPlatform && blocked) {
+    return <BlockedSubscriptionScreen reason={blockReason} plan={currentPlan} subscription={subscription} />;
+  }
+
   // Guarda de rotas: esconder o menu é apenas experiência — a decisão
   // real de acesso acontece aqui, antes de renderizar qualquer página.
   if (!allowed.includes(location.pathname)) {
     toast({ title: 'Acesso restrito', description: 'Você não tem permissão para acessar este módulo.' });
-    return <Navigate to={allowed[0] || '/pin-login'} replace />;
+    return <Navigate to={fallbackPath || '/pin-login'} replace />;
+  }
+
+  // Módulo fora do plano vigente: bloqueado com mensagem clara — o menu já o
+  // omite; isto cobre o acesso direto pela URL.
+  if (!isPlatform && !moduleAllowed(location.pathname)) {
+    return <ModuleBlockedScreen plan={currentPlan} fallbackPath={fallbackPath} />;
   }
 
   async function handleLogoutOperator() {
@@ -212,7 +244,7 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      <BottomTabs allowed={allowed} />
+      <BottomTabs allowed={visibleNav.map((i) => i.to)} />
     </div>
   );
 }

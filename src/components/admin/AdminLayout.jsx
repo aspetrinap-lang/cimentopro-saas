@@ -11,12 +11,12 @@ const mainNav = [
   { to: '/admin/companies', label: 'Empresas', icon: Building2 },
   { to: '/admin/users', label: 'Usuários', icon: Users },
   { to: '/admin/audit', label: 'Auditoria', icon: ScrollText },
+  { to: '/admin/plans', label: 'Planos', icon: CreditCard },
+  { to: '/admin/subscriptions', label: 'Assinaturas', icon: ReceiptText },
 ];
 
 const soonNav = [
   { label: 'Dashboard da Plataforma', icon: LayoutDashboard },
-  { label: 'Planos', icon: CreditCard },
-  { label: 'Assinaturas', icon: ReceiptText },
   { label: 'Status das Empresas', icon: Activity },
   { label: 'Configurações Globais', icon: Settings2 },
   { label: 'Suporte', icon: LifeBuoy },

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { scopedFilter, withCompany } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
+import { useCompany } from '@/lib/CompanyContext';
+import { useToast } from '@/components/ui/use-toast';
 import { X, Plus, Trash2, ArrowUp, ArrowDown, Save, Layers } from 'lucide-react';
 
 const emptyForm = {
@@ -19,6 +21,8 @@ export default function ProductionLineForm({ line, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [machines, setMachines] = useState([]);
   const [sharedResources, setSharedResources] = useState([]);
+  const { currentCompanyId } = useCompany();
+  const { toast } = useToast();
 
   useEffect(() => {
     base44.entities.Machine.filter(scopedFilter({}), 'name').then(setMachines).catch(() => {});
@@ -117,6 +121,20 @@ export default function ProductionLineForm({ line, onClose, onSaved }) {
       })),
     };
     try {
+      // Limite de linhas do plano vigente — validado no backend antes de criar
+      if (!line && currentCompanyId) {
+        const res = await base44.functions.invoke('subscriptionManagement', {
+          action: 'checkLimit', company_id: currentCompanyId, resource: 'lines',
+        });
+        if (res.data && res.data.allowed === false) {
+          toast({
+            title: 'Limite do plano atingido',
+            description: `O plano ${res.data.plan_name} permite até ${res.data.limit} linhas de produção (hoje: ${res.data.current}). Contate a administração da plataforma CimentoPro para ampliar seu plano.`,
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
       if (line) {
         await base44.entities.ProductionLine.update(line.id, payload);
       } else {

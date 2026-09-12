@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { scopedFilter, withCompany } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
+import { useCompany } from '@/lib/CompanyContext';
+import { useToast } from '@/components/ui/use-toast';
 import { X, Plus, Trash2, Factory, ArrowRightLeft } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { intervalsFromItems, itemsFromIntervals } from '@/lib/machineIntervals';
@@ -42,6 +44,8 @@ export default function MachineForm({ item, onClose, onSaved }) {
     active: item?.active !== false,
   }));
   const [saving, setSaving] = useState(false);
+  const { currentCompanyId } = useCompany();
+  const { toast } = useToast();
 
   function set(field, val) { setForm(f => ({ ...f, [field]: val })); }
 
@@ -86,6 +90,21 @@ export default function MachineForm({ item, onClose, onSaved }) {
     if (item?.id) {
       await base44.entities.Machine.update(item.id, payload);
     } else {
+      // Limite de máquinas do plano vigente — validado no backend antes de criar
+      if (currentCompanyId) {
+        const res = await base44.functions.invoke('subscriptionManagement', {
+          action: 'checkLimit', company_id: currentCompanyId, resource: 'machines',
+        });
+        if (res.data && res.data.allowed === false) {
+          setSaving(false);
+          toast({
+            title: 'Limite do plano atingido',
+            description: `O plano ${res.data.plan_name} permite até ${res.data.limit} máquinas (hoje: ${res.data.current}). Contate a administração da plataforma CimentoPro para ampliar seu plano.`,
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
       await base44.entities.Machine.create(withCompany(payload));
     }
     setSaving(false);

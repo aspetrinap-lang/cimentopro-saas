@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.44';
+import { checkPlanLimit } from '../../shared/subscriptionAccess.ts';
 
 // Gestão de vínculos usuário-empresa (UserCompany) e sincronização do cache
 // user.company_ids — base das regras RLS de multi-tenancy.
@@ -178,6 +179,14 @@ export default async function(req) {
         return Response.json({ member: created, invited: true, invite_error: inviteError });
       }
 
+      // Limite de usuários do plano vigente — validação no backend, com
+      // mensagem clara indicando o limite do plano da empresa.
+      const seat = await checkPlanLimit(svc, companyId, 'users');
+      if (seat.allowed === false) {
+        return Response.json({
+          error: `Limite de usuários do plano ${seat.plan_name} atingido (${seat.current} de ${seat.limit}). Contate a administração da plataforma CimentoPro para ampliar o plano.`,
+        }, { status: 400 });
+      }
       const existing = await svc.entities.UserCompany.filter({ user_id: target.id, company_id: companyId });
       if (existing.length) {
         const link = existing[0];
