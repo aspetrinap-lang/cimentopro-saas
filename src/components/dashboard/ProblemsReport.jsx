@@ -5,6 +5,7 @@ import { base44 } from '@/api/base44Client';
 import { buildProblemsReportData } from '@/lib/executiveProblems';
 import { useInsumoCosts } from '@/hooks/useInsumoCosts';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
+import CompanyBrand from '@/components/CompanyBrand';
 
 const SEVERITY = {
   critical: { label: 'Crítico', badge: 'border-red-600 text-red-700 bg-red-50', bar: 'bg-red-600' },
@@ -111,6 +112,7 @@ export default function ProblemsReport({ orders, downtimes, machines, period, on
       <div className="print-area bg-white text-slate-900 mx-auto max-w-[800px] p-8 md:p-10 shadow-2xl rounded-lg">
         <div className="flex items-start justify-between border-b-2 border-slate-800 pb-4 mb-5">
           <div>
+            <CompanyBrand className="mb-2" />
             <h1 className="text-xl font-bold text-slate-900">Relatório de Problemas</h1>
             <p className="text-xs text-slate-500 mt-0.5">Resumo Executivo — identificação automática de ocorrências do período</p>
           </div>

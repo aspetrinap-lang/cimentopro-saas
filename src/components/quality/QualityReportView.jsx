@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Printer, Pencil, X, CheckCircle2, AlertTriangle } from 'lucide-react';
+import CompanyBrand from '@/components/CompanyBrand';
 import {
   MIN_RESISTANCE_BY_TRAFFIC, MIN_THICKNESS_BY_TRAFFIC, DIMENSIONAL_TOLERANCE_MM,
   groupByAge, ageStats, estimateFck, checkCompliance, buildAlerts,
@@ -87,6 +88,7 @@ export default function QualityReportView({ report, onClose, onEdit }) {
           <div className="border-b-2 border-slate-900 pb-4">
             <div className="flex items-start justify-between">
               <div>
+                <CompanyBrand className="mb-2" />
                 <h1 className="text-xl font-bold tracking-tight">
                   LAUDO TÉCNICO DE ENSAIO DE COMPRESSÃO AXIAL
                 </h1>
@@ -363,6 +365,7 @@ function PrintLaudoBlock({ report, group }) {
         <div className="border-b-2 border-slate-900 pb-4">
           <div className="flex items-start justify-between">
             <div>
+              <CompanyBrand className="mb-2" />
               <h1 className="text-xl font-bold tracking-tight">
                 LAUDO TÉCNICO DE ENSAIO DE COMPRESSÃO AXIAL
               </h1>

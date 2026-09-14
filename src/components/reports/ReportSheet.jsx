@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { format, subDays, differenceInCalendarDays } from 'date-fns';
 import { CalendarRange, Printer, X, FileText } from 'lucide-react';
+import CompanyBrand from '@/components/CompanyBrand';
 
 // Casca reutilizável das fichas técnicas A4: barra de ações com filtro de
 // datas (fora da área de impressão) + folha A4 com cabeçalho padrão.
@@ -82,6 +83,7 @@ export default function ReportSheet({ title, subtitle, icon: Icon, initialStart,
       <div className="print-area bg-white text-slate-900 mx-auto max-w-[800px] p-8 md:p-10 shadow-2xl rounded-lg">
         <div className="flex items-start justify-between border-b-2 border-slate-800 pb-4 mb-5">
           <div>
+            <CompanyBrand className="mb-2" />
             <h1 className="text-xl font-bold text-slate-900">{title}</h1>
             <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
           </div>

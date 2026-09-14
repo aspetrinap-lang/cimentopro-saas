@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.44';
 import { requirePlatformAdmin } from '../../shared/platformAdmin.ts';
 
-const EDITABLE_FIELDS = ['name', 'legal_name', 'document', 'email', 'phone', 'address', 'city', 'state', 'zip_code'];
+const EDITABLE_FIELDS = ['name', 'legal_name', 'document', 'email', 'phone', 'address', 'city', 'state', 'zip_code', 'logo_url'];
 
 export default async function(req) {
   try {
@@ -48,6 +48,7 @@ export default async function(req) {
           state: c.state,
           zip_code: c.zip_code,
           status: c.status,
+          logo_url: c.logo_url || '',
           user_count: counts[c.id] || 0
         }))
       });

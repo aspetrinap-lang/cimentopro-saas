@@ -49,7 +49,7 @@ export default function Layout() {
   useEnterToTab();
 
   const { allowedPaths, can } = usePermissions();
-  const { clearCompany, loading: loadingCompany, hasCompany, needsCompanySelection } = useCompany();
+  const { clearCompany, loading: loadingCompany, hasCompany, needsCompanySelection, currentCompany } = useCompany();
   const { toast } = useToast();
   const allowed = allowedPaths;
   const canManageOperators = can('SETTINGS_VIEW');
@@ -173,12 +173,16 @@ export default function Layout() {
       {/* Sidebar desktop */}
       <aside className="hidden md:flex flex-col w-60 shrink-0 bg-[hsl(var(--sidebar-bg))] text-white">
         <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <Factory className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <p className="font-semibold text-sm leading-none">CimentoPro</p>
-            <p className="text-xs text-white/50 mt-0.5">{activeOperator ? 'Operador' : 'Produção'}</p>
+          {currentCompany?.logo_url ? (
+            <img src={currentCompany.logo_url} alt={currentCompany.name} className="w-8 h-8 rounded-lg bg-white/95 object-contain shrink-0" />
+          ) : (
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
+              <Factory className="w-4 h-4 text-white" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="font-semibold text-sm leading-none truncate">{currentCompany?.name || 'CimentoPro'}</p>
+            <p className="text-xs text-white/50 mt-0.5">{activeOperator ? 'Operador' : 'CimentoPro — Produção'}</p>
           </div>
         </div>
         <CompanySelector />
@@ -203,9 +207,16 @@ export default function Layout() {
 
       {/* Mobile header */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] bg-[hsl(var(--sidebar-bg))] text-white shadow">
-        <div className="flex items-center gap-2">
-          <Factory className="w-5 h-5 text-primary" />
-          <span className="font-semibold text-sm">CimentoPro</span>
+        <div className="flex items-center gap-2 min-w-0">
+          {currentCompany?.logo_url ? (
+            <img src={currentCompany.logo_url} alt={currentCompany.name} className="w-5 h-5 object-contain shrink-0" />
+          ) : (
+            <Factory className="w-5 h-5 text-primary shrink-0" />
+          )}
+          <span className="font-semibold text-sm shrink-0">CimentoPro</span>
+          {currentCompany && (
+            <span className="text-xs text-white/50 truncate">· {currentCompany.name}</span>
+          )}
         </div>
         <button onClick={() => setMobileOpen(!mobileOpen)}>
           {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}

@@ -92,7 +92,7 @@ export default async function(req) {
           role: l.role,
           is_owner: l.is_owner,
         })),
-        companies: selectable.map((c) => ({ id: c.id, name: c.name, status: c.status })),
+        companies: selectable.map((c) => ({ id: c.id, name: c.name, status: c.status, logo_url: c.logo_url || '' })),
       });
     }
 

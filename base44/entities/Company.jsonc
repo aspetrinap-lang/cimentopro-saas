@@ -43,6 +43,10 @@
       "type": "string",
       "description": "CEP"
     },
+    "logo_url": {
+      "type": "string",
+      "description": "URL p\u00fablica do logotipo da empresa (imagem) \u2014 exibida no menu, no cabe\u00e7alho do aplicativo e nos relat\u00f3rios/impress\u00f5es"
+    },
     "status": {
       "type": "string",
       "enum": [

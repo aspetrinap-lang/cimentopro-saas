@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
+import { ImagePlus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +12,7 @@ import {
 const EMPTY = {
   name: '', legal_name: '', document: '', email: '',
   phone: '', address: '', city: '', state: '', zip_code: '',
+  logo_url: '',
   owner_email: '', owner_role: 'owner',
 };
 
@@ -30,17 +32,43 @@ export default function CompanyFormDialog({ open, company, onClose, onSaved }) {
   const { toast } = useToast();
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (open) {
       setForm(company
-        ? FIELDS.reduce((acc, [key]) => ({ ...acc, [key]: company[key] || '' }), { ...EMPTY })
+        ? {
+          ...FIELDS.reduce((acc, [key]) => ({ ...acc, [key]: company[key] || '' }), { ...EMPTY }),
+          logo_url: company.logo_url || '',
+        }
         : { ...EMPTY });
     }
   }, [open, company]);
 
   function set(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  // Upload do logotipo: imagem pública permanente, vinculada ao cadastro.
+  async function handleLogoChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Selecione um arquivo de imagem (PNG, JPG...)', variant: 'destructive' });
+      return;
+    }
+    setUploading(true);
+    try {
+      const res = await base44.integrations.Core.UploadPublicFile({ file });
+      const url = res?.file_url || res?.data?.file_url;
+      if (!url) throw new Error('Não foi possível obter a URL do logotipo');
+      set('logo_url', url);
+    } catch (err) {
+      toast({ title: 'Erro ao enviar logotipo', description: err.message, variant: 'destructive' });
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function handleSubmit(e) {
@@ -105,6 +133,33 @@ export default function CompanyFormDialog({ open, company, onClose, onSaved }) {
               />
             </div>
           ))}
+          <div className="sm:col-span-2 border border-border rounded-lg p-3 bg-muted/30">
+            <p className="text-xs font-semibold text-foreground">Logotipo da empresa</p>
+            <div className="flex items-center gap-3 mt-2">
+              {form.logo_url ? (
+                <img src={form.logo_url} alt="Logotipo da empresa" className="h-14 w-14 object-contain border border-border rounded-lg bg-white p-1" />
+              ) : (
+                <div className="h-14 w-14 border border-dashed border-border rounded-lg bg-white flex items-center justify-center">
+                  <ImagePlus className="w-5 h-5 text-slate-300" />
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <label className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer">
+                  <ImagePlus className="w-4 h-4" />
+                  {uploading ? 'Enviando...' : 'Enviar imagem'}
+                  <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={handleLogoChange} />
+                </label>
+                {form.logo_url && (
+                  <Button type="button" variant="ghost" onClick={() => set('logo_url', '')} className="text-destructive hover:text-destructive">
+                    <Trash2 className="w-4 h-4" /> Remover
+                  </Button>
+                )}
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              Aparece no menu, no cabeçalho do aplicativo e nos relatórios e impressões da empresa.
+            </p>
+          </div>
           {!company && (
             <div className="sm:col-span-2 border border-border rounded-lg p-3 bg-muted/30 space-y-2">
               <p className="text-xs font-semibold text-foreground">Primeiro usuário (opcional)</p>

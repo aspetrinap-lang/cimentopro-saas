@@ -3,6 +3,7 @@ import {
 } from 'recharts';
 import { Printer, X, TrendingUp } from 'lucide-react';
 import Section from './Section';
+import CompanyBrand from '@/components/CompanyBrand';
 
 // Ficha A4 — Curva de Crescimento de Resistência: gráfico, tabela por idade,
 // leitura técnica da evolução e cabeçalho com os filtros aplicados.
@@ -37,6 +38,7 @@ export default function ResistanceGrowthReport({ rows, target, reading, traceNam
       <div className="print-area bg-white text-slate-900 mx-auto max-w-[800px] p-8 md:p-10 shadow-2xl rounded-lg">
         <div className="flex items-start justify-between border-b-2 border-slate-800 pb-4 mb-5">
           <div>
+            <CompanyBrand className="mb-2" />
             <h1 className="text-xl font-bold text-slate-900">Ficha Técnica — Curva de Crescimento de Resistência</h1>
             <p className="text-xs text-slate-500 mt-0.5">Evolução da resistência dos corpos de prova por idade (7/14/21/28 dias)</p>
           </div>
