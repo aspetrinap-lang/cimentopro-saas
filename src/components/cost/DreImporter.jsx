@@ -137,8 +137,10 @@ export default function DreImporter({ onClose, onSaved }) {
     setParseMsg('');
     setParsedMonths(null);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      const res = await base44.functions.invoke('parseDreXlsx', { file_url });
+      // DRE contém dados financeiros sensíveis: vai para o storage PRIVADO
+      // (com URL assinada temporária resolvida no backend) — nunca storage público.
+      const { file_uri } = await base44.integrations.Core.UploadPrivateFile({ file });
+      const res = await base44.functions.invoke('parseDreXlsx', { file_uri });
       const data = res?.data ?? res;
       const months = (data?.months || []).filter((m) => (m.items || []).length > 0);
       if (!months.length) {

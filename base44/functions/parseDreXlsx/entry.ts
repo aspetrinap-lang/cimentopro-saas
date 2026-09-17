@@ -105,10 +105,9 @@ async function isAllowedUrl(rawUrl) {
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (host === 'localhost' || host.endsWith('.localhost')) return false;
   if (host.includes(':')) return false; // IP literal IPv6 — bloqueado
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
-    if (isBlockedIPv4(host)) return false;
-    return true;
-  }
+  // IP literal (IPv4): o storage oficial da plataforma é acessado sempre por
+  // hostname — nenhum endereço IP direto é aceito, mesmo público (allowlist exclusiva).
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false;
   // Allowlist EXCLUSIVA: somente o storage oficial da plataforma é aceito.
   // Qualquer outro hostname — inclusive https público com IP público — é
   // bloqueado (política fechada da auditoria SSRF/CWE-918).
@@ -149,12 +148,34 @@ export default async function(req) {
 
     const body = await req.json().catch(() => ({}));
     const fileUrl = body.file_url;
-    if (!fileUrl || typeof fileUrl !== 'string') return Response.json({ error: 'file_url é obrigatório' }, { status: 400 });
+    const fileUri = body.file_uri;
 
-    // SSRF: só passam daqui URLs https públicas, sem credenciais/portas
-    // exóticas, com IP resolvido público e redirects revalidados hop a hop.
-    const resp = await fetchValidatedUrl(fileUrl);
-    if (!resp) return Response.json({ error: 'URL de arquivo não autorizada.' }, { status: 400 });
+    let resp;
+    if (fileUri && typeof fileUri === 'string' && !/^(https?:)?\/\//i.test(fileUri)) {
+      // Arquivo privado (UploadPrivateFile): DRE contém dados financeiros
+      // sensíveis e nunca passa por storage público. A URL assinada temporária
+      // é gerada pelo próprio runtime da plataforma (fonte confiável, não
+      // entrada do usuário) e expira em minutos.
+      let signedUrl;
+      try {
+        const signed = await base44.integrations.Core.CreateFileSignedUrl({ file_uri: fileUri, expires_in: 120 });
+        signedUrl = signed?.signed_url || signed?.data?.signed_url || null;
+      } catch { /* arquivo inacessível — erro controlado abaixo */ }
+      if (!signedUrl || !String(signedUrl).startsWith('https://')) {
+        return Response.json({ error: 'Não foi possível acessar o arquivo privado.' }, { status: 400 });
+      }
+      try {
+        resp = await fetch(signedUrl);
+      } catch {
+        return Response.json({ error: 'Falha ao baixar o arquivo' }, { status: 502 });
+      }
+    } else {
+      if (!fileUrl || typeof fileUrl !== 'string') return Response.json({ error: 'file_url é obrigatório' }, { status: 400 });
+      // SSRF: só passam daqui URLs https do storage oficial da plataforma,
+      // sem credenciais/portas exóticas e redirects revalidados hop a hop.
+      resp = await fetchValidatedUrl(fileUrl);
+      if (!resp) return Response.json({ error: 'URL de arquivo não autorizada.' }, { status: 400 });
+    }
     if (!resp.ok) return Response.json({ error: 'Falha ao baixar o arquivo' }, { status: 502 });
 
     const declaredLength = Number(resp.headers.get('content-length'));
