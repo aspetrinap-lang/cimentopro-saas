@@ -51,25 +51,61 @@
     "category"
   ],
   "rls": {
-    "read": {
-      "user_condition": {
-        "is_platform_admin": true
-      }
-    },
     "create": {
-      "user_condition": {
-        "is_platform_admin": true
-      }
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        }
+      ]
     },
     "update": {
-      "user_condition": {
-        "is_platform_admin": true
-      }
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        }
+      ]
     },
     "delete": {
-      "user_condition": {
-        "is_platform_admin": true
-      }
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "administrador"
+          }
+        }
+      ]
     }
   }
 }
