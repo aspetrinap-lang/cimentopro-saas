@@ -104,9 +104,13 @@ export default async function(req) {
       if (!op || op.active === false) {
         return Response.json({ error: 'Operador inválido ou inativo' }, { status: 404 });
       }
-      // Isolamento por empresa: o operador precisa pertencer a uma empresa do usuário.
-      if (!isPlatformAdmin && !isRoleAdmin && op.company_id && companyIds.length && !companyIds.includes(op.company_id)) {
-        return Response.json({ error: 'Operador inválido' }, { status: 404 });
+      // Isolamento por empresa: o operador precisa pertencer a uma empresa ativa
+      // do usuário. Usuários sem vínculo (companyIds vazio) são bloqueados — nunca
+      // permitidos a verificar PINs de qualquer empresa.
+      if (!isPlatformAdmin && !isRoleAdmin) {
+        if (!op.company_id || !companyIds.includes(op.company_id)) {
+          return Response.json({ error: 'Operador inválido' }, { status: 404 });
+        }
       }
       if (op.locked_until && new Date(op.locked_until) > new Date()) {
         await audit('LOGIN', op.id, op.company_id, { result: 'blocked' });
