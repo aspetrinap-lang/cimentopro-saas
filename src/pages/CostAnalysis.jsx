@@ -9,21 +9,11 @@ import { useInsumoCosts } from '@/hooks/useInsumoCosts';
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
 import { Save } from 'lucide-react';
 import { usePermissions } from '@/lib/PermissionsContext';
+import { weightPerSaleUnit } from '@/lib/costUtils';
 
 function fmtBRL4(v) {
   if (v == null || !isFinite(v)) return '—';
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 4, maximumFractionDigits: 4 });
-}
-
-// Peso por unidade de venda (kg) — normaliza produtos vendidos em un/m²/m
-// un: peso por peça; m²/m: peças por metro × peso por peça
-function weightPerSaleUnit(pt) {
-  if (!pt) return 0;
-  const w = Number(pt.volume_per_unit_m3) || 0; // peso por peça (kg)
-  const unit = String(pt.unit || 'un').toLowerCase();
-  if (unit === 'un') return w;
-  const ppm = Number(pt.pieces_per_m) || 0;
-  return ppm > 0 ? ppm * w : w;
 }
 
 // Campos de materiais reais lançados na ordem (kg) — água em L ≈ kg
