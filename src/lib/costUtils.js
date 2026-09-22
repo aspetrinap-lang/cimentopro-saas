@@ -1,13 +1,23 @@
 // Funções compartilhadas de cálculo de custos — usadas por CostAnalysis e PricingSimulator.
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
 
-// Peso por unidade de venda (kg) — normaliza produtos vendidos em un/m²/m
-// un: peso por peça; m²/m: peças por metro × peso por peça
+// Peso por unidade de venda (kg) — normaliza produtos vendidos em un/m²/m.
+// Fonte principal: ProductType.weight_kg_per_unit.
+// Fallback legado: volume_per_unit_m3, que historicamente foi usado pelo sistema
+// para armazenar o peso em alguns cadastros antigos.
+// un: peso por peça; m²/m: peças por metro × peso por peça.
 export function weightPerSaleUnit(pt) {
   if (!pt) return 0;
-  const w = Number(pt.volume_per_unit_m3) || 0; // peso por peça (kg)
+
+  const weightKgPerUnit = Number(pt.weight_kg_per_unit);
+  const legacyWeight = Number(pt.volume_per_unit_m3);
+  const w = Number.isFinite(weightKgPerUnit) && weightKgPerUnit > 0
+    ? weightKgPerUnit
+    : (Number.isFinite(legacyWeight) && legacyWeight > 0 ? legacyWeight : 0);
+
   const unit = String(pt.unit || 'un').toLowerCase();
   if (unit === 'un') return w;
+
   const ppm = Number(pt.pieces_per_m) || 0;
   return ppm > 0 ? ppm * w : w;
 }
