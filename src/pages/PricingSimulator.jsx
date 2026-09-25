@@ -46,6 +46,7 @@ export default function PricingSimulator() {
   const [lines, setLines] = useState([]);
   const [dres, setDres] = useState([]);
   const [productTypes, setProductTypes] = useState([]);
+  const [molds, setMolds] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState('normalized'); // 'normalized' (padrão) | 'weighted' | 'single'
@@ -70,13 +71,15 @@ export default function PricingSimulator() {
       base44.entities.MonthlyDre.filter(scopedFilter(), '-reference_month', 100),
       base44.entities.ProductType.filter(scopedFilter({}), 'name', 500),
       base44.entities.DreAccount.filter(scopedFilter(), 'sort_order', 500),
-    ]).then(([o, l, d, pt, acc]) => {
+      base44.entities.Mold.filter(scopedFilter({}), 'name', 500),
+    ]).then(([o, l, d, pt, acc, moldItems]) => {
       if (!active) return;
       setOrders(o);
       setLines(l);
       setDres(d);
       setProductTypes(pt);
       setAccounts(acc);
+      setMolds(moldItems);
       if (d.length && !selectedMonth) {
         const latest = [...d].sort((a, b) => String(b.reference_month).localeCompare(String(a.reference_month)))[0];
         setSelectedMonth(latest.reference_month);
@@ -90,17 +93,34 @@ export default function PricingSimulator() {
     [dres]
   );
 
+  // Recalcula o custo do molde com os dados atuais, pois mold_cost_per_unit
+  // no produto é apenas um cache e pode ficar desatualizado após editar o molde.
+  const costProductTypes = useMemo(() => {
+    const moldsById = new Map(molds.map((mold) => [mold.id, mold]));
+    return productTypes.map((pt) => {
+      const mold = pt.mold_id ? moldsById.get(pt.mold_id) : null;
+      if (!mold) return pt;
+      const moldCost = Number(mold.cost) || 0;
+      const usefulCycles = Number(mold.max_cycles) || 0;
+      const piecesPerCycle = Number(mold.units_per_cycle) || 0;
+      const costPerPiece = moldCost > 0 && usefulCycles > 0 && piecesPerCycle > 0
+        ? moldCost / usefulCycles / piecesPerCycle
+        : 0;
+      return { ...pt, mold_cost_per_unit: costPerPiece };
+    });
+  }, [productTypes, molds]);
+
   const model = useMemo(() => buildCostModel({
     dres,
     orders,
-    productTypes,
+    productTypes: costProductTypes,
     lines,
     accounts,
     insumoCosts,
     mode,
     excludedMonths,
     selectedMonth,
-  }), [dres, orders, productTypes, lines, accounts, insumoCosts, mode, excludedMonths, selectedMonth]);
+  }), [dres, orders, costProductTypes, lines, accounts, insumoCosts, mode, excludedMonths, selectedMonth]);
 
   const modelByProduct = useMemo(() => {
     const m = {};
