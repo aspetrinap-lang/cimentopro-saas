@@ -10,6 +10,7 @@ const empty = {
   name: '', code: '', category: '', unit: 'un',
   units_per_mold: '',
   length_mm: '', width_mm: '', height_mm: '',
+  volume_m3_per_unit: '',
   pieces_per_m: '',
   pieces_per_m_unit: 'm',
   mold_id: '',
@@ -137,6 +138,7 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
     payload.length_mm = parseFloat(form.length_mm) || null;
     payload.width_mm = parseFloat(form.width_mm) || null;
     payload.height_mm = parseFloat(form.height_mm) || null;
+    payload.volume_m3_per_unit = parseFloat(form.volume_m3_per_unit) || null;
     payload.pieces_per_m = parseFloat(form.pieces_per_m) || null;
     payload.mold_cost_per_unit = parseFloat(form.mold_cost_per_unit) || 0;
     payload.selling_price = parseFloat(form.selling_price) || 0;
@@ -179,23 +181,12 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
                 value={form.code} onChange={e => set('code', e.target.value)} placeholder="BL14" required />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Unidade de Venda</label>
-              <select className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                value={form.unit || 'un'} onChange={e => set('unit', e.target.value)}>
-                <option value="un">un (unitário)</option>
-                <option value="m2">m² (metro quadrado)</option>
-                <option value="m">m (metro linear)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Artefatos por Molde</label>
-              <input type="number" min="1" step="1"
-                className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                value={form.units_per_mold ?? ''} onChange={e => set('units_per_mold', e.target.value)}
-                placeholder="ex: 4" />
-            </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Artefatos por Molde</label>
+            <input type="number" min="1" step="1"
+              className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              value={form.units_per_mold ?? ''} onChange={e => set('units_per_mold', e.target.value)}
+              placeholder="ex: 4" />
           </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Subcategoria</label>
@@ -234,23 +225,30 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
                   value={form.length_mm ?? ''} onChange={e => set('length_mm', e.target.value)} placeholder="390" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            {['m', 'm2'].includes(form.unit) && (
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Peças por Metro</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
+                  {form.unit === 'm2' ? 'Peças por m²' : 'Peças por metro linear'}
+                </label>
                 <input type="number" min="0" step="0.01"
                   className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                  value={form.pieces_per_m ?? ''} onChange={e => set('pieces_per_m', e.target.value)} placeholder="ex: 2.5" />
+                  value={form.pieces_per_m ?? ''} onChange={e => set('pieces_per_m', e.target.value)}
+                  placeholder="ex: 2.5" />
               </div>
+            )}
+            {form.unit === 'm3' && (
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Unidade de Medida</label>
-                <select
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Volume por peça (m³)</label>
+                <input type="number" min="0.000001" step="any" required
                   className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                  value={form.pieces_per_m_unit || 'm'} onChange={e => set('pieces_per_m_unit', e.target.value)}>
-                  <option value="m">m (metro linear)</option>
-                  <option value="m2">m² (metro quadrado)</option>
-                </select>
+                  value={form.volume_m3_per_unit ?? ''}
+                  onChange={e => set('volume_m3_per_unit', e.target.value)}
+                  placeholder="ex: 0.001" />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Informe o volume geométrico efetivo da peça. Ex.: 0,001 m³ corresponde a 1.000 peças por m³.
+                </p>
               </div>
-            </div>
+            )}
           </div>
 
           {/* ── Classe da Norma ── */}
@@ -354,13 +352,31 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
 
           {/* ── Preço de Venda ── */}
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-            <p className="text-xs font-semibold text-emerald-700 mb-2">Preço de Venda (por unidade de venda)</p>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-emerald-700 pointer-events-none">R$</span>
-              <input type="number" min="0" step="0.01"
-                className="w-full border border-emerald-300 rounded-lg pl-9 pr-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                value={form.selling_price ?? ''} onChange={e => set('selling_price', e.target.value)}
-                placeholder="0,00" />
+            <p className="text-xs font-semibold text-emerald-700 mb-2">
+              Preço de Venda (R$ / {form.unit === 'm2' ? 'm²' : form.unit === 'm3' ? 'm³' : form.unit === 'm' ? 'm' : 'un'})
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-emerald-700 pointer-events-none">R$</span>
+                <input type="number" min="0" step="0.01"
+                  className="w-full border border-emerald-300 rounded-lg pl-9 pr-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  value={form.selling_price ?? ''} onChange={e => set('selling_price', e.target.value)}
+                  placeholder="0,00" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-emerald-800 mb-1">Unidade de Venda</label>
+                <select className="w-full border border-emerald-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  value={form.unit || 'un'}
+                  onChange={e => {
+                    const unit = e.target.value;
+                    setForm(f => ({ ...f, unit, pieces_per_m_unit: unit === 'm2' ? 'm2' : 'm' }));
+                  }}>
+                  <option value="un">un (unitário)</option>
+                  <option value="m2">m² (metro quadrado)</option>
+                  <option value="m3">m³ (metro cúbico)</option>
+                  <option value="m">m (metro linear)</option>
+                </select>
+              </div>
             </div>
             <p className="text-[11px] text-emerald-700/80 mt-1.5">Usado no cálculo de margem de lucro na Análise de Custos.</p>
           </div>
