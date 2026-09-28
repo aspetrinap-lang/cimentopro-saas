@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// MOTOR ÚNICO DE CUSTEIO INDUSTRIAL — CimentoPro v2.0
+// MOTOR ÚNICO DE CUSTEIO INDUSTRIAL — CimentoPro v2.1
 //
 // Fonte única de verdade do custo: este módulo é usado pelo Simulador de
 // Preços e (transição) pelas demais telas de custo — NENHUMA fórmula de custo
@@ -16,13 +16,15 @@
 //   • Média das últimas 3 DREs: NORMALIZADA por padrão (média dos
 //     indicadores unitários de cada mês), ponderada como opção.
 //   • Sem divisão por zero, sem invenção: base ausente → 0 + alerta.
+//   • Sem histórico no modo ponderado: custos classificados por kg podem ser
+//     estimados pela taxa da empresa × peso cadastrado do artefato.
 //   • Rastreável: cada componente carrega origem (source) e o modelo é
-//     versionado (calculation_version = "2.0").
+//     versionado (calculation_version = "2.1").
 // ─────────────────────────────────────────────────────────────────────────────
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
 import { calculateSuggestedPrice, saleFactor as productSaleFactor } from '@/lib/costUtils';
 
-export const CALCULATION_VERSION = '2.0';
+export const CALCULATION_VERSION = '2.1';
 
 export const COST_COMPONENT_TYPES = [
   { value: 'material_direct', label: 'Matéria-prima direta', industrial: true, default_basis: 'kg' },
@@ -383,6 +385,7 @@ export function analyzeDreMonth({ dre, orders, productTypes, lines, accountLooku
     month_label: dre.month_label,
     dre_id: dre.id || null,
     industrialTotal,
+    rates,
     goodUnits: totalGood,
     weightKg: totalWeight,
     hours: totalHours,
@@ -420,17 +423,39 @@ function detectAnomalies(analyses) {
 }
 
 // ── Produto sem produção no período (fallback de cadastro, marcado) ─────────
-function fallbackProduct(pt, insumoCosts, labels) {
+function fallbackProduct(pt, insumoCosts, labels, weightedFallback = null) {
   const sf = saleFactor(pt);
   const wu = weightPerSaleUnit(pt);
   const comps = {};
   const sources = {};
+  const estimated = {};
   INDUSTRIAL_COMPONENTS.forEach((k) => { comps[k] = 0; });
   comps.material_direct = calculateDirectMaterialCost(pt, insumoCosts) * sf;
   sources.material_direct = 'Cadastro do artefato (estimativa)';
+  estimated.material_direct = true;
   comps.mold = num(pt.mold_cost_per_unit) * sf;
   sources.mold = 'Molde: custo de aquisição ÷ vida útil ÷ peças por ciclo';
-  const industrialPerUnit = comps.material_direct + comps.mold;
+  estimated.mold = true;
+  const alerts = [];
+  if (weightedFallback) {
+    for (const key of INDUSTRIAL_COMPONENTS) {
+      if (key === 'material_direct' || key === 'mold' || key === 'energy') continue;
+      const rate = num(weightedFallback.perKg?.[key]);
+      if (rate > 0 && wu.kg > 0) {
+        comps[key] = rate * wu.kg;
+        sources[key] = `Estimativa pela média ponderada da empresa — R$ ${rate.toFixed(4)}/kg × ${wu.kg.toFixed(4)} kg${labels.length ? ` (${labels.join(' · ')})` : ''}`;
+        estimated[key] = true;
+      } else if (num(weightedFallback.perHour?.[key]) > 0) {
+        alerts.push(`${COMPONENT_LABELS[key]} sem estimativa: a conta está rateada por hora e o artefato não tem histórico/tempo padrão.`);
+      } else if (rate > 0 && wu.kg <= 0) {
+        alerts.push(`${COMPONENT_LABELS[key]} sem estimativa: cadastre um peso válido para o artefato.`);
+      }
+    }
+    if (!weightedFallback.weightKg || weightedFallback.weightKg <= 0) {
+      alerts.push('Sem estimativa ponderada por kg: não há peso produzido válido na base selecionada.');
+    }
+  }
+  const industrialPerUnit = INDUSTRIAL_COMPONENTS.reduce((sum, key) => sum + num(comps[key]), 0);
   return {
     pt,
     weightKg: wu.kg,
@@ -441,7 +466,7 @@ function fallbackProduct(pt, insumoCosts, labels) {
     refugo: 0,
     hours: 0,
     components: comps,
-    componentEstimated: { material_direct: true, mold: true },
+    componentEstimated: estimated,
     sources,
     industrialPerUnit,
     lossBurden: 0,
@@ -449,9 +474,22 @@ function fallbackProduct(pt, insumoCosts, labels) {
     monthsWithProduction: 0,
     missingLine: false,
     alerts: [
-      'Sem produção no período analisado — custo com apenas matéria-prima e molde estimados do cadastro (rateios e consumo real indisponíveis).',
+      weightedFallback
+        ? 'Sem histórico do artefato — custos rateáveis estimados pela média ponderada da empresa quando havia base por kg válida.'
+        : 'Sem produção no período analisado — custo com apenas matéria-prima e molde estimados do cadastro (rateios e consumo real indisponíveis).',
+      ...alerts,
     ],
   };
+}
+
+function companyWeightedFallback(analysis) {
+  const perKg = {};
+  const perHour = {};
+  for (const key of INDUSTRIAL_COMPONENTS) {
+    perKg[key] = num(analysis?.rates?.perKg?.[key]);
+    perHour[key] = num(analysis?.rates?.perHour?.[key]);
+  }
+  return { perKg, perHour, weightKg: num(analysis?.weightKg) };
 }
 
 // ── Média NORMALIZADA de todas as DREs cadastradas ──────────────────────────
@@ -691,7 +729,7 @@ export function buildCostModel({
           ],
         };
       }
-      return fallbackProduct(pt, insumoCosts, used.map((m) => m.month_label));
+      return fallbackProduct(pt, insumoCosts, used.map((m) => m.month_label), companyWeightedFallback(mergedAnalysis));
     });
   } else {
     // normalized — PADRÃO
@@ -737,3 +775,4 @@ export function buildCostModel({
     products,
   };
 }
+
