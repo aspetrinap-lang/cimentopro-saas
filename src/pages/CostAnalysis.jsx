@@ -341,6 +341,17 @@ export default function CostAnalysis() {
             {apportionment ? stat(Layers, 'Rateio DRE / kg', fmtBRL(apportionment.costPerKg), `Total: ${fmtBRL(apportionment.totalApportionable)}`) : stat(AlertTriangle, 'Rateio DRE', '—', 'Sem DRE no mês')}
           </section>
 
+          {/* Ponto de Equilíbrio da Empresa — camada financeira sobre o motor v2.2 */}
+          <BreakEvenSection
+            dres={dres}
+            orders={orders}
+            productTypes={productTypes}
+            lines={lines}
+            accounts={accounts}
+            insumoCosts={insumoCosts}
+            selectedMonth={selectedMonth}
+          />
+
           {/* Resumo da DRE por categoria */}
           {currentDre && (
             <section className="bg-card border border-border rounded-xl p-4">
@@ -395,17 +406,6 @@ export default function CostAnalysis() {
               </div>
             </section>
           )}
-
-          {/* Ponto de Equilíbrio da Empresa — camada financeira sobre o motor v2.2 */}
-          <BreakEvenSection
-            dres={dres}
-            orders={orders}
-            productTypes={productTypes}
-            lines={lines}
-            accounts={accounts}
-            insumoCosts={insumoCosts}
-            selectedMonth={selectedMonth}
-          />
 
           {/* Velocidade de cruzeiro por linha */}
           <section>
