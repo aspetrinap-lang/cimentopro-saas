@@ -15,7 +15,7 @@
 
 // Rotas da aplicação (chave, rota, rótulo) — navegação e perfis.
 export const MODULES = [
-  { key: 'dashboard', path: '/', label: 'Indicadores' },
+  { key: 'dashboard', path: '/', label: 'Controle de Fábrica' },
   { key: 'orders', path: '/orders', label: 'Ordens de Produção' },
   { key: 'operator_panel', path: '/operator-panel', label: 'Painel do Operador' },
   { key: 'history', path: '/history', label: 'Histórico' },

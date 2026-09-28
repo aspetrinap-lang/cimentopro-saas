@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, ClipboardList, Gauge, Wrench, Settings, Timer } from 'lucide-react';
 
 const TABS = [
-  { to: '/', label: 'Indicadores', icon: LayoutDashboard, end: true },
+  { to: '/', label: 'Controle de Fábrica', icon: LayoutDashboard, end: true },
   { to: '/orders', label: 'Ordens', icon: ClipboardList },
   { to: '/operator-panel', label: 'Painel', icon: Timer },
   { to: '/machines', label: 'Máquinas', icon: Gauge },

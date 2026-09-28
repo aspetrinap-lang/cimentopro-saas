@@ -19,7 +19,7 @@ import { useCompany } from '@/lib/CompanyContext';
 import { logAudit } from '@/lib/audit';
 
 const navItems = [
-  { to: '/', label: 'Indicadores', icon: LayoutDashboard },
+  { to: '/', label: 'Controle de Fábrica', icon: LayoutDashboard },
   { to: '/executive-summary', label: 'Resumo Executivo', icon: FileText },
   { to: '/virtual-engineer', label: 'Engenheiro Virtual', icon: Bot },
   { to: '/analysis', label: 'Análise', icon: BarChart2 },
