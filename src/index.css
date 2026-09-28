@@ -58,10 +58,126 @@
   }
 }
 
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
 @media print {
-  body * { visibility: hidden; }
-  .print-area, .print-area * { visibility: visible; }
-  .print-area { position: absolute; left: 0; top: 0; width: 100%; }
+  html, body, #root {
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  body {
+    margin: 0 !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Remove limites de altura/rolagem da árvore do app e deixa apenas o caminho
+     até o relatório no fluxo impresso. :has() é suportado pelos navegadores atuais. */
+  #root:has(.print-root),
+  #root :has(.print-root) {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+
+  #root:has(.print-root) > :not(:has(.print-root)),
+  #root :has(.print-root) > :not(:has(.print-root)) {
+    display: none !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .print-root,
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  .print-root {
+    position: static !important;
+    display: block !important;
+    inset: auto !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    transform: none !important;
+  }
+
+  .print-root > :not(.print-area) {
+    display: none !important;
+  }
+
+  .print-area {
+    position: static !important;
+    display: block !important;
+    left: auto !important;
+    top: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .print-area .overflow-x-auto,
+  .print-area .overflow-auto {
+    overflow: visible !important;
+  }
+
+  .print-area table {
+    width: 100%;
+    border-collapse: collapse;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .print-area thead {
+    display: table-header-group;
+  }
+
+  .print-area tfoot {
+    display: table-footer-group;
+  }
+
+  .print-area tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-area h1,
+  .print-area h2,
+  .print-area h3 {
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
 }
 
 @layer utilities {
