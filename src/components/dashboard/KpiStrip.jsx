@@ -47,11 +47,14 @@ export default function KpiStrip({ orders, ptMap, traceMap, costs }) {
     }, 0);
 
     let forecastCost = 0;
+    let forecastCalculated = 0;
     inProgress.forEach((o) => {
       const pt = ptMap[o.product_type_id];
       if (!pt) return;
       const remaining = Math.max((Number(o.planned_quantity) || 0) - (Number(o.actual_quantity) || 0), 0);
-      if (remaining <= 0) return;
+      const hasStandard = INSUMO_KEYS.some((k) => Number(pt[INSUMO_FIELDS[k].pt_field]) > 0);
+      if (!hasStandard || remaining <= 0) return;
+      forecastCalculated += 1;
       INSUMO_KEYS.forEach((k) => {
         const perUnit = Number(pt[INSUMO_FIELDS[k].pt_field]) || 0;
         forecastCost += remaining * perUnit * (costs[k] || 0);
@@ -66,7 +69,7 @@ export default function KpiStrip({ orders, ptMap, traceMap, costs }) {
       { icon: TrendingUp, label: 'Desvio de Consumo', value: deviation != null ? `${deviation > 0 ? '+' : ''}${fmtPct(deviation)}` : '—', sub: 'real vs. teórico' },
       { icon: AlertTriangle, label: 'Desperdício', value: fmtInt(lost), sub: `${lossPct != null ? fmtPct(lossPct) : '—'} · ${fmtBRL(lossCost)}` },
       { icon: PlayCircle, label: 'Ordens em Andamento', value: fmtInt(ipCount), sub: `${fmtInt(ipRemaining)} un. restantes` },
-      { icon: Coins, label: 'Consumo Previsto', value: fmtBRL(forecastCost), sub: 'ordens em andamento' },
+      { icon: Coins, label: 'Consumo Previsto', value: fmtBRL(forecastCost), sub: `custo estimado dos insumos restantes · ${forecastCalculated} ordens` },
     ];
   }, [orders, ptMap, traceMap, costs]);
 

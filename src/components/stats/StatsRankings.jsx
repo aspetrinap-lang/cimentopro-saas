@@ -3,7 +3,7 @@ import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
 import { computeStats, theoreticalForOrder, fmtNum, fmtBRL, orderLostCost } from '@/lib/statsUtils';
 import { Trophy, TrendingUp, Gauge, AlertTriangle } from 'lucide-react';
 
-export default function StatsRankings({ orders, ptMap, traceMap, names, costs }) {
+export default function StatsRankings({ orders, ptMap, traceMap, names, costs, limit }) {
   const data = useMemo(() => {
     // Por produto
     const byProduct = {};
@@ -61,13 +61,14 @@ export default function StatsRankings({ orders, ptMap, traceMap, names, costs })
       return { name: m.name, avgDev: s ? s.mean : 0, n: m.n };
     });
 
+    const n = limit || 5;
     return {
-      topConsumers: [...products].sort((a, b) => b.avgCostPerUnit - a.avgCostPerUnit).slice(0, 5),
-      mostStable: [...products].filter(p => p.avgCV != null).sort((a, b) => a.avgCV - b.avgCV).slice(0, 5),
-      topMachineDev: [...machines].filter(m => m.avgDev !== 0 || m.n > 0).sort((a, b) => Math.abs(b.avgDev) - Math.abs(a.avgDev)).slice(0, 5),
-      worstLots: [...lots].sort((a, b) => b.cost - a.cost).slice(0, 5),
+      topConsumers: [...products].sort((a, b) => b.avgCostPerUnit - a.avgCostPerUnit).slice(0, n),
+      mostStable: [...products].filter(p => p.avgCV != null).sort((a, b) => a.avgCV - b.avgCV).slice(0, n),
+      topMachineDev: [...machines].filter(m => m.avgDev !== 0 || m.n > 0).sort((a, b) => Math.abs(b.avgDev) - Math.abs(a.avgDev)).slice(0, n),
+      worstLots: [...lots].sort((a, b) => b.cost - a.cost).slice(0, n),
     };
-  }, [orders, ptMap, traceMap, costs]);
+  }, [orders, ptMap, traceMap, costs, limit]);
 
   const Card = ({ title, icon: Icon, items, render, emptyText }) => (
     <div className="bg-card border border-border rounded-xl p-4 shadow-sm">

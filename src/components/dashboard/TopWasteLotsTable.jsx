@@ -5,7 +5,7 @@ import { fmtBRL, orderLostCost, orderExcessCost } from '@/lib/statsUtils';
 // valorizadas ao custo unitário de produção da ordem — mesma fórmula do KPI e do
 // card de Perdas. O excesso de consumo de insumos aparece em coluna separada para
 // não ser confundido com o custo das peças perdidas.
-export default function TopWasteLotsTable({ orders, ptMap, traceMap, costs }) {
+export default function TopWasteLotsTable({ orders, ptMap, traceMap, costs, limit }) {
   const rows = useMemo(() => {
     const concluded = orders.filter((o) => o.status === 'Concluída' && o.actual_quantity > 0);
     const lots = concluded.map((o) => {
@@ -22,11 +22,11 @@ export default function TopWasteLotsTable({ orders, ptMap, traceMap, costs }) {
         excessCost,
       };
     });
-    return lots
+    const filtered = lots
       .filter((l) => l.lostCost > 0 || l.excessCost > 0)
-      .sort((a, b) => b.lostCost - a.lostCost)
-      .slice(0, 5);
-  }, [orders, ptMap, traceMap, costs]);
+      .sort((a, b) => b.lostCost - a.lostCost);
+    return limit ? filtered.slice(0, limit) : filtered;
+  }, [orders, ptMap, traceMap, costs, limit]);
 
   if (rows.length === 0) {
     return <div className="text-sm text-slate-400 text-center py-6">Nenhum desperdício registrado no período.</div>;

@@ -55,8 +55,10 @@ export default function ChartFullscreenModal({
           </div>
         )}
 
-        <div className="flex-1 overflow-auto p-6">
-          {tab === 'summary' || !detailView ? children : detailView}
+        <div className="flex-1 overflow-auto p-6 flex flex-col min-h-0">
+          <div className="flex-1 min-h-0">
+            {tab === 'summary' || !detailView ? children : detailView}
+          </div>
         </div>
       </div>
     </div>

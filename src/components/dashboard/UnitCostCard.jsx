@@ -14,7 +14,7 @@ function fmtCurrency(val) {
   return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 4 });
 }
 
-export default function UnitCostCard({ orders }) {
+export default function UnitCostCard({ orders, limit }) {
   const { costs, loading: costsLoading } = useInsumoCosts();
   const { names } = useInsumoNames();
   const [productTypes, setProductTypes] = useState([]);
@@ -76,14 +76,15 @@ export default function UnitCostCard({ orders }) {
         byProduct[name].totalCost += orderCost;
       });
 
-    return Object.values(byProduct)
+    const sorted = Object.values(byProduct)
       .map(p => ({
         ...p,
         costPerUnit: p.totalQty > 0 ? p.totalCost / p.totalQty : 0,
       }))
       .filter(p => selectedProduct === 'all' || p.name === selectedProduct)
       .sort((a, b) => b.costPerUnit - a.costPerUnit);
-  }, [orders, costs, moldCostMap, selectedProduct]);
+    return limit ? sorted.slice(0, limit) : sorted;
+  }, [orders, costs, moldCostMap, selectedProduct, limit]);
 
   if (costsLoading) return null;
 

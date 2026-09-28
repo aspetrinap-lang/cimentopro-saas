@@ -47,11 +47,11 @@ export default function ProductionEvolutionChart({ orders }) {
   }, [orders]);
 
   if (data.length === 0) {
-    return <div className="h-64 flex items-center justify-center text-sm text-slate-400">Sem dados</div>;
+    return <div className="h-full min-h-[280px] flex items-center justify-center text-sm text-slate-400">Sem dados</div>;
   }
 
   return (
-    <div className="h-72">
+    <div className="h-full min-h-[280px]">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
           <defs>

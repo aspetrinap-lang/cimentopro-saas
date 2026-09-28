@@ -21,11 +21,11 @@ function CustomTooltip({ active, payload }) {
   );
 }
 
-export default function ConsumptionDeviationChart({ orders, ptMap, traceMap }) {
+export default function ConsumptionDeviationChart({ orders, ptMap, traceMap, limit }) {
   const { names } = useInsumoNames();
   const data = useMemo(() => {
     const concluded = orders.filter((o) => o.status === 'Concluída');
-    return INSUMO_KEYS.map((key) => {
+    const rows = INSUMO_KEYS.map((key) => {
       let theoretical = 0, actual = 0;
       concluded.forEach((o) => {
         theoretical += theoreticalForOrder(o, key, ptMap, traceMap);
@@ -34,22 +34,25 @@ export default function ConsumptionDeviationChart({ orders, ptMap, traceMap }) {
       const devPct = theoretical > 0 ? ((actual - theoretical) / theoretical) * 100 : 0;
       return { name: names[key], theoretical, actual, devPct };
     }).filter((d) => d.theoretical > 0 || d.actual > 0);
-  }, [orders, ptMap, traceMap, names]);
+
+    const sorted = [...rows].sort((a, b) => Math.abs(b.devPct) - Math.abs(a.devPct));
+    return limit ? sorted.slice(0, limit) : sorted;
+  }, [orders, ptMap, traceMap, names, limit]);
 
   if (data.length === 0) {
-    return <div className="h-64 flex items-center justify-center text-sm text-slate-400">Sem dados</div>;
+    return <div className="h-full min-h-[280px] flex items-center justify-center text-sm text-slate-400">Sem dados</div>;
   }
 
   return (
-    <div className="h-72">
+    <div className="h-full min-h-[280px]">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-15} textAnchor="end" height={60} />
-          <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => `${v}%`} />
+        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+          <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => `${v}%`} />
+          <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} width={100} />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f1f5f9' }} />
-          <ReferenceLine y={0} stroke="#cbd5e1" />
-          <Bar dataKey="devPct" name="Desvio" radius={[3, 3, 0, 0]}>
+          <ReferenceLine x={0} stroke="#cbd5e1" />
+          <Bar dataKey="devPct" name="Desvio" radius={[0, 4, 4, 0]}>
             {data.map((d, i) => <Cell key={i} fill={d.devPct > 0 ? RED : GREEN} />)}
           </Bar>
         </BarChart>

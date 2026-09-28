@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 const BLUE = '#2563eb';
 const AMBER = '#f59e0b';
 
-export default function PlannedVsProducedChart({ orders }) {
+export default function PlannedVsProducedChart({ orders, limit }) {
   const data = useMemo(() => {
     const byMachine = {};
     orders.filter((o) => o.status === 'Concluída' && o.machine_name).forEach((o) => {
@@ -13,15 +13,16 @@ export default function PlannedVsProducedChart({ orders }) {
       byMachine[name].planned += Number(o.planned_quantity) || 0;
       byMachine[name].actual += Number(o.actual_quantity) || 0;
     });
-    return Object.values(byMachine).sort((a, b) => b.actual - a.actual).slice(0, 8);
-  }, [orders]);
+    const rows = Object.values(byMachine).sort((a, b) => b.actual - a.actual);
+    return limit ? rows.slice(0, limit) : rows;
+  }, [orders, limit]);
 
   if (data.length === 0) {
-    return <div className="h-64 flex items-center justify-center text-sm text-slate-400">Sem dados</div>;
+    return <div className="h-full min-h-[280px] flex items-center justify-center text-sm text-slate-400">Sem dados</div>;
   }
 
   return (
-    <div className="h-72">
+    <div className="h-full min-h-[280px]">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />

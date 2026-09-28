@@ -12,8 +12,8 @@ const SEVERITY = {
 
 // Alertas derivados exclusivamente dos dados reais do período — sem limites
 // arbitrários fixos. Cada alerta carrega o dado que o originou.
-export default function AlertasOperacionais({ orders, ptMap, traceMap, costs }) {
-  const alerts = useMemo(() => {
+export default function AlertasOperacionais({ orders, ptMap, traceMap, costs, limit }) {
+  const allAlerts = useMemo(() => {
     const list = [];
     const concluded = orders.filter((o) => o.status === 'Concluída');
     if (concluded.length === 0) return list;
@@ -77,6 +77,8 @@ export default function AlertasOperacionais({ orders, ptMap, traceMap, costs }) 
 
     return list;
   }, [orders, ptMap, traceMap, costs]);
+
+  const alerts = limit ? allAlerts.slice(0, limit) : allAlerts;
 
   if (alerts.length === 0) {
     return (

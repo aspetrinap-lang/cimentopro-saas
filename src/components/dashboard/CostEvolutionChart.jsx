@@ -27,13 +27,13 @@ export default function CostEvolutionChart({ orders, costs }) {
   }, [orders, costs]);
 
   if (data.length === 0) {
-    return <div className="h-64 flex items-center justify-center text-sm text-slate-400">Sem dados</div>;
+    return <div className="h-full min-h-[280px] flex items-center justify-center text-sm text-slate-400">Sem dados</div>;
   }
 
   return (
-    <div className="space-y-2">
-      <p className="text-[11px] text-slate-400 italic">Custo por unidade (R$/un) — consumo real × custos atuais de insumo</p>
-      <div className="h-64">
+    <div className="h-full min-h-[280px] flex flex-col space-y-2">
+      <p className="text-[11px] text-slate-400 italic shrink-0">Custo por unidade (R$/un) — consumo real × custos atuais de insumo</p>
+      <div className="flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />

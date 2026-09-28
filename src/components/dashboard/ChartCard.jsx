@@ -2,13 +2,18 @@ import { Maximize2 } from 'lucide-react';
 import { useState } from 'react';
 import ChartFullscreenModal from './ChartFullscreenModal';
 
+export const TOP_PREVIEW = 5;
+
 // Card padrão do Centro de Controle: título, descrição e botão expandir.
-// O mesmo `children` (gráfico) é reaproveitado no modal — sem nova consulta.
+// `children` é a versão compacta (TOP 5). `expandedChart` é a versão completa
+// (todos os itens) exibida no modal. Se omitida, reutiliza `children`.
+// `detailView` abre abas Resumo | Detalhamento no modal.
 export default function ChartCard({
   title,
   description,
   icon: Icon,
   children,
+  expandedChart,
   detailView,
   actions,
   className = '',
@@ -52,7 +57,7 @@ export default function ChartCard({
           onClose={() => setOpen(false)}
           detailView={detailView}
         >
-          {children}
+          {expandedChart || children}
         </ChartFullscreenModal>
       )}
     </>

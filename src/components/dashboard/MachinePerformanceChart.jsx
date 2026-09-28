@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { TOP_PREVIEW } from './ChartCard';
 
 const BLUE = '#2563eb';
 const AMBER = '#f59e0b';
@@ -21,8 +22,8 @@ function CustomTooltip({ active, payload }) {
   );
 }
 
-export default function MachinePerformanceChart({ orders }) {
-  const { data, tableRows } = useMemo(() => {
+export default function MachinePerformanceChart({ orders, limit }) {
+  const all = useMemo(() => {
     const byMachine = {};
     orders.filter((o) => o.status === 'Concluída' && o.machine_name).forEach((o) => {
       const name = o.machine_name;
@@ -32,17 +33,18 @@ export default function MachinePerformanceChart({ orders }) {
       byMachine[name].minutes += Number(o.production_minutes) || 0;
       byMachine[name].orders += 1;
     });
-    const rows = Object.values(byMachine).map((m) => ({
+    return Object.values(byMachine).map((m) => ({
       ...m,
       efficiency: m.planned > 0 ? (m.actual / m.planned) * 100 : null,
       perHour: m.minutes > 0 ? (m.actual / m.minutes) * 60 : 0,
     })).sort((a, b) => b.actual - a.actual);
-    return { data: rows, tableRows: rows };
   }, [orders]);
 
-  if (data.length === 0) {
-    return <div className="h-64 flex items-center justify-center text-sm text-slate-400">Sem dados</div>;
+  if (all.length === 0) {
+    return <div className="h-full min-h-[280px] flex items-center justify-center text-sm text-slate-400">Sem dados</div>;
   }
+
+  const data = limit ? all.slice(0, limit) : all;
 
   const table = (
     <div className="overflow-auto">
@@ -58,7 +60,7 @@ export default function MachinePerformanceChart({ orders }) {
           </tr>
         </thead>
         <tbody>
-          {tableRows.map((r) => (
+          {all.map((r) => (
             <tr key={r.name} className="border-b border-slate-100">
               <td className="py-2 pr-3 font-medium text-slate-700">{r.name}</td>
               <td className="py-2 px-3 text-right text-slate-700">{r.actual.toLocaleString('pt-BR')}</td>
@@ -76,13 +78,13 @@ export default function MachinePerformanceChart({ orders }) {
   );
 
   return (
-    <>
-      <div className="h-72">
+    <div className="h-full min-h-[280px] flex flex-col">
+      <div className="flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
             <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => v.toLocaleString('pt-BR')} />
-            <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} width={90} />
+            <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} width={100} />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f1f5f9' }} />
             <Bar dataKey="actual" name="Produção" radius={[0, 4, 4, 0]}>
               {data.map((d, i) => <Cell key={i} fill={(d.efficiency || 0) >= 95 ? BLUE : (d.efficiency || 0) >= 85 ? AMBER : RED} />)}
@@ -91,6 +93,6 @@ export default function MachinePerformanceChart({ orders }) {
         </ResponsiveContainer>
       </div>
       {table}
-    </>
+    </div>
   );
 }
