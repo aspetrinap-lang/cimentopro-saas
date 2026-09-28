@@ -20,14 +20,12 @@ import ForecastConsumptionChart from '@/components/dashboard/ForecastConsumption
 import ProductivityTable from '@/components/dashboard/ProductivityTable';
 import AlertasOperacionais from '@/components/dashboard/AlertasOperacionais';
 import UnitCostCard from '@/components/dashboard/UnitCostCard';
-import UnitConsumptionChart from '@/components/dashboard/UnitConsumptionChart';
-import RawMaterialCostChart from '@/components/dashboard/RawMaterialCostChart';
-import ProductionLossCard from '@/components/dashboard/ProductionLossCard';
 import TopCostProducts from '@/components/stats/TopCostProducts';
 import MostStableProducts from '@/components/stats/MostStableProducts';
 import TopMachineDeviation from '@/components/stats/TopMachineDeviation';
 import TopWasteLots from '@/components/stats/TopWasteLots';
-import { LineChart as LineChartIcon, Gauge, BarChart3, Layers, DollarSign, Activity, Timer, PlayCircle, Trophy, AlertTriangle, Boxes, TrendingUp } from 'lucide-react';
+import TopWasteProducts from '@/components/stats/TopWasteProducts';
+import { LineChart as LineChartIcon, Gauge, BarChart3, Layers, DollarSign, Activity, Timer, PlayCircle, Trophy, AlertTriangle, TrendingUp } from 'lucide-react';
 
 const fmtDate = (d) => format(d, 'yyyy-MM-dd');
 
@@ -54,8 +52,21 @@ async function loadAllOrders(start, end) {
   });
 }
 
+// Aplica os filtros de máquina/linha/produto sobre qualquer conjunto de ordens
+// (período atual ou período anterior).
+function applySelection(list, sel) {
+  const { machineId, lineId, productTypeId } = sel;
+  return list.filter((o) => {
+    if (machineId && o.machine_id !== machineId) return false;
+    if (lineId && o.production_line_id !== lineId) return false;
+    if (productTypeId && o.product_type_id !== productTypeId) return false;
+    return true;
+  });
+}
+
 export default function Dashboard() {
   const [orders, setOrders] = useState([]);
+  const [prevOrders, setPrevOrders] = useState([]);
   const [machines, setMachines] = useState([]);
   const [lines, setLines] = useState([]);
   const [products, setProducts] = useState([]);
@@ -74,41 +85,47 @@ export default function Dashboard() {
   }));
   const [appliedFilters, setAppliedFilters] = useState(filters);
 
+  // Período anterior de mesma duração — base das variações dos KPIs.
+  // Ex.: filtro de 01/08 a 30/08 → anterior de 02/07 a 31/07.
+  const prevPeriod = useMemo(() => {
+    const s = new Date(appliedFilters.startDate + 'T00:00:00');
+    const e = new Date(appliedFilters.endDate + 'T00:00:00');
+    const days = Math.max(Math.round((e - s) / 86400000) + 1, 1);
+    const pe = new Date(s); pe.setDate(pe.getDate() - 1);
+    const ps = new Date(pe); ps.setDate(ps.getDate() - (days - 1));
+    return { startDate: fmtDate(ps), endDate: fmtDate(pe) };
+  }, [appliedFilters.startDate, appliedFilters.endDate]);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const [o, m, l, p, t] = await Promise.all([
+    const [o, po, m, l, p, t] = await Promise.all([
       loadAllOrders(appliedFilters.startDate, appliedFilters.endDate),
+      loadAllOrders(prevPeriod.startDate, prevPeriod.endDate),
       base44.entities.Machine.filter(scopedFilter({ active: true }), 'name', 500),
       base44.entities.ProductionLine.filter(scopedFilter({}), 'name', 500).catch(() => []),
       base44.entities.ProductType.filter(scopedFilter({}), 'name', 500),
       base44.entities.ConcreteTrace.filter(scopedFilter({}), undefined, 500),
     ]);
     setOrders(o);
+    setPrevOrders(po);
     setMachines(m);
     setLines(l);
     setProducts(p);
     setTraces(t);
     setLoading(false);
-  }, [appliedFilters.startDate, appliedFilters.endDate]);
+  }, [appliedFilters.startDate, appliedFilters.endDate, prevPeriod.startDate, prevPeriod.endDate]);
 
   useEffect(() => { load(); }, [load]);
 
   const ptMap = useMemo(() => Object.fromEntries(products.map((p) => [p.id, p])), [products]);
   const traceMap = useMemo(() => Object.fromEntries(traces.map((t) => [t.id, t])), [traces]);
 
-  const filteredOrders = useMemo(() => {
-    const { machineId, lineId, productTypeId } = appliedFilters;
-    return orders.filter((o) => {
-      if (machineId && o.machine_id !== machineId) return false;
-      if (lineId && o.production_line_id !== lineId) return false;
-      if (productTypeId && o.product_type_id !== productTypeId) return false;
-      return true;
-    });
-  }, [orders, appliedFilters]);
+  const filteredOrders = useMemo(() => applySelection(orders, appliedFilters), [orders, appliedFilters]);
+  const prevFilteredOrders = useMemo(() => applySelection(prevOrders, appliedFilters), [prevOrders, appliedFilters]);
 
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-[1400px] mx-auto bg-slate-50 min-h-full">
-      {/* Cabeçalho */}
+    <div className="p-4 md:p-6 space-y-4 max-w-[1400px] mx-auto bg-slate-50 min-h-full">
+      {/* Cabeçalho compacto */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
@@ -116,7 +133,7 @@ export default function Dashboard() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">Centro de Controle da Fábrica</h1>
-            <p className="text-xs text-slate-500">Visão completa da produção, eficiência, consumo e desempenho operacional</p>
+            <p className="text-xs text-slate-500">Produção, eficiência, consumo e desempenho operacional</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -129,7 +146,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Filtros */}
+      {/* Filtros — faixa única em telas largas */}
       <DashboardFilters
         {...filters}
         machines={machines}
@@ -150,11 +167,18 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          {/* KPIs */}
-          <KpiStrip orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} />
+          {/* KPIs — faixa de produção (5) e faixa de operação (4) */}
+          <KpiStrip
+            orders={filteredOrders}
+            prevOrders={prevFilteredOrders}
+            machines={machines}
+            ptMap={ptMap}
+            traceMap={traceMap}
+            costs={costs}
+          />
 
-          {/* Linha 1: Evolução da Produção | Desempenho das Máquinas */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Faixa 1 (2 cartões): Evolução da Produção | Desempenho das Máquinas */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <ChartCard title="Evolução da Produção" description="Realizada × meta com média móvel" icon={LineChartIcon}
               expandedChart={<ProductionEvolutionChart orders={filteredOrders} />}>
               <ProductionEvolutionChart orders={filteredOrders} />
@@ -166,8 +190,8 @@ export default function Dashboard() {
             </ChartCard>
           </div>
 
-          {/* Linha 2: Planejado × Produzido | Mix de Produção */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Faixa 2 (3 cartões): Planejado × Produzido | Mix de Produção | Produtividade */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <ChartCard title="Planejado × Produzido" description="Por máquina (Top 5)" icon={BarChart3}
               expandedChart={<PlannedVsProducedChart orders={filteredOrders} />}>
               <PlannedVsProducedChart orders={filteredOrders} limit={TOP_PREVIEW} />
@@ -176,10 +200,15 @@ export default function Dashboard() {
               expandedChart={<ProductionMixChart orders={filteredOrders} />}>
               <ProductionMixChart orders={filteredOrders} limit={TOP_PREVIEW} />
             </ChartCard>
+            <ChartCard title="Produtividade por Máquina/Artefato" description="un/h (Top 5)" icon={Timer}
+              expandedChart={<ProductivityTable orders={filteredOrders} />}
+              detailView={<ProductivityTable orders={filteredOrders} />}>
+              <ProductivityTable orders={filteredOrders} limit={TOP_PREVIEW} />
+            </ChartCard>
           </div>
 
-          {/* Linha 3: Consumo de Insumos | Desvio de Consumo */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Faixa 3 (3 cartões): Consumo de Insumos | Desvio de Consumo | Consumo Previsto */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <ChartCard title="Consumo de Insumos" description="Real × planejado ao longo do tempo (Top 5)" icon={Activity}
               expandedChart={<TrendChart orders={filteredOrders} />}>
               <TrendChart orders={filteredOrders} limit={TOP_PREVIEW} />
@@ -188,23 +217,19 @@ export default function Dashboard() {
               expandedChart={<ConsumptionDeviationChart orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} />}>
               <ConsumptionDeviationChart orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} limit={TOP_PREVIEW} />
             </ChartCard>
+            <ChartCard title="Consumo Previsto — Ordens em Andamento" description="Estimativa dos insumos para concluir as ordens em produção" icon={PlayCircle}
+              expandedChart={<ForecastConsumptionChart orders={filteredOrders} ptMap={ptMap} />}
+              detailView={<ForecastConsumptionChart orders={filteredOrders} ptMap={ptMap} />}>
+              <ForecastConsumptionChart orders={filteredOrders} ptMap={ptMap} limit={TOP_PREVIEW} />
+            </ChartCard>
           </div>
 
-          {/* Linha 4: Produtividade | Estabilidade */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <ChartCard title="Produtividade por Máquina/Artefato" description="un/h (Top 5)" icon={Timer}
-              expandedChart={<ProductivityTable orders={filteredOrders} />}
-              detailView={<ProductivityTable orders={filteredOrders} />}>
-              <ProductivityTable orders={filteredOrders} limit={TOP_PREVIEW} />
-            </ChartCard>
-            <ChartCard title="Estabilidade do Processo" description="Coeficiente de variação por insumo (Top 5)" icon={Activity}
+          {/* Faixa 4 (3 cartões): Estabilidade | Custo por Unidade | Evolução do Custo */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <ChartCard title="Estabilidade da Produção" description="Coeficiente de variação por insumo (Top 5)" icon={Activity}
               expandedChart={<ProcessStabilityChart orders={filteredOrders} />}>
               <ProcessStabilityChart orders={filteredOrders} limit={TOP_PREVIEW} />
             </ChartCard>
-          </div>
-
-          {/* Linha 5: Custo por Unidade | Evolução do Custo */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <ChartCard title="Custo de Insumos por Unidade" description="Custo unitário por artefato (Top 5)" icon={DollarSign}
               expandedChart={<UnitCostCard orders={filteredOrders} />}>
               <UnitCostCard orders={filteredOrders} limit={TOP_PREVIEW} />
@@ -215,15 +240,24 @@ export default function Dashboard() {
             </ChartCard>
           </div>
 
-          {/* Consumo Previsto — Largura total */}
-          <ChartCard title="Consumo Previsto — Ordens em Andamento" description="Estimativa dos insumos necessários para concluir as ordens atualmente em produção" icon={PlayCircle}
-            expandedChart={<ForecastConsumptionChart orders={filteredOrders} ptMap={ptMap} />}
-            detailView={<ForecastConsumptionChart orders={filteredOrders} ptMap={ptMap} />}>
-            <ForecastConsumptionChart orders={filteredOrders} ptMap={ptMap} limit={TOP_PREVIEW} />
-          </ChartCard>
+          {/* Faixa 5 (3 cartões): Produtos com Maior Desperdício | Lotes | Alertas */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <ChartCard title="Produtos com Maior Desperdício" description="Peças perdidas e custo por artefato (Top 5)" icon={AlertTriangle}
+              expandedChart={<TopWasteProducts orders={filteredOrders} costs={costs} />}>
+              <TopWasteProducts orders={filteredOrders} costs={costs} limit={TOP_PREVIEW} />
+            </ChartCard>
+            <ChartCard title="Lotes com Maior Desperdício" description="Custo das perdas por lote (Top 5)" icon={AlertTriangle}
+              expandedChart={<TopWasteLots orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} />}>
+              <TopWasteLots orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} limit={TOP_PREVIEW} />
+            </ChartCard>
+            <ChartCard title="Alertas Operacionais" description="Derivados dos dados do período" icon={AlertTriangle}
+              expandedChart={<AlertasOperacionais orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} />}>
+              <AlertasOperacionais orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} limit={5} />
+            </ChartCard>
+          </div>
 
-          {/* Rankings separados em cards independentes */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+          {/* Faixa extra (3 cartões): rankings complementares */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <ChartCard title="Produtos com maior custo/un" description="Top 5" icon={TrendingUp}
               expandedChart={<TopCostProducts orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} />}>
               <TopCostProducts orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} limit={TOP_PREVIEW} />
@@ -236,17 +270,7 @@ export default function Dashboard() {
               expandedChart={<TopMachineDeviation orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} />}>
               <TopMachineDeviation orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} limit={TOP_PREVIEW} />
             </ChartCard>
-            <ChartCard title="Lotes com maior desperdício" description="Top 5" icon={AlertTriangle}
-              expandedChart={<TopWasteLots orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} />}>
-              <TopWasteLots orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} limit={TOP_PREVIEW} />
-            </ChartCard>
           </div>
-
-          {/* Alertas Operacionais — largura total */}
-          <ChartCard title="Alertas Operacionais" description="Derivados dos dados do período" icon={AlertTriangle}
-            expandedChart={<AlertasOperacionais orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} />}>
-            <AlertasOperacionais orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} limit={5} />
-          </ChartCard>
         </>
       )}
 
