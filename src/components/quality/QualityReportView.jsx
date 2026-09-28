@@ -55,7 +55,7 @@ export default function QualityReportView({ report, onClose, onEdit }) {
     : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+    <div className="print-root fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="bg-white text-slate-900 rounded-xl shadow-xl border border-slate-200 w-full max-w-4xl max-h-[92vh] overflow-y-auto print:max-w-none print:shadow-none print:border-none print:rounded-none print:max-h-none print:overflow-visible print:p-0 print-area">
         {/* Toolbar */}
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between print:hidden">
