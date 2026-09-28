@@ -2,25 +2,20 @@ import { useState } from 'react';
 import { Outlet, NavLink, Link } from 'react-router-dom';
 import {
   Building2, Users, Home, LayoutDashboard, CreditCard, ReceiptText, Activity,
-  Settings2, ScrollText, LifeBuoy, BarChart3, ArrowLeft, Menu, X, ShieldCheck
+  ScrollText, FileSpreadsheet, ArrowLeft, Menu, X, ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 
 const mainNav = [
   { to: '/admin', label: 'Início', icon: Home, end: true },
+  { to: '/admin/dashboard', label: 'Dashboard da Plataforma', icon: LayoutDashboard },
+  { to: '/admin/status', label: 'Status das Empresas', icon: Activity },
   { to: '/admin/companies', label: 'Empresas', icon: Building2 },
   { to: '/admin/users', label: 'Usuários', icon: Users },
   { to: '/admin/audit', label: 'Auditoria', icon: ScrollText },
+  { to: '/admin/dre-template', label: 'DRE Padrão', icon: FileSpreadsheet },
   { to: '/admin/plans', label: 'Planos', icon: CreditCard },
   { to: '/admin/subscriptions', label: 'Assinaturas', icon: ReceiptText },
-];
-
-const soonNav = [
-  { label: 'Dashboard da Plataforma', icon: LayoutDashboard },
-  { label: 'Status das Empresas', icon: Activity },
-  { label: 'Configurações Globais', icon: Settings2 },
-  { label: 'Suporte', icon: LifeBuoy },
-  { label: 'Métricas da Plataforma', icon: BarChart3 },
 ];
 
 export default function AdminLayout() {
@@ -42,18 +37,6 @@ export default function AdminLayout() {
           {label}
         </NavLink>
       ))}
-      <div className="pt-4 mt-2 border-t border-slate-100">
-        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Plataforma</p>
-        <div className="space-y-1">
-          {soonNav.map(({ label, icon: Icon }) => (
-            <div key={label} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-400 cursor-not-allowed">
-              <Icon className="w-4 h-4 shrink-0" />
-              <span className="flex-1">{label}</span>
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-400">Em breve</span>
-            </div>
-          ))}
-        </div>
-      </div>
     </nav>
   );
 

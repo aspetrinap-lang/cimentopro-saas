@@ -2,7 +2,6 @@ import React, { createContext, useContext, useMemo, useCallback } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { useCompany } from '@/lib/CompanyContext';
 import { useOperator } from '@/lib/OperatorContext';
-import { isPlatformAdmin } from '@/lib/platformAdmin';
 import { ROLE_GRANTS, PLATFORM_GRANTS, resolvePermissions, permissionsToPaths } from '@/lib/permissions';
 
 const PermissionsContext = createContext();
@@ -19,7 +18,7 @@ const COMPANY_ROLE_TO_GRANTS = {
 // - Usuário logado → papel na empresa ativa; SUPER_ADMIN recebe a plataforma.
 export const PermissionsProvider = ({ children }) => {
   const { user } = useAuth();
-  const { currentRole } = useCompany();
+  const { currentRole, platformAdmin } = useCompany();
   const { activeOperator } = useOperator();
 
   const permissions = useMemo(() => {
@@ -30,9 +29,9 @@ export const PermissionsProvider = ({ children }) => {
     }
     const grantRole = (currentRole && (COMPANY_ROLE_TO_GRANTS[currentRole] || currentRole)) || user?.role || 'user';
     const set = new Set(ROLE_GRANTS[grantRole] || ROLE_GRANTS.user);
-    if (isPlatformAdmin(user)) PLATFORM_GRANTS.forEach((p) => set.add(p));
+    if (platformAdmin) PLATFORM_GRANTS.forEach((p) => set.add(p));
     return set;
-  }, [activeOperator, currentRole, user]);
+  }, [activeOperator, currentRole, platformAdmin, user]);
 
   const allowedPaths = useMemo(() => permissionsToPaths(permissions), [permissions]);
   const can = useCallback((perm) => permissions.has(perm), [permissions]);

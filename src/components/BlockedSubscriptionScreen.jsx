@@ -5,6 +5,10 @@ import { useAuth } from '@/lib/AuthContext';
 // cancelada. Nenhum dado operacional é apagado — o acesso volta assim que a
 // assinatura for regularizada pela administração da plataforma.
 const REASONS = {
+  company_suspended: {
+    title: 'Empresa suspensa',
+    message: 'O acesso da sua empresa à plataforma está suspenso pela administração. Nenhum dado foi apagado — contate o administrador da plataforma CimentoPro para regularizar.',
+  },
   expired: {
     title: 'Assinatura vencida',
     message: 'A assinatura do CimentoPro da sua empresa venceu. Nenhum dado foi apagado — o acesso volta assim que a assinatura for renovada.',

@@ -55,6 +55,8 @@ function ValueBlock({ label, value }) {
   );
 }
 
+// Auditoria da plataforma — registros vêm do backend (listAudit) com filtros
+// por empresa e por período, aplicados na consulta server-side.
 export default function AdminAudit() {
   const [logs, setLogs] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -62,17 +64,29 @@ export default function AdminAudit() {
   const [search, setSearch] = useState('');
   const [action, setAction] = useState('');
   const [entity, setEntity] = useState('');
+  const [company, setCompany] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [openId, setOpenId] = useState(null);
 
   useEffect(() => {
-    Promise.all([
-      base44.entities.AuditLog.list('-created_date', 500),
-      base44.entities.Company.list('name', 500).catch(() => []),
-    ]).then(([l, c]) => {
-      setLogs(l);
-      setCompanies(c);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+    let cancelled = false;
+    setLoading(true);
+    base44.functions.invoke('adminUsers', {
+      action: 'listAudit',
+      company_id: company || undefined,
+      start_date: startDate || undefined,
+      end_date: endDate || undefined,
+    })
+      .then((res) => {
+        if (cancelled) return;
+        setLogs(res.data?.logs || []);
+        setCompanies(res.data?.companies || []);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [company, startDate, endDate]);
 
   const companyNames = useMemo(() => {
     const m = {};
@@ -94,6 +108,8 @@ export default function AdminAudit() {
       return [l.user_email, l.entity_name, l.entity_id, l.action].some((v) => (v || '').toLowerCase().includes(q));
     });
   }, [logs, search, action, entity]);
+
+  const inputDate = 'border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-700';
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -117,9 +133,19 @@ export default function AdminAudit() {
           />
         </div>
         <select
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+          className={inputDate}
+        >
+          <option value="">Todas as empresas</option>
+          {companies.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+        <select
           value={action}
           onChange={(e) => setAction(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-700"
+          className={inputDate}
         >
           <option value="">Todas as ações</option>
           {Object.keys(ACTION_LABELS).map((a) => (
@@ -129,13 +155,18 @@ export default function AdminAudit() {
         <select
           value={entity}
           onChange={(e) => setEntity(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-700"
+          className={inputDate}
         >
           <option value="">Todas as entidades</option>
           {entityOptions.map((en) => (
             <option key={en} value={en}>{en}</option>
           ))}
         </select>
+        <div className="flex items-center gap-1.5">
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputDate} title="Início do período" />
+          <span className="text-slate-400 text-xs">até</span>
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputDate} title="Fim do período" />
+        </div>
       </div>
 
       {loading ? (

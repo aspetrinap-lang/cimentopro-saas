@@ -38,6 +38,8 @@ import AdminAudit from '@/pages/admin/AdminAudit';
 import AdminDreTemplate from '@/pages/admin/AdminDreTemplate';
 import AdminPlans from '@/pages/admin/AdminPlans';
 import AdminSubscriptions from '@/pages/admin/AdminSubscriptions';
+import AdminPlatformDashboard from '@/pages/admin/AdminPlatformDashboard';
+import AdminCompanyStatus from '@/pages/admin/AdminCompanyStatus';
 import { OperatorProvider } from '@/lib/OperatorContext';
 import { CompanyProvider } from '@/lib/CompanyContext';
 import { SubscriptionProvider } from '@/lib/SubscriptionContext';
@@ -101,6 +103,8 @@ const AuthenticatedApp = () => {
         <Route path="dre-template" element={<AdminDreTemplate />} />
         <Route path="plans" element={<AdminPlans />} />
         <Route path="subscriptions" element={<AdminSubscriptions />} />
+        <Route path="dashboard" element={<AdminPlatformDashboard />} />
+        <Route path="status" element={<AdminCompanyStatus />} />
       </Route>
       <Route path="/pin-login" element={<PinLogin />} />
       <Route path="*" element={<PageNotFound />} />

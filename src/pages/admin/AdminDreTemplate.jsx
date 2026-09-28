@@ -17,13 +17,16 @@ export default function AdminDreTemplate() {
   const [editing, setEditing] = useState(null);
   const { toast } = useToast();
 
+  // list_template valida o SUPER_ADMIN no backend (fonte protegida) — a
+  // leitura direta de DreTemplateAccount pela sessão não é mais usada.
   async function load() {
-    const [tpl, comps] = await Promise.all([
-      base44.entities.DreTemplateAccount.list('sort_order', 500).catch(() => []),
-      base44.entities.Company.list('name', 500).catch(() => []),
-    ]);
-    setTemplate([...tpl].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)));
-    setCompanies(comps.filter((c) => c.status === 'active' || c.status === 'trial'));
+    try {
+      const d = await invoke('list_template');
+      setTemplate([...(d?.template || [])].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)));
+      setCompanies(d?.companies || []);
+    } catch (e) {
+      toast({ title: e?.response?.data?.error || 'Falha ao carregar o template.', variant: 'destructive' });
+    }
   }
 
   useEffect(() => { load(); }, []);
@@ -68,19 +71,29 @@ export default function AdminDreTemplate() {
     } finally { setBusy(''); }
   }
 
+  // Todas as mutações do template passam pelo backend (SUPER_ADMIN verificado
+  // na fonte protegida) e ficam registradas na auditoria da plataforma.
   async function handleSave(values) {
     const { source_type, ...clean } = values;
-    if (editing === 'new') {
-      const nextOrder = template.length ? Math.max(...template.map((t) => t.sort_order || 0)) + 1 : 1;
-      await base44.entities.DreTemplateAccount.create({ ...clean, sort_order: nextOrder, active: true });
-    } else {
-      await base44.entities.DreTemplateAccount.update(editing.id, clean);
+    try {
+      if (editing === 'new') {
+        const nextOrder = template.length ? Math.max(...template.map((t) => t.sort_order || 0)) + 1 : 1;
+        await invoke('template_save', { ...clean, sort_order: nextOrder });
+      } else {
+        await invoke('template_save', { ...clean, template_id: editing.id });
+      }
+      await load();
+    } catch (e) {
+      toast({ title: e?.response?.data?.error || 'Falha ao salvar a conta.', variant: 'destructive' });
     }
-    await load();
   }
 
   async function toggleActive(t) {
-    await base44.entities.DreTemplateAccount.update(t.id, { active: t.active === false });
+    try {
+      await invoke('template_toggle', { template_id: t.id });
+    } catch (e) {
+      toast({ title: e?.response?.data?.error || 'Falha ao alterar a conta.', variant: 'destructive' });
+    }
     load();
   }
 
@@ -90,14 +103,18 @@ export default function AdminDreTemplate() {
     if (j < 0 || j >= template.length) return;
     const next = [...template];
     [next[idx], next[j]] = [next[j], next[idx]];
-    await base44.entities.DreTemplateAccount.bulkUpdate(next.map((x, i) => ({ id: x.id, sort_order: i + 1 })));
+    await invoke('template_reorder', { order: next.map((x, i) => ({ id: x.id, sort_order: i + 1 })) });
     load();
   }
 
   async function remove(t) {
     if (!confirm(`Excluir a conta "${t.name}" do DRE Padrão? As DREs das empresas NÃO são afetadas.`)) return;
-    await base44.entities.DreTemplateAccount.delete(t.id);
-    load();
+    try {
+      await invoke('template_delete', { template_id: t.id });
+      await load();
+    } catch (e) {
+      toast({ title: e?.response?.data?.error || 'Falha ao excluir a conta.', variant: 'destructive' });
+    }
   }
 
   return (

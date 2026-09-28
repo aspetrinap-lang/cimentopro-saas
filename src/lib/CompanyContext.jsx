@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { getAllowedPaths } from '@/lib/permissions';
-import { isPlatformAdmin } from '@/lib/platformAdmin';
 import { setPlatformAdminScope } from '@/lib/companyScope';
 
 const CompanyContext = createContext();
@@ -44,6 +43,12 @@ export const CompanyProvider = ({ children }) => {
   const [currentCompanyId, setCurrentCompanyId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activatedInvites, setActivatedInvites] = useState([]);
+  // SUPER_ADMIN verificado no backend (fonte protegida PlatformAdmin) — a
+  // flag da sessão é apenas cache de exibição, nunca decisão de acesso.
+  const [platformAdmin, setPlatformAdmin] = useState(false);
+  // Empresas do vínculo bloqueadas por status (suspensa/inativa) — mensagem
+  // clara na tela de bloqueio, sem liberar o acesso operacional.
+  const [blockedCompanies, setBlockedCompanies] = useState([]);
 
   const applyCompanyId = useCallback((companyId) => {
     activeCompanyIdGlobal = companyId;
@@ -57,6 +62,8 @@ export const CompanyProvider = ({ children }) => {
       setMemberships([]);
       setCompanies([]);
       setActivatedInvites([]);
+      setPlatformAdmin(false);
+      setBlockedCompanies([]);
       setCurrentCompanyId(null);
       activeCompanyIdGlobal = null;
     }
@@ -81,10 +88,14 @@ export const CompanyProvider = ({ children }) => {
         // do cache de empresas embutido na sessão, que pode estar desatualizado.
         let activeMbs = [];
         let selectable = [];
+        let verifiedAdmin = false;
+        let blocked = [];
         try {
           const res = await base44.functions.invoke('companyMembers', { action: 'myCompanies' });
           activeMbs = res.data?.memberships || [];
           selectable = res.data?.companies || [];
+          verifiedAdmin = !!res.data?.platform_admin;
+          blocked = res.data?.blocked_companies || [];
         } catch { /* sem vínculos legíveis — segue com lista vazia */ }
         // Sincroniza o cache de empresas na própria sessão pelo caminho oficial
         // da plataforma (dados do usuário): RLS e consultas passam a enxergar o
@@ -95,6 +106,8 @@ export const CompanyProvider = ({ children }) => {
         if (cancelled) return;
         setMemberships(activeMbs);
         setCompanies(selectable);
+        setPlatformAdmin(verifiedAdmin);
+        setBlockedCompanies(blocked);
         if (selectable.length === 1) {
           // Uma única empresa: seleção automática
           applyCompanyId(selectable[0].id);
@@ -110,6 +123,8 @@ export const CompanyProvider = ({ children }) => {
         if (!cancelled) {
           setMemberships([]);
           setCompanies([]);
+          setPlatformAdmin(false);
+          setBlockedCompanies([]);
           applyCompanyId(null);
         }
       } finally {
@@ -131,15 +146,18 @@ export const CompanyProvider = ({ children }) => {
   const currentRole = currentMembership?.role || user?.role || null;
   // Convites recém-ativados cuja empresa não carrega nesta sessão: o token foi
   // emitido antes do vínculo existir — basta sair e entrar novamente.
-  const sessionRefreshNeeded = memberships.length > 0 && companies.length === 0;
+  // Convite ativado com token antigo — apenas quando NÃO há empresas do
+  // vínculo bloqueadas por status (suspensão tem sua própria tela de bloqueio).
+  const sessionRefreshNeeded = memberships.length > 0 && companies.length === 0 && blockedCompanies.length === 0;
   const legacyRole = currentMembership
     ? (COMPANY_ROLE_TO_LEGACY[currentMembership.role] || currentMembership.role)
     : user?.role;
   const permissions = getAllowedPaths(legacyRole || 'user');
 
-  // Mantém o escopo global (scopedFilter) ciente do SUPER_ADMIN —
-  // consultas fora da árvore React preservam a visão de plataforma dele.
-  setPlatformAdminScope(isPlatformAdmin(user));
+  // Mantém o escopo global (scopedFilter) ciente do SUPER_ADMIN (status
+  // verificado no backend) — consultas fora da árvore React preservam a
+  // visão de plataforma dele.
+  setPlatformAdminScope(platformAdmin);
 
   return (
     <CompanyContext.Provider value={{
@@ -154,6 +172,8 @@ export const CompanyProvider = ({ children }) => {
       hasCompany: companies.length > 0,
       activatedInvites,      // convites ativados nesta sessão
       sessionRefreshNeeded,  // convite ativado, mas o token não enxerga a empresa ainda
+      platformAdmin,          // SUPER_ADMIN verificado no backend (fonte protegida)
+      blockedCompanies,       // empresas do vínculo suspensas/inativas (acesso recusado)
       needsCompanySelection: isAuthenticated && companies.length > 1 && !currentCompanyId,
       selectCompany,        // seleciona a empresa ativa
       clearCompany: () => applyCompanyId(null),
