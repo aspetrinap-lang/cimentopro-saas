@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { X, Save } from 'lucide-react';
 import { COST_COMPONENT_TYPES, BASIS_BY_TYPE_DEFAULT, RATE_BASES } from '@/lib/industrialCostEngine';
+import { BREAK_EVEN_CLASSIFICATIONS, CASH_EFFECTS, suggestBreakEvenClassification, cashEffectSuggestion } from '@/lib/breakEvenEngine';
 
 const CATEGORIES = ['Receita', 'Custo Direto', 'Custo Indireto Variável', 'Despesa Fixa', 'Despesa Financeira'];
 const METHODS = [
@@ -24,8 +25,12 @@ export default function DreAccountEditor({ account, accounts = [], allowSource =
     name: '', description: '', category: 'Despesa Fixa', apportionment_method: 'none', source_type: 'manual', parent_id: '',
     cost_component_type: '', include_in_product_cost: false, rate_basis: 'none',
     already_included_in_direct_material: false, already_included_in_energy: false,
+    break_even_classification: 'excluded', cash_effect: 'none',
   });
   const [saving, setSaving] = useState(false);
+  // Sugestão automática editável: nunca sobrescreve classificação já configurada
+  const [beTouched, setBeTouched] = useState(false);
+  const [beCashTouched, setBeCashTouched] = useState(false);
 
   useEffect(() => {
     if (account) {
@@ -41,7 +46,13 @@ export default function DreAccountEditor({ account, accounts = [], allowSource =
         rate_basis: account.rate_basis || 'none',
         already_included_in_direct_material: account.already_included_in_direct_material === true,
         already_included_in_energy: account.already_included_in_energy === true,
+        // Sugestão inicial (default editável) para contas ainda não classificadas
+        break_even_classification: account.break_even_classification || suggestBreakEvenClassification(account.cost_component_type),
+        cash_effect: account.cash_effect
+          || cashEffectSuggestion(account.break_even_classification || suggestBreakEvenClassification(account.cost_component_type)),
       });
+      setBeTouched(!!account.break_even_classification);
+      setBeCashTouched(!!account.cash_effect);
     }
   }, [account]);
 
@@ -50,12 +61,31 @@ export default function DreAccountEditor({ account, accounts = [], allowSource =
   // Ao escolher o componente, sugere a base de rateio padrão do tipo
   function handleComponentType(v) {
     const def = COST_COMPONENT_TYPES.find((c) => c.value === v);
+    const sug = suggestBreakEvenClassification(v);
     setForm((f) => ({
       ...f,
       cost_component_type: v,
       rate_basis: v ? (BASIS_BY_TYPE_DEFAULT[v] || 'none') : 'none',
       include_in_product_cost: !!(def && def.industrial),
+      ...(!beTouched ? {
+        break_even_classification: sug,
+        ...(!beCashTouched ? { cash_effect: cashEffectSuggestion(sug) } : {}),
+      } : {}),
     }));
+  }
+
+  function handleBreakEvenClassification(v) {
+    setBeTouched(true);
+    setForm((f) => ({
+      ...f,
+      break_even_classification: v,
+      ...(!beCashTouched ? { cash_effect: cashEffectSuggestion(v) } : {}),
+    }));
+  }
+
+  function handleCashEffect(v) {
+    setBeCashTouched(true);
+    setForm((f) => ({ ...f, cash_effect: v }));
   }
 
   async function handleSubmit(e) {
@@ -75,6 +105,8 @@ export default function DreAccountEditor({ account, accounts = [], allowSource =
           rate_basis: form.rate_basis || 'none',
           already_included_in_direct_material: form.already_included_in_direct_material === true,
           already_included_in_energy: form.already_included_in_energy === true,
+          break_even_classification: form.break_even_classification || 'excluded',
+          cash_effect: form.cash_effect || 'none',
         } : {}),
         parent_id: form.parent_id || null,
       });
@@ -180,6 +212,37 @@ export default function DreAccountEditor({ account, accounts = [], allowSource =
             <p className="text-[11px] text-muted-foreground">
               Conta sem classificação não entra no custo do produto. Contas comerciais, financeiras e impostos nunca entram no custo industrial.
               Marque "já representada" quando o valor já é calculado pelo CimentoPro — isso impede a dupla contabilização.
+            </p>
+          </div>
+        )}
+
+        {allowClassification && (
+          <div className="border border-border rounded-xl p-4 space-y-3 bg-muted/20">
+            <p className="text-xs font-semibold text-foreground">Ponto de Equilíbrio</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Classificação do Ponto de Equilíbrio</label>
+                <select className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={form.break_even_classification} onChange={(e) => handleBreakEvenClassification(e.target.value)}>
+                  {BREAK_EVEN_CLASSIFICATIONS.map((c) => (
+                    <option key={c.value} value={c.value} title={c.description}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Efeito no caixa</label>
+                <select className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={form.cash_effect} onChange={(e) => handleCashEffect(e.target.value)}>
+                  {CASH_EFFECTS.map((c) => (
+                    <option key={c.value} value={c.value} title={c.description}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              A sugestão inicial é derivada do componente de custo e é apenas um ponto de partida — ajuste conforme a realidade da
+              empresa. Variáveis reduzem a Margem de Contribuição; fixos industriais/base caixa/financeiro caixa alimentam os três
+              pontos de equilíbrio da Análise de Custos; não caixa (depreciação, amortização) nunca entra no Ponto de Equilíbrio de Caixa.
             </p>
           </div>
         )}

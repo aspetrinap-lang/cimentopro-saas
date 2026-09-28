@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Calculator, FileSpreadsheet, Gauge, Package, Zap, Layers, DollarSign, AlertTriangle, Activity, Printer } from 'lucide-react';
 import DreImporter from '@/components/cost/DreImporter';
 import CostsReport from '@/components/reports/CostsReport';
+import BreakEvenSection from '@/components/breakEven/BreakEvenSection';
 import { fmtBRL, fmtNum } from '@/lib/statsUtils';
 import { useInsumoCosts } from '@/hooks/useInsumoCosts';
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
@@ -45,6 +46,7 @@ export default function CostAnalysis() {
   const [lines, setLines] = useState([]);
   const [dres, setDres] = useState([]);
   const [productTypes, setProductTypes] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState('');
   const [showDre, setShowDre] = useState(false);
@@ -62,12 +64,14 @@ export default function CostAnalysis() {
       base44.entities.ProductionLine.filter(scopedFilter({}), 'name', 200),
       base44.entities.MonthlyDre.filter(scopedFilter(), '-reference_month', 100),
       base44.entities.ProductType.filter(scopedFilter({}), 'name', 500),
-    ]).then(([o, l, d, pt]) => {
+      base44.entities.DreAccount.filter(scopedFilter(), 'sort_order', 500),
+    ]).then(([o, l, d, pt, acc]) => {
       if (!active) return;
       setOrders(o);
       setLines(l);
       setDres(d);
       setProductTypes(pt);
+      setAccounts(acc);
       if (d.length && !selectedMonth) {
         const latest = [...d].sort((a, b) => String(b.reference_month).localeCompare(String(a.reference_month)))[0];
         setSelectedMonth(latest.reference_month);
@@ -391,6 +395,17 @@ export default function CostAnalysis() {
               </div>
             </section>
           )}
+
+          {/* Ponto de Equilíbrio da Empresa — camada financeira sobre o motor v2.2 */}
+          <BreakEvenSection
+            dres={dres}
+            orders={orders}
+            productTypes={productTypes}
+            lines={lines}
+            accounts={accounts}
+            insumoCosts={insumoCosts}
+            selectedMonth={selectedMonth}
+          />
 
           {/* Velocidade de cruzeiro por linha */}
           <section>
