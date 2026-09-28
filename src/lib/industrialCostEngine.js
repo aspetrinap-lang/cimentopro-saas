@@ -20,7 +20,7 @@
 //     versionado (calculation_version = "2.0").
 // ─────────────────────────────────────────────────────────────────────────────
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
-import { calculateSuggestedPrice } from '@/lib/costUtils';
+import { calculateSuggestedPrice, saleFactor as productSaleFactor } from '@/lib/costUtils';
 
 export const CALCULATION_VERSION = '2.0';
 
@@ -87,20 +87,23 @@ export function weightPerSaleUnit(pt) {
   if (!pt) return { kg: 0, estimated: true };
   const realKg = num(pt.weight_kg_per_unit);
   const perPiece = pieceWeightKg(pt);
-  const unit = String(pt.unit || 'un').toLowerCase();
-  const ppm = num(pt.pieces_per_m);
-  const kg = unit !== 'un' && ppm > 0 ? ppm * perPiece : perPiece;
-  return { kg, estimated: realKg <= 0 || perPiece <= 0 };
+  const factor = productSaleFactor(pt);
+  return {
+    kg: perPiece * factor,
+    estimated: realKg <= 0 || perPiece <= 0 || factor <= 0,
+  };
 }
 
 export function saleFactor(pt) {
-  const ppm = num(pt?.pieces_per_m);
-  return String(pt?.unit || 'un').toLowerCase() !== 'un' && ppm > 0 ? ppm : 1;
+  return productSaleFactor(pt);
 }
 
 export function unitLabel(pt) {
   const u = String(pt?.unit || 'un').toLowerCase();
-  return u === 'm2' ? 'm²' : u === 'm' ? 'm' : 'un';
+  if (u === 'm2') return 'm²';
+  if (u === 'm3') return 'm³';
+  if (u === 'm') return 'm';
+  return 'un';
 }
 
 // ── Produção: bruta / refugo / boa ──────────────────────────────────────────
