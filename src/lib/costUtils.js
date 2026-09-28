@@ -1,25 +1,16 @@
-// Funções compartilhadas de cálculo de custos — usadas por CostAnalysis e PricingSimulator.
+// Funções compartilhadas de custo e conversão para unidades de venda.
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
 
-// Peso por unidade de venda (kg) — normaliza produtos vendidos em un/m²/m.
-// Fonte principal: ProductType.weight_kg_per_unit.
-// Fallback legado: volume_per_unit_m3, que historicamente foi usado pelo sistema
-// para armazenar o peso em alguns cadastros antigos.
-// un: peso por peça; m²/m: peças por metro × peso por peça.
+// Peso de uma peça, convertido para a unidade de venda (un, m, m² ou m³).
+// Usa o peso real e mantém o campo legado como fallback temporário.
 export function weightPerSaleUnit(pt) {
   if (!pt) return 0;
-
   const weightKgPerUnit = Number(pt.weight_kg_per_unit);
   const legacyWeight = Number(pt.volume_per_unit_m3);
-  const w = Number.isFinite(weightKgPerUnit) && weightKgPerUnit > 0
+  const weightPerPiece = Number.isFinite(weightKgPerUnit) && weightKgPerUnit > 0
     ? weightKgPerUnit
     : (Number.isFinite(legacyWeight) && legacyWeight > 0 ? legacyWeight : 0);
-
-  const unit = String(pt.unit || 'un').toLowerCase();
-  if (unit === 'un') return w;
-
-  const ppm = Number(pt.pieces_per_m) || 0;
-  return ppm > 0 ? ppm * w : w;
+  return weightPerPiece * saleFactor(pt);
 }
 
 // Campos de materiais reais lançados na ordem (kg) — água em L ≈ kg
@@ -42,15 +33,21 @@ export function orderHasRealWeight(o) {
 export function unitLabel(pt) {
   const u = String(pt?.unit || 'un').toLowerCase();
   if (u === 'm2') return 'm²';
+  if (u === 'm3') return 'm³';
   if (u === 'm') return 'm';
   return 'un';
 }
 
-// Fator de conversão de custo por peça → custo por unidade de venda
-// un → 1; m²/m → pieces_per_m
+// Fator de conversão de custo por peça para unidade de venda.
+// un → 1; m/m² → peças por unidade; m³ → 1 ÷ volume por peça.
 export function saleFactor(pt) {
-  const ppm = Number(pt?.pieces_per_m) || 0;
-  return String(pt?.unit || 'un').toLowerCase() !== 'un' && ppm > 0 ? ppm : 1;
+  const unit = String(pt?.unit || 'un').toLowerCase();
+  if (unit === 'm3') {
+    const volumePerPiece = Number(pt?.volume_m3_per_unit) || 0;
+    return volumePerPiece > 0 ? 1 / volumePerPiece : 0;
+  }
+  const piecesPerSaleUnit = Number(pt?.pieces_per_m) || 0;
+  return unit !== 'un' && piecesPerSaleUnit > 0 ? piecesPerSaleUnit : 1;
 }
 
 // Custo direto de matérias-primas por unidade de venda (R$) — usa custos de insumos
