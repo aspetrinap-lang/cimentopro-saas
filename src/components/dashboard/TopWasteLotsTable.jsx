@@ -1,30 +1,31 @@
 import { useMemo } from 'react';
-import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
-import { theoreticalForOrder, fmtBRL } from '@/lib/statsUtils';
+import { fmtBRL, orderLostCost, orderExcessCost } from '@/lib/statsUtils';
 
-// Top 5 lotes (ordens) com maior desperdício: peças perdidas e custo do excesso
-// de consumo (real acima do teórico). Reutiliza a lógica de traço existente.
+// Top 5 lotes (ordens) com maior desperdício: peças perdidas (2ª linha + descarte)
+// valorizadas ao custo unitário de produção da ordem — mesma fórmula do KPI e do
+// card de Perdas. O excesso de consumo de insumos aparece em coluna separada para
+// não ser confundido com o custo das peças perdidas.
 export default function TopWasteLotsTable({ orders, ptMap, traceMap, costs }) {
   const rows = useMemo(() => {
     const concluded = orders.filter((o) => o.status === 'Concluída' && o.actual_quantity > 0);
     const lots = concluded.map((o) => {
       const lost = (Number(o.loss_second_line) || 0) + (Number(o.loss_discarded) || 0);
-      let excessCost = 0;
-      INSUMO_KEYS.forEach((k) => {
-        const real = Number(o[INSUMO_FIELDS[k].actual]) || 0;
-        const theo = theoreticalForOrder(o, k, ptMap, traceMap);
-        if (theo > 0 && real > theo) excessCost += (real - theo) * (costs[k] || 0);
-      });
+      const lostCost = orderLostCost(o, costs);
+      const excessCost = orderExcessCost(o, costs, ptMap, traceMap);
       return {
         id: o.id,
         date: o.production_date,
         order: o.order_number || '—',
         product: o.product_type_name || '—',
         lost,
+        lostCost,
         excessCost,
       };
     });
-    return lots.filter((l) => l.lost > 0 || l.excessCost > 0).sort((a, b) => b.excessCost - a.excessCost).slice(0, 5);
+    return lots
+      .filter((l) => l.lostCost > 0 || l.excessCost > 0)
+      .sort((a, b) => b.lostCost - a.lostCost)
+      .slice(0, 5);
   }, [orders, ptMap, traceMap, costs]);
 
   if (rows.length === 0) {
@@ -40,8 +41,9 @@ export default function TopWasteLotsTable({ orders, ptMap, traceMap, costs }) {
             <th className="py-2 px-2 font-semibold">Data</th>
             <th className="py-2 px-2 font-semibold">Ordem</th>
             <th className="py-2 px-2 font-semibold">Produto</th>
-            <th className="py-2 px-2 font-semibold text-right">Desperdício (un)</th>
-            <th className="py-2 pl-2 font-semibold text-right">Desperdício (R$)</th>
+            <th className="py-2 px-2 font-semibold text-right">Perdas (pçs)</th>
+            <th className="py-2 px-2 font-semibold text-right">Custo das perdas (R$)</th>
+            <th className="py-2 pl-2 font-semibold text-right">Excesso de consumo (R$)</th>
           </tr>
         </thead>
         <tbody>
@@ -52,7 +54,8 @@ export default function TopWasteLotsTable({ orders, ptMap, traceMap, costs }) {
               <td className="py-2 px-2 font-medium text-slate-700">{r.order}</td>
               <td className="py-2 px-2 text-slate-700">{r.product}</td>
               <td className="py-2 px-2 text-right text-slate-700">{r.lost.toLocaleString('pt-BR')}</td>
-              <td className="py-2 pl-2 text-right font-semibold text-red-600">{fmtBRL(r.excessCost)}</td>
+              <td className="py-2 px-2 text-right font-semibold text-red-600">{fmtBRL(r.lostCost)}</td>
+              <td className="py-2 pl-2 text-right text-slate-500">{fmtBRL(r.excessCost)}</td>
             </tr>
           ))}
         </tbody>

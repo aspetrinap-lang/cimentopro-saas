@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
-import { computeStats, theoreticalForOrder, fmtNum, fmtBRL } from '@/lib/statsUtils';
+import { computeStats, theoreticalForOrder, fmtNum, fmtBRL, orderLostCost } from '@/lib/statsUtils';
 import { Trophy, TrendingUp, Gauge, AlertTriangle } from 'lucide-react';
 
 export default function StatsRankings({ orders, ptMap, traceMap, names, costs }) {
@@ -42,14 +42,9 @@ export default function StatsRankings({ orders, ptMap, traceMap, names, costs })
       });
       if (sumTheo > 0) byMachine[mname].devs.push(((sumReal - sumTheo) / sumTheo) * 100);
 
-      // desperdício do lote (excesso)
-      let excessCost = 0;
-      INSUMO_KEYS.forEach(k => {
-        const real = o[INSUMO_FIELDS[k].actual] || 0;
-        const theo = theoreticalForOrder(o, k, ptMap, traceMap);
-        if (theo > 0 && real > theo) excessCost += (real - theo) * (costs[k] || 0);
-      });
-      if (excessCost > 0) lots.push({ label: `${o.order_number || pname} — ${o.production_date?.slice(8, 10)}/${o.production_date?.slice(5, 7)}`, product: pname, cost: excessCost });
+      // desperdício do lote: peças perdidas valorizadas ao custo unitário da ordem
+      const lostCost = orderLostCost(o, costs);
+      if (lostCost > 0) lots.push({ label: `${o.order_number || pname} — ${o.production_date?.slice(8, 10)}/${o.production_date?.slice(5, 7)}`, product: pname, cost: lostCost });
     });
 
     const products = Object.values(byProduct).map(p => {
@@ -115,7 +110,7 @@ export default function StatsRankings({ orders, ptMap, traceMap, names, costs })
       <Card title="Lotes com maior desperdício" icon={AlertTriangle}
         items={data.worstLots}
         render={it => fmtBRL(it.cost)}
-        emptyText="Nenhum excesso registrado" />
+        emptyText="Nenhuma perda registrada" />
     </div>
   );
 }

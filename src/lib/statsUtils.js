@@ -1,4 +1,4 @@
-import { INSUMO_TRACE_PARTS } from '@/lib/insumos';
+import { INSUMO_KEYS, INSUMO_FIELDS, INSUMO_TRACE_PARTS } from '@/lib/insumos';
 
 // Estatísticas descritivas de uma amostra (desvio padrão populacional)
 export function computeStats(values) {
@@ -71,4 +71,35 @@ export function fmtNum(v, dec = 2) {
 export function fmtBRL(v) {
   if (v == null || !isFinite(v)) return '—';
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
+}
+
+// Custo unitário de produção de uma ordem (R$ por peça):
+// soma o custo de insumos reais lançados ÷ peças produzidas.
+// Sem conversão de unidade — actual_quantity é sempre peças.
+export function orderUnitCost(o, costs) {
+  const qty = Number(o.actual_quantity) || 0;
+  if (qty <= 0) return 0;
+  const orderCost = INSUMO_KEYS.reduce(
+    (s, k) => s + ((Number(o[INSUMO_FIELDS[k].actual]) || 0) * (Number(costs?.[k]) || 0)),
+    0
+  );
+  return orderCost / qty;
+}
+
+// Custo das peças perdidas de uma ordem: (2ª linha + descartadas) × custo unitário.
+export function orderLostCost(o, costs) {
+  const lost = (Number(o.loss_second_line) || 0) + (Number(o.loss_discarded) || 0);
+  if (lost <= 0) return 0;
+  return lost * orderUnitCost(o, costs);
+}
+
+// Custo do excesso de consumo de insumos (real acima do teórico do traço).
+export function orderExcessCost(o, costs, ptMap, traceMap) {
+  let excessCost = 0;
+  INSUMO_KEYS.forEach((k) => {
+    const real = Number(o[INSUMO_FIELDS[k].actual]) || 0;
+    const theo = theoreticalForOrder(o, k, ptMap, traceMap);
+    if (theo > 0 && real > theo) excessCost += (real - theo) * (Number(costs?.[k]) || 0);
+  });
+  return excessCost;
 }
