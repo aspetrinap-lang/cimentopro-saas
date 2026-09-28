@@ -1,12 +1,14 @@
-import { AlertTriangle, Ban, Database, Info } from 'lucide-react';
+import { AlertTriangle, Ban, Database, Factory, Info } from 'lucide-react';
 import { fmtBRL, fmtNum } from '@/lib/statsUtils';
+import { historyRangeLabel } from '@/lib/pricingProductivity';
 
-// BASE FINANCEIRA DO CÁLCULO — mostra todas as DREs cadastradas utilizadas, os
-// indicadores normalizados de cada mês, alertas de comportamento atípico e a
-// média efetivamente aplicada. Permite incluir/excluir cada DRE da média.
-export default function FinancialBaseSection({ model, mode, onToggleExclude }) {
+// BASE FINANCEIRA DO CÁLCULO — DREs do período financeiro selecionado, sempre
+// por MÉDIA PONDERADA (Σ custos ÷ Σ base produtiva). Mostra os indicadores de
+// cada mês do período, alertas de comportamento atípico, permite excluir meses
+// e declara a base produtiva (histórico completo, independente do período).
+export default function FinancialBaseSection({ model, period, onToggleExclude }) {
   if (!model || !model.months || model.months.length === 0) return null;
-  const canExclude = mode === 'normalized' || mode === 'weighted';
+  const canExclude = period !== 'selected_month' && model.months.length > 1 && !!onToggleExclude;
 
   return (
     <section className="bg-card border border-border rounded-xl p-4 space-y-3">
@@ -17,9 +19,19 @@ export default function FinancialBaseSection({ model, mode, onToggleExclude }) {
             Motor v{model.calculation_version}
           </span>
         </h3>
-        {model.average && (
-          <span className="text-[11px] text-muted-foreground">Método: <strong className="text-foreground">{model.average.label}</strong></span>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+            Período financeiro: {model.periodLabel}
+          </span>
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+            Método: média ponderada (Σ custos ÷ Σ base produtiva)
+          </span>
+          {model.average && (
+            <span className="text-[11px] text-muted-foreground">
+              Aplicada: <strong className="text-foreground">{model.average.label}</strong>
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -74,12 +86,12 @@ export default function FinancialBaseSection({ model, mode, onToggleExclude }) {
             <tfoot>
               <tr className="font-semibold border-t-2 border-border bg-primary/5">
                 <td className="py-2 text-foreground">
-                  <span className="flex items-center gap-1.5"><Info className="w-3.5 h-3.5 text-primary" /> MÉDIA UTILIZADA</span>
+                  <span className="flex items-center gap-1.5"><Info className="w-3.5 h-3.5 text-primary" /> MÉDIA PONDERADA UTILIZADA</span>
                 </td>
                 <td className="py-2 text-right text-foreground">{fmtBRL(model.average.industrialTotal)}</td>
-                <td className="py-2 text-right text-foreground">{mode === 'weighted' ? 'Σ' : 'méd.'}</td>
-                <td className="py-2 text-right text-foreground">{mode === 'weighted' ? 'Σ' : 'méd.'}</td>
-                <td className="py-2 text-right text-foreground">{mode === 'weighted' ? 'Σ' : 'méd.'}</td>
+                <td className="py-2 text-right text-foreground">Σ</td>
+                <td className="py-2 text-right text-foreground">Σ</td>
+                <td className="py-2 text-right text-foreground">Σ</td>
                 <td className="py-2 text-right text-foreground">{fmtNum(model.average.costPerKg, 4)}</td>
                 <td className="py-2 text-right text-foreground">{fmtNum(model.average.costPerHour, 2)}</td>
                 {canExclude && <td />}
@@ -88,6 +100,15 @@ export default function FinancialBaseSection({ model, mode, onToggleExclude }) {
           )}
         </table>
       </div>
+
+      <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+        <Factory className="w-3 h-3 mt-0.5 shrink-0" />
+        <span>
+          Base produtiva: histórico completo de ordens concluídas
+          {model.productivity?.from ? ` (${historyRangeLabel(model.productivity.from, model.productivity.to)})` : ''}
+          — independente do período financeiro. A fonte usada por artefato (histórico próprio ou fallback) aparece na Composição de Custos.
+        </span>
+      </p>
 
       {(model.warnings?.length > 0 || model.unclassified?.length > 0) && (
         <div className="space-y-1">

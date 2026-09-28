@@ -5,7 +5,7 @@ import { Calculator, Printer, Save, RotateCcw, SlidersHorizontal, Truck, Percent
 import { useInsumoCosts } from '@/hooks/useInsumoCosts';
 import { useCompanyTaxes, DEFAULT_REGIME_TAXES } from '@/hooks/useCompanyTaxes';
 import { fmtBRL, fmtNum } from '@/lib/statsUtils';
-import { buildCostModel, calculateSellingCost, unitLabel } from '@/lib/industrialCostEngine';
+import { buildCostModel, calculateSellingCost, unitLabel, FINANCIAL_PERIODS, historyRangeLabel } from '@/lib/industrialCostEngine';
 import FinancialBaseSection from '@/components/pricing/FinancialBaseSection';
 import CostCompositionPanel from '@/components/pricing/CostCompositionPanel';
 import PricingReport from '@/components/reports/PricingReport';
@@ -49,7 +49,7 @@ export default function PricingSimulator() {
   const [molds, setMolds] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState('normalized'); // 'normalized' (padrão) | 'weighted' | 'single'
+  const [financialPeriod, setFinancialPeriod] = useState('all_history'); // all_history | selected_month | last_3 | last_6 | last_12
   const [selectedMonth, setSelectedMonth] = useState('');
   const [excludedMonths, setExcludedMonths] = useState([]);
   const [defaults, setDefaults] = useState(loadDefaults);
@@ -117,10 +117,10 @@ export default function PricingSimulator() {
     lines,
     accounts,
     insumoCosts,
-    mode,
+    financialPeriod,
     excludedMonths,
     selectedMonth,
-  }), [dres, orders, costProductTypes, lines, accounts, insumoCosts, mode, excludedMonths, selectedMonth]);
+  }), [dres, orders, costProductTypes, lines, accounts, insumoCosts, financialPeriod, excludedMonths, selectedMonth]);
 
   const modelByProduct = useMemo(() => {
     const m = {};
@@ -232,23 +232,18 @@ export default function PricingSimulator() {
         </div>
       </div>
 
-      {/* Método de cálculo + mês */}
+      {/* Período financeiro + método */}
       <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-xs text-muted-foreground">Período financeiro:</span>
         <div className="inline-flex rounded-lg border border-border overflow-hidden">
-          <button onClick={() => setMode('normalized')}
-            className={`text-xs px-3 py-1.5 transition-colors ${mode === 'normalized' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}>
-            Média normalizada
-          </button>
-          <button onClick={() => setMode('weighted')}
-            className={`text-xs px-3 py-1.5 border-l border-border transition-colors ${mode === 'weighted' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}>
-            Média ponderada
-          </button>
-          <button onClick={() => setMode('single')}
-            className={`text-xs px-3 py-1.5 border-l border-border transition-colors ${mode === 'single' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}>
-            Mês selecionado
-          </button>
+          {FINANCIAL_PERIODS.map((p, i) => (
+            <button key={p.value} onClick={() => setFinancialPeriod(p.value)}
+              className={`text-xs px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-border' : ''} ${financialPeriod === p.value ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}>
+              {p.label}
+            </button>
+          ))}
         </div>
-        {mode === 'single' ? (
+        {financialPeriod === 'selected_month' && (
           <>
             <span className="text-xs text-muted-foreground">Mês de referência:</span>
             <div className="flex flex-wrap gap-1.5">
@@ -260,13 +255,14 @@ export default function PricingSimulator() {
               ))}
             </div>
           </>
-        ) : (
-          <span className="text-xs text-muted-foreground">
-            {model.mode === 'normalized'
-              ? 'Média dos indicadores unitários (R$/kg, R$/hora, R$/un) de cada uma das últimas 3 DREs — cada mês pesa igual, mês atípico não distorce.'
-              : 'Somatório dos custos ÷ somatório da base produtiva dos meses utilizados (método antigo).'}
-          </span>
         )}
+        <span className="text-xs text-muted-foreground">
+          Método: <strong className="text-foreground">Média ponderada</strong> — Σ custos ÷ Σ base produtiva do período.
+        </span>
+        <span className="text-xs text-muted-foreground">
+          Base produtiva: histórico completo de ordens concluídas
+          {model.productivity?.from ? ` (${historyRangeLabel(model.productivity.from, model.productivity.to)})` : ''} — nunca limitado pelo período financeiro.
+        </span>
         {dres.length === 0 && (
           <span className="text-xs text-amber-600">Nenhuma DRE cadastrada — usando apenas custos diretos de cadastro.</span>
         )}
@@ -331,12 +327,7 @@ export default function PricingSimulator() {
       </section>
 
       {/* Base financeira do cálculo */}
-      {mode !== 'single' && (
-        <FinancialBaseSection model={model} mode={mode} onToggleExclude={toggleExclude} />
-      )}
-      {mode === 'single' && model.months.length > 0 && (
-        <FinancialBaseSection model={model} mode="single" />
-      )}
+      <FinancialBaseSection model={model} period={financialPeriod} onToggleExclude={toggleExclude} />
 
       {/* Filtro de categoria */}
       <div className="flex items-center gap-2 flex-wrap">

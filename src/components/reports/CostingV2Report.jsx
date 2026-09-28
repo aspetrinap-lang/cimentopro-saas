@@ -8,6 +8,7 @@ import {
   calculateSellingCost,
   unitLabel,
 } from '@/lib/industrialCostEngine';
+import { historyRangeLabel } from '@/lib/pricingProductivity';
 
 // Colunas de custeio industrial exibidas no relatório (motor v2.0)
 const REPORT_COMPONENTS = [
@@ -45,11 +46,19 @@ export default function CostingV2Report({ model, products, rowFor, onClose }) {
     >
       <Section title="Base financeira do cálculo">
         {model.average ? (
-          <p className="text-xs text-slate-600 leading-relaxed">
-            {model.average.label}. Custo industrial total: <strong>{fmtBRL(model.average.industrialTotal)}</strong>;
-            custo médio de <strong>{fmtBRL(model.average.costPerKg)}/kg</strong> e{' '}
-            <strong>{fmtBRL(model.average.costPerHour)}/hora</strong> sobre a produção boa do período.
-          </p>
+          <>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Período financeiro: <strong>{model.periodLabel}</strong> · Método: <strong>média ponderada</strong> (Σ custos ÷ Σ base produtiva).
+              Custo industrial total: <strong>{fmtBRL(model.average.industrialTotal)}</strong>;
+              custo de <strong>{fmtBRL(model.average.costPerKg)}/kg</strong> e{' '}
+              <strong>{fmtBRL(model.average.costPerHour)}/hora</strong> ponderados pela produção boa do período.
+            </p>
+            <p className="text-xs text-slate-600 leading-relaxed mt-1">
+              Base produtiva: histórico completo de ordens de produção concluídas
+              {model.productivity?.from ? ` (${historyRangeLabel(model.productivity.from, model.productivity.to)})` : ''} —
+              a produtividade (horas/peça) de cada artefato nunca é limitada pelo período financeiro.
+            </p>
+          </>
         ) : (
           <p className="text-xs text-slate-600 leading-relaxed">
             Nenhuma DRE utilizada — apenas custos diretos de cadastro (matéria-prima e molde).

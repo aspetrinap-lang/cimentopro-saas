@@ -1,6 +1,7 @@
 import { X, AlertTriangle, Layers, TrendingUp, Coins } from 'lucide-react';
 import { fmtBRL, fmtNum } from '@/lib/statsUtils';
 import { INDUSTRIAL_COMPONENTS, COMPONENT_LABELS, calculateSellingCost } from '@/lib/industrialCostEngine';
+import { historyRangeLabel } from '@/lib/pricingProductivity';
 
 // COMPOSIÇÃO DO CUSTO — demonstrativo auditável de um produto: cada componente
 // industrial com sua origem, o ônus do refugo, custos comerciais e o preço
@@ -31,6 +32,11 @@ export default function CostCompositionPanel({ product, row, onClose }) {
             <p className="text-xs text-muted-foreground mt-0.5">
               {fmtNum(p.good, 0)} peças boas consideradas ({fmtNum(p.gross, 0)} produzidas − {fmtNum(p.refugo, 0)} refugo) • {fmtNum(p.hours, 1)} h • peso/un: {fmtNum(p.weightKg, 2)} kg
               {p.monthsWithProduction < 3 && p.monthsWithProduction > 0 ? ` • produzido em ${p.monthsWithProduction} DRE(s)` : ''}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Base produtiva: <strong className="text-foreground">{p.productivitySource || '—'}</strong>
+              {p.productivityRange?.from ? ` (${historyRangeLabel(p.productivityRange.from, p.productivityRange.to)})` : ''}
+              {p.hoursPerGoodPiece > 0 ? ` • ${fmtNum(p.hoursPerGoodPiece, 4)} h por peça boa` : ''}
             </p>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
@@ -74,7 +80,7 @@ export default function CostCompositionPanel({ product, row, onClose }) {
                   <tr className="border-b border-border/50">
                     <td className="py-1.5 text-foreground">Perdas / Refugo</td>
                     <td className="py-1.5 text-right font-medium text-amber-600">{fmtBRL(p.lossBurden || 0)}</td>
-                    <td className="py-1.5 pl-3 text-muted-foreground text-[11px]">Custo absorvido pela produção boa ({fmtNum(p.refugo, 0)} peças de refugo no período)</td>
+                    <td className="py-1.5 pl-3 text-muted-foreground text-[11px]">Custo absorvido pela produção boa ({fmtNum(p.refugo, 0)} peças de refugo no histórico produtivo)</td>
                   </tr>
                 </tbody>
                 <tfoot>

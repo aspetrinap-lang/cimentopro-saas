@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// MOTOR ÚNICO DE CUSTEIO INDUSTRIAL — CimentoPro v2.1
+// MOTOR ÚNICO DE CUSTEIO INDUSTRIAL — CimentoPro v2.2
 //
 // Fonte única de verdade do custo: este módulo é usado pelo Simulador de
 // Preços e (transição) pelas demais telas de custo — NENHUMA fórmula de custo
@@ -9,22 +9,28 @@
 //   MÁQUINA  (Machine + ProductionLine) → potência, tarifas
 //   FINANCEIRO (MonthlyDre + DreAccount) → custos classificados da fábrica
 //
-// Princípios:
+// Princípios (v2.2 — separação de bases):
+//   • BASE FINANCEIRA: DREs do período financeiro selecionado
+//     (all_history padrão | selected_month | last_3 | last_6 | last_12),
+//     SEMPRE por média ponderada Σ custos ÷ Σ base produtiva do período —
+//     nunca média aritmética de indicadores mensais.
+//   • BASE PRODUTIVA: produtividade histórica (horas por peça boa) calculada
+//     sobre TODO o histórico de ordens concluídas, independente do período
+//     financeiro — com hierarquia de fallback e nunca zero para produtos
+//     fabricados eventualmente (calculateHistoricalProductivity).
 //   • Sem dupla contabilização: contas marcadas como já representadas no
 //     cálculo operacional (traço/molde/energia das linhas) NÃO são somadas.
 //   • Refugo: o custo é absorvido pela PRODUÇÃO BOA (divisores usam good).
-//   • Média das últimas 3 DREs: NORMALIZADA por padrão (média dos
-//     indicadores unitários de cada mês), ponderada como opção.
 //   • Sem divisão por zero, sem invenção: base ausente → 0 + alerta.
-//   • Sem histórico no modo ponderado: custos classificados por kg podem ser
-//     estimados pela taxa da empresa × peso cadastrado do artefato.
+//   • Sem arredondamento intermediário: arredonda somente na apresentação.
 //   • Rastreável: cada componente carrega origem (source) e o modelo é
-//     versionado (calculation_version = "2.1").
+//     versionado (calculation_version = "2.2").
 // ─────────────────────────────────────────────────────────────────────────────
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
 import { calculateSuggestedPrice, saleFactor as productSaleFactor } from '@/lib/costUtils';
+import { calculateHistoricalProductivity, historyRangeLabel } from '@/lib/pricingProductivity';
 
-export const CALCULATION_VERSION = '2.1';
+export const CALCULATION_VERSION = '2.2';
 
 export const COST_COMPONENT_TYPES = [
   { value: 'material_direct', label: 'Matéria-prima direta', industrial: true, default_basis: 'kg' },
@@ -67,13 +73,24 @@ export const BASIS_LABELS = {
 const DRE_BUCKETS = ['direct_labor', 'maintenance', 'depreciation', 'factory_overhead', 'loss', 'energy'];
 const ENGINE_KEYS = [...INSUMO_KEYS, 'water'];
 
+// Períodos financeiros do Simulador de Preços
+export const FINANCIAL_PERIODS = [
+  { value: 'all_history', label: 'Todas as DREs' },
+  { value: 'selected_month', label: 'Mês selecionado' },
+  { value: 'last_3', label: 'Últimos 3 meses' },
+  { value: 'last_6', label: 'Últimos 6 meses' },
+  { value: 'last_12', label: 'Últimos 12 meses' },
+];
+const PERIOD_MONTHS = { last_3: 3, last_6: 6, last_12: 12 };
+
+export { historyRangeLabel };
+
 const num = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 };
 const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
 const div = (a, b) => (b > 0 ? a / b : 0);
-const avg = (arr) => (arr.length ? arr.reduce((s, v) => s + num(v), 0) / arr.length : 0);
 
 // ── Peso / unidade de venda ─────────────────────────────────────────────────
 // Peso real (weight_kg_per_unit) com fallback provisório do campo legado
@@ -422,137 +439,6 @@ function detectAnomalies(analyses) {
   });
 }
 
-// ── Produto sem produção no período (fallback de cadastro, marcado) ─────────
-function fallbackProduct(pt, insumoCosts, labels, weightedFallback = null) {
-  const sf = saleFactor(pt);
-  const wu = weightPerSaleUnit(pt);
-  const comps = {};
-  const sources = {};
-  const estimated = {};
-  INDUSTRIAL_COMPONENTS.forEach((k) => { comps[k] = 0; });
-  comps.material_direct = calculateDirectMaterialCost(pt, insumoCosts) * sf;
-  sources.material_direct = 'Cadastro do artefato (estimativa)';
-  estimated.material_direct = true;
-  comps.mold = num(pt.mold_cost_per_unit) * sf;
-  sources.mold = 'Molde: custo de aquisição ÷ vida útil ÷ peças por ciclo';
-  estimated.mold = true;
-  const alerts = [];
-  if (weightedFallback) {
-    for (const key of INDUSTRIAL_COMPONENTS) {
-      if (key === 'material_direct' || key === 'mold' || key === 'energy') continue;
-      const rate = num(weightedFallback.perKg?.[key]);
-      if (rate > 0 && wu.kg > 0) {
-        comps[key] = rate * wu.kg;
-        sources[key] = `Estimativa pela média ponderada da empresa — R$ ${rate.toFixed(4)}/kg × ${wu.kg.toFixed(4)} kg${labels.length ? ` (${labels.join(' · ')})` : ''}`;
-        estimated[key] = true;
-      } else if (num(weightedFallback.perHour?.[key]) > 0) {
-        alerts.push(`${COMPONENT_LABELS[key]} sem estimativa: a conta está rateada por hora e o artefato não tem histórico/tempo padrão.`);
-      } else if (rate > 0 && wu.kg <= 0) {
-        alerts.push(`${COMPONENT_LABELS[key]} sem estimativa: cadastre um peso válido para o artefato.`);
-      }
-    }
-    if (!weightedFallback.weightKg || weightedFallback.weightKg <= 0) {
-      alerts.push('Sem estimativa ponderada por kg: não há peso produzido válido na base selecionada.');
-    }
-  }
-  const industrialPerUnit = INDUSTRIAL_COMPONENTS.reduce((sum, key) => sum + num(comps[key]), 0);
-  return {
-    pt,
-    weightKg: wu.kg,
-    weightEstimated: wu.estimated,
-    saleUnit: unitLabel(pt),
-    gross: 0,
-    good: 0,
-    refugo: 0,
-    hours: 0,
-    components: comps,
-    componentEstimated: estimated,
-    sources,
-    industrialPerUnit,
-    lossBurden: 0,
-    goodRatio: 1,
-    monthsWithProduction: 0,
-    missingLine: false,
-    alerts: [
-      weightedFallback
-        ? 'Sem histórico do artefato — custos rateáveis estimados pela média ponderada da empresa quando havia base por kg válida.'
-        : 'Sem produção no período analisado — custo com apenas matéria-prima e molde estimados do cadastro (rateios e consumo real indisponíveis).',
-      ...alerts,
-    ],
-  };
-}
-
-function companyWeightedFallback(analysis) {
-  const perKg = {};
-  const perHour = {};
-  for (const key of INDUSTRIAL_COMPONENTS) {
-    perKg[key] = num(analysis?.rates?.perKg?.[key]);
-    perHour[key] = num(analysis?.rates?.perHour?.[key]);
-  }
-  return { perKg, perHour, weightKg: num(analysis?.weightKg) };
-}
-
-// ── Média NORMALIZADA de todas as DREs cadastradas ──────────────────────────
-// Média dos INDICADORES UNITÁRIOS de cada mês (não a soma dos totais):
-// para cada componente, média dos R$/un dos meses em que o artefato foi produzido.
-function averageProducts(usedAnalyses, productTypes, insumoCosts) {
-  const labels = usedAnalyses.map((m) => m.month_label);
-  const avgSource = labels.length === 1
-    ? null
-    : `Média normalizada das DREs (${labels.join(' · ')})`;
-  const out = [];
-  for (const pt of productTypes || []) {
-    const perMonth = usedAnalyses.map((m) => m.products[pt.id]).filter((p) => p && p.gross > 0);
-    if (!perMonth.length) {
-      const fb = fallbackProduct(pt, insumoCosts, labels);
-      out.push(fb);
-      continue;
-    }
-    const comps = {};
-    const sources = {};
-    const estimated = {};
-    INDUSTRIAL_COMPONENTS.forEach((key) => {
-      comps[key] = avg(perMonth.map((p) => p.components[key]));
-      sources[key] = avgSource
-        ? `${avgSource} — ${perMonth.map((p) => p.sources[key]).find((s) => s) || ''}`.trim()
-        : perMonth[0].sources[key];
-      estimated[key] = perMonth.some((p) => p.componentEstimated?.[key]);
-    });
-    const industrialPerUnit = avg(perMonth.map((p) => p.industrialPerUnit));
-    const gross = perMonth.reduce((s, p) => s + p.gross, 0);
-    const good = perMonth.reduce((s, p) => s + p.good, 0);
-    const lossBurden = avg(perMonth.map((p) => p.lossBurden));
-    const goodRatio = avg(perMonth.map((p) => p.goodRatio));
-    const alerts = [];
-    if (perMonth.length < usedAnalyses.length) {
-      alerts.push(`Artefato produzido em ${perMonth.length} de ${usedAnalyses.length} DRE(s) — média parcial.`);
-    }
-    if (perMonth.some((p) => p.missingLine)) {
-      alerts.push('Ordens sem linha de produção vinculada — energia operacional possivelmente subestimada.');
-    }
-    out.push({
-      pt,
-      weightKg: perMonth[0].weightKg,
-      weightEstimated: perMonth.some((p) => p.weightEstimated),
-      saleUnit: unitLabel(pt),
-      gross,
-      good,
-      refugo: gross - good,
-      hours: perMonth.reduce((s, p) => s + p.hours, 0),
-      components: comps,
-      componentEstimated: estimated,
-      sources,
-      industrialPerUnit,
-      lossBurden,
-      goodRatio,
-      monthsWithProduction: perMonth.length,
-      missingLine: perMonth.some((p) => p.missingLine),
-      alerts,
-    });
-  }
-  return out;
-}
-
 // ── Média PONDERADA: meses fundidos (Σ custos ÷ Σ base) ──────────────────────
 function mergeDres(dres) {
   const itemsByKey = new Map();
@@ -617,7 +503,14 @@ export function calculateSellingCost(industrialPerUnit, { commission = 0, freigh
 export { calculateSuggestedPrice };
 
 // ── MODELO COMPLETO ─────────────────────────────────────────────────────────
-// mode: 'normalized' (padrão) | 'weighted' | 'single'
+// financialPeriod: 'all_history' (padrão) | 'selected_month' | 'last_3' | 'last_6' | 'last_12'
+//
+// BASE FINANCEIRA: DREs do período selecionado, fundidas em média ponderada
+//   (Σ custos ÷ Σ base produtiva do período — R$/kg, R$/hora, R$/un).
+// BASE PRODUTIVA: produtividade histórica de TODO o histórico de ordens
+//   concluídas (calculateHistoricalProductivity) — alimenta TODOS os
+//   componentes por hora e a energia operacional, nunca limitada pelo
+//   período financeiro. Período financeiro ≠ período de produtividade.
 export function buildCostModel({
   dres = [],
   orders = [],
@@ -625,128 +518,154 @@ export function buildCostModel({
   lines = [],
   accounts = [],
   insumoCosts = {},
-  mode = 'normalized',
+  financialPeriod = 'all_history',
   excludedMonths = [],
   selectedMonth = null,
 }) {
   const lookup = buildAccountLookup(accounts);
   const sorted = [...dres].sort((a, b) => String(a.reference_month).localeCompare(String(b.reference_month)));
-  const baseDres = sorted; // TODAS as DREs cadastradas da empresa entram na média
-  const analyze = (dre) => analyzeDreMonth({ dre, orders, productTypes, lines, accountLookup: lookup, insumoCosts });
+  const periodDef = FINANCIAL_PERIODS.find((p) => p.value === financialPeriod) || FINANCIAL_PERIODS[0];
+
+  // DREs dentro do período financeiro selecionado
+  const inPeriod = financialPeriod === 'selected_month'
+    ? sorted.filter((d) => d.reference_month === selectedMonth)
+    : PERIOD_MONTHS[financialPeriod]
+      ? sorted.slice(-PERIOD_MONTHS[financialPeriod])
+      : sorted;
+
+  // ── BASE PRODUTIVA: histórico completo — independe do período financeiro ──
+  const productivity = calculateHistoricalProductivity(orders, productTypes, lines);
+  const lineById = new Map((lines || []).map((l) => [l.id, l]));
 
   const insufficient = [];
   if (!dres.length) insufficient.push('Nenhuma DRE cadastrada — o custo usa apenas estimativas de cadastro (matéria-prima e molde).');
-  else if (baseDres.length < 3) insufficient.push(`Apenas ${baseDres.length} DRE(s) cadastrada(s) — a média usa menos de 3 meses.`);
+  else if (!inPeriod.length) insufficient.push(`Nenhuma DRE no período selecionado (${periodDef.label}) — o custo usa apenas estimativas de cadastro.`);
 
-  // ── Modo: mês selecionado ──
-  if (mode === 'single') {
-    const dre = sorted.find((d) => d.reference_month === selectedMonth) || sorted[sorted.length - 1] || null;
-    if (!dre) {
-      return {
-        calculation_version: CALCULATION_VERSION,
-        mode,
-        months: [],
-        usedLabels: [],
-        average: null,
-        warnings: [],
-        unclassified: [],
-        insufficient,
-        products: (productTypes || []).map((pt) => fallbackProduct(pt, insumoCosts, [])),
-      };
-    }
-    const single = analyze(dre);
-    const months = [{ ...single, anomalous: false, anomalyReasons: [], userExcluded: false }];
-    const products = (productTypes || []).map((pt) => {
-      const p = single.products[pt.id];
-      if (p) {
-        return {
-          ...p,
-          monthsWithProduction: 1,
-          alerts: [
-            ...(p.weightEstimated ? ['Peso estimado — atualize o cadastro do produto (Peso por Unidade).'] : []),
-            ...(p.missingLine ? ['Ordens sem linha de produção vinculada — energia operacional possivelmente subestimada.'] : []),
-          ],
-        };
-      }
-      return fallbackProduct(pt, insumoCosts, [dre.month_label]);
-    });
-    return {
-      calculation_version: CALCULATION_VERSION,
-      mode,
-      months,
-      usedLabels: [dre.month_label],
-      average: { label: `DRE ${dre.month_label}`, costPerKg: single.costPerKg, costPerHour: single.costPerHour, industrialTotal: single.industrialTotal },
-      warnings: single.warnings,
-      unclassified: single.unclassified,
-      insufficient: [...insufficient, ...single.insufficient],
-      products,
-    };
-  }
-
-  // ── Modos de média: últimas 3 DREs, com exclusão manual de meses ──
-  const allAnalyses = detectAnomalies(baseDres.map(analyze)).map((a) => ({
+  const analyze = (dre) => analyzeDreMonth({ dre, orders, productTypes, lines, accountLookup: lookup, insumoCosts });
+  const allAnalyses = detectAnomalies(inPeriod.map(analyze)).map((a) => ({
     ...a,
     userExcluded: excludedMonths.includes(a.reference_month),
   }));
   const used = allAnalyses.filter((a) => !a.userExcluded);
-  const usedDres = baseDres.filter((d) => !excludedMonths.includes(d.reference_month));
-  if (!used.length) {
-    return {
-      calculation_version: CALCULATION_VERSION,
-      mode,
-      months: allAnalyses,
-      usedLabels: [],
-      average: null,
-      warnings: [],
-      unclassified: [],
-      insufficient: [...insufficient, 'Todas as DREs do período foram excluídas da média — reabra ao menos uma para calcular.'],
-      products: (productTypes || []).map((pt) => fallbackProduct(pt, insumoCosts, [])),
-    };
-  }
+  const usedDres = inPeriod.filter((d) => !excludedMonths.includes(d.reference_month));
+  const usedLabels = used.map((m) => m.month_label);
 
-  let products;
-  let average;
-  if (mode === 'weighted') {
-    const merged = mergeDres(usedDres);
-    const usedRefs = new Set(usedDres.map((d) => d.reference_month));
-    const usedOrders = orders.filter((o) => usedRefs.has(String(o.production_date || '').slice(0, 7)));
-    const mergedAnalysis = analyzeDreMonth({ dre: merged, orders: usedOrders, productTypes, lines, accountLookup: lookup, insumoCosts, ordersPreFiltered: true });
-    average = {
-      label: `Média ponderada (${used.map((m) => m.month_label).join(' · ')})`,
-      costPerKg: mergedAnalysis.costPerKg,
-      costPerHour: mergedAnalysis.costPerHour,
-      industrialTotal: mergedAnalysis.industrialTotal,
+  // ── BASE FINANCEIRA: média ponderada única (Σ custos ÷ Σ base) ─────────────
+  const merged = mergeDres(usedDres);
+  const usedRefs = new Set(usedDres.map((d) => d.reference_month));
+  const usedOrders = (orders || []).filter((o) => usedRefs.has(String(o.production_date || '').slice(0, 7)));
+  const mergedAnalysis = analyzeDreMonth({ dre: merged, orders: usedOrders, productTypes, lines, accountLookup: lookup, insumoCosts, ordersPreFiltered: true });
+  const rates = mergedAnalysis.rates;
+  const energyFromDre = mergedAnalysis.energyFromDre;
+  const dreSource = usedLabels.length ? `DRE ${usedLabels.join(' · ')} (média ponderada)` : 'Sem DRE no período';
+
+  const products = (productTypes || []).map((pt) => {
+    const pr = productivity.products.get(pt.id) || {
+      hoursPerGoodPiece: 0, source: null, sourceLabel: null, from: null, to: null,
+      gross: 0, good: 0, refugo: 0, hours: 0, dominantLineId: null, insufficient: true,
     };
-    products = (productTypes || []).map((pt) => {
-      const p = mergedAnalysis.products[pt.id];
-      if (p) {
-        return {
-          ...p,
-          monthsWithProduction: used.length,
-          alerts: [
-            ...(p.weightEstimated ? ['Peso estimado — atualize o cadastro do produto (Peso por Unidade).'] : []),
-            ...(p.missingLine ? ['Ordens sem linha de produção vinculada — energia operacional possivelmente subestimada.'] : []),
-          ],
-        };
-      }
-      return fallbackProduct(pt, insumoCosts, used.map((m) => m.month_label), companyWeightedFallback(mergedAnalysis));
+    const sf = saleFactor(pt);
+    const wu = weightPerSaleUnit(pt);
+    // Horas históricas do artefato (base produtiva) — nunca limitadas ao período
+    const hoursPerGoodPiece = pr.hoursPerGoodPiece;
+    const hoursPerUnit = hoursPerGoodPiece * sf;
+    const ctx = { weightKg: wu.kg, hoursPerUnit, sf };
+    const periodAgg = mergedAnalysis.products[pt.id] || null;
+    const prodLabel = pr.insufficient
+      ? 'sem histórico produtivo'
+      : `${pr.sourceLabel}${pr.from ? ` (${historyRangeLabel(pr.from, pr.to)})` : ''}`;
+
+    const comps = {};
+    const sources = {};
+    const estimated = {};
+    INDUSTRIAL_COMPONENTS.forEach((k) => { comps[k] = 0; });
+
+    // Matéria-prima direta: cadastro + consumo real do período (lógica inalterada)
+    if (periodAgg) {
+      comps.material_direct = periodAgg.components.material_direct;
+      sources.material_direct = periodAgg.sources.material_direct;
+      estimated.material_direct = periodAgg.componentEstimated?.material_direct;
+    } else {
+      comps.material_direct = calculateDirectMaterialCost(pt, insumoCosts) * sf;
+      sources.material_direct = 'Cadastro do artefato (estimativa — sem produção no período financeiro)';
+      estimated.material_direct = true;
+    }
+
+    // Molde: cadastro (lógica inalterada)
+    comps.mold = num(pt.mold_cost_per_unit) * sf;
+    sources.mold = 'Molde: custo de aquisição ÷ vida útil ÷ peças por ciclo';
+    estimated.mold = num(pt.mold_cost_per_unit) <= 0;
+
+    // Energia: da DRE (rateio ponderado) ou operacional com horas históricas
+    const dl = pr.dominantLineId ? lineById.get(pr.dominantLineId) : null;
+    const kw = num(dl?.used_power_kw);
+    const tariff = num(dl?.energy_cost_per_kwh);
+    if (energyFromDre) {
+      comps.energy = bucketCost(rates, 'energy', ctx);
+      sources.energy = `${dreSource} — conta de energia rateada (${basisOf(rates, 'energy') || '—'})`;
+    } else if (dl && kw > 0 && tariff > 0 && hoursPerGoodPiece > 0) {
+      comps.energy = hoursPerGoodPiece * kw * tariff * sf;
+      sources.energy = `Operacional: horas históricas (${prodLabel}) × ${kw} kW × tarifa do kWh (linha ${dl.name})`;
+      estimated.energy = true;
+    } else {
+      comps.energy = 0;
+      sources.energy = 'Sem energia operacional: sem linha vinculada ou sem histórico de horas do artefato.';
+      estimated.energy = true;
+    }
+
+    // Demais componentes da DRE: rateios ponderados × base produtiva histórica
+    for (const comp of DRE_BUCKETS) {
+      if (comp === 'energy') continue;
+      comps[comp] = bucketCost(rates, comp, ctx);
+      const basis = basisOf(rates, comp);
+      sources[comp] = !basis
+        ? 'Sem conta classificada para este componente'
+        : basis === BASIS_LABELS.machine_hours
+          ? `${dreSource} — rateio por hora × horas históricas (${prodLabel})`
+          : `${dreSource} — rateio por ${basis}`;
+    }
+
+    // Contas percentuais: aplicadas sobre os demais custos industriais
+    const sumNonPct = INDUSTRIAL_COMPONENTS.reduce((s, k) => s + num(comps[k]), 0);
+    Object.keys(rates.pct).forEach((comp) => {
+      comps[comp] = num(comps[comp]) + rates.pct[comp] * sumNonPct;
+      sources[comp] = `${dreSource} — percentual sobre os demais custos industriais`;
     });
-  } else {
-    // normalized — PADRÃO
-    products = averageProducts(used, productTypes, insumoCosts).map((p) => ({
-      ...p,
-      alerts: [
-        ...(p.alerts || []),
-        ...(p.weightEstimated ? ['Peso estimado — atualize o cadastro do produto (Peso por Unidade).'] : []),
-      ],
-    }));
-    average = {
-      label: `Média normalizada (${used.map((m) => m.month_label).join(' · ')})`,
-      costPerKg: avg(used.map((m) => m.costPerKg)),
-      costPerHour: avg(used.map((m) => m.costPerHour)),
-      industrialTotal: avg(used.map((m) => m.industrialTotal)),
+
+    const industrialPerUnit = INDUSTRIAL_COMPONENTS.reduce((s, k) => s + num(comps[k]), 0);
+    const alerts = [];
+    if (pr.insufficient) alerts.push('Não há histórico produtivo suficiente para calcular o tempo de máquina deste produto.');
+    if (wu.estimated) alerts.push('Peso estimado — atualize o cadastro do produto (Peso por Unidade).');
+    if (!energyFromDre && hoursPerGoodPiece > 0 && !(dl && kw > 0 && tariff > 0)) {
+      alerts.push('Ordens sem linha de produção vinculada — energia operacional indisponível para o artefato.');
+    }
+    if (pr.insufficient) {
+      insufficient.push(`${pt.name}: não há histórico produtivo suficiente para calcular o tempo de máquina deste produto.`);
+    }
+
+    return {
+      pt,
+      weightKg: wu.kg,
+      weightEstimated: wu.estimated,
+      saleUnit: unitLabel(pt),
+      gross: pr.gross,
+      good: pr.good,
+      refugo: pr.refugo,
+      hours: pr.hours,
+      components: comps,
+      componentEstimated: estimated,
+      sources,
+      industrialPerUnit,
+      lossBurden: calculateLossCost(industrialPerUnit, pr.gross, pr.good),
+      goodRatio: pr.gross > 0 ? pr.good / pr.gross : 1,
+      monthsWithProduction: used.filter((m) => (m.products[pt.id]?.gross || 0) > 0).length,
+      hoursPerGoodPiece,
+      productivitySource: pr.insufficient ? 'Sem histórico produtivo suficiente' : pr.sourceLabel,
+      productivityRange: pr.insufficient ? null : { from: pr.from, to: pr.to },
+      productivityInsufficient: pr.insufficient,
+      alerts,
     };
-  }
+  });
 
   // Alerta de DRE anômala incluída/excluída
   const anomalousIncluded = allAnalyses.filter((a) => a.anomalous && !a.userExcluded);
@@ -765,14 +684,24 @@ export function buildCostModel({
 
   return {
     calculation_version: CALCULATION_VERSION,
-    mode,
+    financialPeriod,
+    periodLabel: periodDef.label,
     months: allAnalyses,
-    usedLabels: used.map((m) => m.month_label),
-    average,
+    usedLabels,
+    average: usedLabels.length ? {
+      label: `Média ponderada (${usedLabels.join(' · ')})`,
+      costPerKg: mergedAnalysis.costPerKg,
+      costPerHour: mergedAnalysis.costPerHour,
+      industrialTotal: mergedAnalysis.industrialTotal,
+    } : null,
+    productivity: {
+      from: productivity.factory.from,
+      to: productivity.factory.to,
+      orders: productivity.factory.orders,
+    },
     warnings,
     unclassified,
     insufficient: [...insufficient, ...excludedNotes],
     products,
   };
 }
-
