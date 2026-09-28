@@ -19,13 +19,15 @@ import CostEvolutionChart from '@/components/dashboard/CostEvolutionChart';
 import ForecastConsumptionChart from '@/components/dashboard/ForecastConsumptionChart';
 import ProductivityTable from '@/components/dashboard/ProductivityTable';
 import AlertasOperacionais from '@/components/dashboard/AlertasOperacionais';
-import TopWasteLotsTable from '@/components/dashboard/TopWasteLotsTable';
 import UnitCostCard from '@/components/dashboard/UnitCostCard';
 import UnitConsumptionChart from '@/components/dashboard/UnitConsumptionChart';
 import RawMaterialCostChart from '@/components/dashboard/RawMaterialCostChart';
 import ProductionLossCard from '@/components/dashboard/ProductionLossCard';
-import StatsRankings from '@/components/stats/StatsRankings';
-import { LineChart as LineChartIcon, Gauge, BarChart3, Layers, DollarSign, Activity, Timer, PlayCircle, Trophy, AlertTriangle, FileText, Boxes } from 'lucide-react';
+import TopCostProducts from '@/components/stats/TopCostProducts';
+import MostStableProducts from '@/components/stats/MostStableProducts';
+import TopMachineDeviation from '@/components/stats/TopMachineDeviation';
+import TopWasteLots from '@/components/stats/TopWasteLots';
+import { LineChart as LineChartIcon, Gauge, BarChart3, Layers, DollarSign, Activity, Timer, PlayCircle, Trophy, AlertTriangle, Boxes, TrendingUp } from 'lucide-react';
 
 const fmtDate = (d) => format(d, 'yyyy-MM-dd');
 
@@ -220,21 +222,31 @@ export default function Dashboard() {
             <ForecastConsumptionChart orders={filteredOrders} ptMap={ptMap} limit={TOP_PREVIEW} />
           </ChartCard>
 
-          {/* Linha final: Rankings | Top 5 Lotes | Alertas */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            <ChartCard title="Rankings" description="Maiores custos, desvios e desperdícios (Top 5)" icon={Trophy}
-              expandedChart={<StatsRankings orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} />}>
-              <StatsRankings orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} limit={TOP_PREVIEW} />
+          {/* Rankings separados em cards independentes */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+            <ChartCard title="Produtos com maior custo/un" description="Top 5" icon={TrendingUp}
+              expandedChart={<TopCostProducts orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} />}>
+              <TopCostProducts orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} limit={TOP_PREVIEW} />
             </ChartCard>
-            <ChartCard title="Top 5 Lotes com Maior Desperdício" description="Maior impacto financeiro" icon={FileText}
-              expandedChart={<TopWasteLotsTable orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} />}>
-              <TopWasteLotsTable orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} limit={TOP_PREVIEW} />
+            <ChartCard title="Produtos mais estáveis" description="Menor CV (Top 5)" icon={Trophy}
+              expandedChart={<MostStableProducts orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} />}>
+              <MostStableProducts orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} limit={TOP_PREVIEW} />
             </ChartCard>
-            <ChartCard title="Alertas Operacionais" description="Derivados dos dados do período" icon={AlertTriangle}
-              expandedChart={<AlertasOperacionais orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} />}>
-              <AlertasOperacionais orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} limit={5} />
+            <ChartCard title="Máquinas com maior desvio" description="Top 5" icon={Gauge}
+              expandedChart={<TopMachineDeviation orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} />}>
+              <TopMachineDeviation orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} limit={TOP_PREVIEW} />
+            </ChartCard>
+            <ChartCard title="Lotes com maior desperdício" description="Top 5" icon={AlertTriangle}
+              expandedChart={<TopWasteLots orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} />}>
+              <TopWasteLots orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} limit={TOP_PREVIEW} />
             </ChartCard>
           </div>
+
+          {/* Alertas Operacionais — largura total */}
+          <ChartCard title="Alertas Operacionais" description="Derivados dos dados do período" icon={AlertTriangle}
+            expandedChart={<AlertasOperacionais orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} />}>
+            <AlertasOperacionais orders={filteredOrders} ptMap={ptMap} traceMap={traceMap} costs={costs} limit={5} />
+          </ChartCard>
         </>
       )}
 
