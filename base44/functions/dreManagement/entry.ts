@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.44';
+import { isPlatformAdminVerified } from '../../shared/platformAdmin.ts';
 
 // Gestão do DRE Padrão CimentoPro (multiempresa):
 //   - seed_template: extrai a ESTRUTURA das DREs existentes (contas, categorias,
@@ -79,13 +80,15 @@ export default async function(req) {
     const user = await base44.auth.me();
     if (!user || !user.id) return Response.json({ error: 'Não autenticado' }, { status: 401 });
     const svc = base44.asServiceRole;
-    const isPlatformAdmin = user.is_platform_admin === true || (user.data && user.data.is_platform_admin) === true;
+    // SUPER_ADMIN: fonte protegida PlatformAdmin (verificada no backend) —
+    // a flag da sessão é apenas cache de exibição.
+    const isPlatformAdmin = await isPlatformAdminVerified(svc, user);
 
     let body = {};
     try { body = await req.json(); } catch (error) { body = {}; }
     const action = body.action;
 
-    const audit = async (companyId, actionName, entityName, entityId, newValue) => {
+    const audit = async (companyId, actionName, entityName, entityId, newValue, oldValue) => {
       await svc.entities.AuditLog.create({
         user_id: user.id,
         user_email: user.email,
@@ -93,6 +96,7 @@ export default async function(req) {
         action: actionName,
         entity_name: entityName,
         entity_id: entityId || null,
+        old_value: oldValue || null,
         new_value: newValue || null,
       });
     };
@@ -399,6 +403,72 @@ export default async function(req) {
         filled: filled.map((f) => ({ account_name: f.account.name, source_type: f.account.source_type, value: round2(f.value) })),
         skipped,
       });
+    }
+
+    // ── Ações do template do painel admin (SUPER_ADMIN verificado) ──
+    if (['list_template', 'template_save', 'template_toggle', 'template_delete', 'template_reorder'].includes(action)) {
+      if (!isPlatformAdmin) return Response.json({ error: 'Forbidden: SUPER_ADMIN required' }, { status: 403 });
+    }
+
+    // --- list_template: contas do template + empresas ativas (painel) ---
+    if (action === 'list_template') {
+      const template = await svc.entities.DreTemplateAccount.list('sort_order', 1000);
+      const companies = await svc.entities.Company.list('name', 500);
+      return Response.json({
+        template: [...template].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+        companies: companies
+          .filter((c) => ['active', 'trial'].includes(c.status))
+          .map((c) => ({ id: c.id, name: c.name })),
+      });
+    }
+
+    // --- template_save: criar/atualizar conta do template ---
+    if (action === 'template_save') {
+      const name = String(body.name || '').trim();
+      const category = body.category;
+      if (!name || !category) return Response.json({ error: 'Nome e categoria são obrigatórios' }, { status: 400 });
+      const data = { name, category };
+      if (body.description !== undefined) data.description = body.description;
+      if (body.apportionment_method !== undefined) data.apportionment_method = body.apportionment_method;
+      if (body.parent_id !== undefined) data.parent_id = body.parent_id;
+      if (body.sort_order !== undefined) data.sort_order = body.sort_order;
+      if (body.template_id) {
+        const prev = await svc.entities.DreTemplateAccount.get(body.template_id).catch(() => null);
+        if (!prev) return Response.json({ error: 'Conta não encontrada' }, { status: 404 });
+        const updated = await svc.entities.DreTemplateAccount.update(body.template_id, data);
+        await audit(null, 'UPDATE', 'DreTemplateAccount', updated.id,
+          { name: prev.name, category: prev.category, apportionment_method: prev.apportionment_method }, data);
+        return Response.json({ account: updated });
+      }
+      const created = await svc.entities.DreTemplateAccount.create({ active: true, ...data });
+      await audit(null, 'CREATE', 'DreTemplateAccount', created.id, null, data);
+      return Response.json({ account: created });
+    }
+
+    // --- template_toggle: ativar/desativar conta ---
+    if (action === 'template_toggle') {
+      const prev = await svc.entities.DreTemplateAccount.get(body.template_id).catch(() => null);
+      if (!prev) return Response.json({ error: 'Conta não encontrada' }, { status: 404 });
+      const updated = await svc.entities.DreTemplateAccount.update(body.template_id, { active: prev.active === false });
+      await audit(null, 'UPDATE', 'DreTemplateAccount', updated.id, { active: prev.active !== false }, { active: updated.active });
+      return Response.json({ account: updated });
+    }
+
+    // --- template_delete: excluir conta do template (DREs das empresas intactas) ---
+    if (action === 'template_delete') {
+      const prev = await svc.entities.DreTemplateAccount.get(body.template_id).catch(() => null);
+      if (!prev) return Response.json({ error: 'Conta não encontrada' }, { status: 404 });
+      await svc.entities.DreTemplateAccount.delete(body.template_id);
+      await audit(null, 'DELETE', 'DreTemplateAccount', body.template_id, null, { name: prev.name });
+      return Response.json({ ok: true });
+    }
+
+    // --- template_reorder: nova ordem das contas ---
+    if (action === 'template_reorder') {
+      const order = body.order;
+      if (!Array.isArray(order) || !order.length) return Response.json({ error: 'Ordem inválida' }, { status: 400 });
+      await svc.entities.DreTemplateAccount.bulkUpdate(order.map((o) => ({ id: o.id, sort_order: o.sort_order })));
+      return Response.json({ ok: true });
     }
 
     return Response.json({ error: 'Ação inválida' }, { status: 400 });

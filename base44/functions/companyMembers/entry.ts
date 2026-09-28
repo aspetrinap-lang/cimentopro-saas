@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.44';
 import { checkPlanLimit } from '../../shared/subscriptionAccess.ts';
+import { isPlatformAdminVerified } from '../../shared/platformAdmin.ts';
 
 // Gestão de vínculos usuário-empresa (UserCompany) e sincronização do cache
 // user.company_ids — base das regras RLS de multi-tenancy.
@@ -77,7 +78,15 @@ export default async function(req) {
         ? (await Promise.all(ids.map((id) => svc.entities.Company.get(id).catch(() => null)))).filter(Boolean)
         : [];
       let selectable = linked.filter((c) => ['active', 'trial'].includes(c.status));
-      const platformAdmin = auth.is_platform_admin === true || (auth.data && auth.data.is_platform_admin) === true;
+      // Empresas do vínculo bloqueadas por status (suspensa/inativa): o vínculo
+      // é real, mas o acesso é recusado — devolvidas para mensagem clara na
+      // tela de bloqueio (nenhuma página operacional abre para elas).
+      const blockedCompanies = linked
+        .filter((c) => !['active', 'trial'].includes(c.status))
+        .map((c) => ({ id: c.id, name: c.name, status: c.status }));
+      // SUPER_ADMIN: fonte protegida PlatformAdmin, verificada no backend —
+      // a flag da sessão não decide mais nada (após a migração única).
+      const platformAdmin = await isPlatformAdminVerified(svc, auth);
       if (platformAdmin) {
         const all = await svc.entities.Company.list('name', 500).catch(() => []);
         const byId = new Map(selectable.map((c) => [c.id, c]));
@@ -85,6 +94,8 @@ export default async function(req) {
         selectable = [...byId.values()];
       }
       return Response.json({
+        platform_admin: platformAdmin,
+        blocked_companies: blockedCompanies,
         memberships: links.map((l) => ({
           id: l.id,
           company_id: l.company_id,
@@ -99,7 +110,7 @@ export default async function(req) {
     const companyId = body.company_id;
     if (!companyId) return Response.json({ error: 'company_id é obrigatório' }, { status: 400 });
 
-    const isPlatformAdmin = auth.is_platform_admin === true || (auth.data && auth.data.is_platform_admin) === true;
+    const isPlatformAdmin = await isPlatformAdminVerified(svc, auth);
     const myLinks = await svc.entities.UserCompany.filter({ user_id: auth.id, company_id: companyId });
     const isCompanyManager = myLinks.some((l) => l.status === 'active' && ['owner', 'admin'].includes(l.role));
     if (!isPlatformAdmin && !isCompanyManager) {

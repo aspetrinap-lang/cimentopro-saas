@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.44';
+import { isPlatformAdminVerified } from '../../shared/platformAdmin.ts';
 
 // Segurança do PIN do operador (UserPin):
 // - o PIN de 4 dígitos é armazenado apenas como hash salgado (SHA-256 + salt por operador)
@@ -38,7 +39,7 @@ export default async function(req) {
     try { body = await req.json(); } catch (error) { body = {}; }
     const action = body.action;
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || null;
-    const isPlatformAdmin = auth.is_platform_admin === true || (auth.data && auth.data.is_platform_admin) === true;
+    const isPlatformAdmin = await isPlatformAdminVerified(svc, auth);
     const companyIds = (Array.isArray(auth.company_ids) && auth.company_ids)
       || (auth.data && Array.isArray(auth.data.company_ids) && auth.data.company_ids) || [];
     const isRoleAdmin = ['admin', 'administrador'].includes(auth.role);

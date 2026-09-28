@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.44';
-import { requirePlatformAdmin } from '../../shared/platformAdmin.ts';
+import { requirePlatformAdmin, isPlatformAdminVerified } from '../../shared/platformAdmin.ts';
 import { getCompanySubscription, isSubscriptionBlocked, checkPlanLimit } from '../../shared/subscriptionAccess.ts';
 
 // Gestão de Planos e Assinaturas da plataforma CimentoPro.
@@ -26,12 +26,18 @@ export default async function(req) {
       const companyId = body.company_id;
       if (!companyId) return Response.json({ error: 'company_id é obrigatório' }, { status: 400 });
       const svc = base44.asServiceRole;
-      const platformAdmin = me.is_platform_admin === true || (me.data && me.data.is_platform_admin) === true;
+      const platformAdmin = await isPlatformAdminVerified(svc, me);
       if (!platformAdmin) {
         const links = await svc.entities.UserCompany.filter({ user_id: me.id, company_id: companyId, status: 'active' }, '-created_date', 10);
         if (!links.length) return Response.json({ error: 'Sem acesso a esta empresa' }, { status: 403 });
       }
       if (action === 'current') {
+        // Empresa suspensa/inativa: acesso operacional bloqueado com motivo
+        // claro — independentemente da assinatura registrada.
+        const company = await svc.entities.Company.get(companyId).catch(() => null);
+        if (company && !['active', 'trial'].includes(company.status)) {
+          return Response.json({ subscription: null, plan: null, blocked: true, block_reason: 'company_suspended', allowed_modules: null });
+        }
         const { subscription, plan } = await getCompanySubscription(svc, companyId);
         const { blocked, reason } = isSubscriptionBlocked(subscription);
         return Response.json({

@@ -1,0 +1,44 @@
+{
+  "name": "PlatformAdmin",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "ID do usu\u00e1rio (User) com acesso de SUPER_ADMIN da plataforma"
+    },
+    "user_email": {
+      "type": "string",
+      "description": "E-mail do usu\u00e1rio (cache, exibi\u00e7\u00e3o)"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "V\u00ednculo ativo \u2014 false = usu\u00e1rio rebaixado (registro preservado como hist\u00f3rico)"
+    }
+  },
+  "required": [
+    "user_id"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    }
+  }
+}
