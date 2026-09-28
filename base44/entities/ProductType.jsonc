@@ -21,7 +21,7 @@
     "unit": {
       "type": "string",
       "default": "un",
-      "description": "Unidade de medida"
+      "description": "Unidade de venda do artefato: un, m, m2 ou m3"
     },
     "units_per_mold": {
       "type": "number",
