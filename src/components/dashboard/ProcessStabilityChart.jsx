@@ -1,0 +1,76 @@
+import { useMemo } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { useInsumoNames } from '@/hooks/useInsumoNames';
+import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
+import { computeStats } from '@/lib/statsUtils';
+
+const GREEN = '#22c55e';
+const AMBER = '#f59e0b';
+const RED = '#ef4444';
+
+function colorFor(cv) {
+  if (cv == null) return '#94a3b8';
+  if (cv <= 5) return GREEN;
+  if (cv <= 10) return AMBER;
+  return RED;
+}
+
+function CustomTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0]?.payload;
+  if (!d) return null;
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs space-y-1 min-w-[140px]">
+      <p className="font-semibold text-slate-800">{d.name}</p>
+      <div className="flex justify-between gap-4"><span className="text-slate-500">CV:</span><span className="font-semibold">{d.cv != null ? `${d.cv.toFixed(2)}%` : '—'}</span></div>
+      <div className="flex justify-between gap-4"><span className="text-slate-500">Amostras:</span><span className="font-semibold">{d.count}</span></div>
+    </div>
+  );
+}
+
+export default function ProcessStabilityChart({ orders }) {
+  const { names } = useInsumoNames();
+  const { data, avgCV } = useMemo(() => {
+    const concluded = orders.filter((o) => o.status === 'Concluída' && o.actual_quantity > 0);
+    const rows = INSUMO_KEYS.map((key) => {
+      const values = concluded
+        .map((o) => (Number(o[INSUMO_FIELDS[key].actual]) || 0) / o.actual_quantity)
+        .filter((v) => v > 0);
+      const s = computeStats(values);
+      return { name: names[key], cv: s && s.count >= 2 ? s.cv : null, count: values.length };
+    }).filter((d) => d.cv != null);
+    const cvs = rows.map((r) => r.cv).filter((v) => v != null);
+    const avg = cvs.length ? cvs.reduce((a, b) => a + b, 0) / cvs.length : null;
+    return { data: rows, avgCV: avg };
+  }, [orders, names]);
+
+  const badgeColor = avgCV == null ? '#94a3b8' : avgCV <= 5 ? GREEN : avgCV <= 10 ? AMBER : RED;
+
+  if (data.length === 0) {
+    return <div className="h-64 flex items-center justify-center text-sm text-slate-400">Sem dados</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-slate-500">CV Médio:</span>
+        <span className="px-2.5 py-1 rounded-full text-xs font-bold text-white" style={{ backgroundColor: badgeColor }}>
+          {avgCV != null ? `${avgCV.toFixed(1)}%` : '—'}
+        </span>
+      </div>
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-15} textAnchor="end" height={60} />
+            <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => `${v}%`} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f1f5f9' }} />
+            <Bar dataKey="cv" name="CV" radius={[3, 3, 0, 0]}>
+              {data.map((d, i) => <Cell key={i} fill={colorFor(d.cv)} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}

@@ -1,26 +1,15 @@
-import { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { format, subDays, parseISO, isAfter } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
 
-const PERIODS = [
-  { label: '7 dias', days: 7 },
-  { label: '30 dias', days: 30 },
-  { label: '90 dias', days: 90 },
-];
-
-const LINE_COLORS = ['#4F46E5', '#F59E0B', '#F97316', '#EAB308', '#64748B', '#14B8A6', '#EC4899', '#06B6D4'];
+const LINE_COLORS = ['#2563eb', '#F59E0B', '#F97316', '#EAB308', '#64748B', '#14B8A6', '#EC4899', '#06B6D4'];
 
 export default function TrendChart({ orders }) {
-  const [period, setPeriod] = useState(30);
   const { names } = useInsumoNames();
 
-  const cutoff = subDays(new Date(), period);
-  const filtered = orders.filter(o =>
-    o.status === 'Concluída' && o.production_date && isAfter(parseISO(o.production_date), cutoff)
-  );
+  const filtered = orders.filter(o => o.status === 'Concluída' && o.production_date);
 
   const grouped = {};
   filtered.forEach(o => {
@@ -45,26 +34,9 @@ export default function TrendChart({ orders }) {
 
   return (
     <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="font-semibold text-foreground">Tendência de Consumo</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">Real vs Planejado por insumo</p>
-        </div>
-        <div className="flex gap-1">
-          {PERIODS.map(p => (
-            <button
-              key={p.days}
-              onClick={() => setPeriod(p.days)}
-              className={`px-3 py-1 text-xs rounded-lg font-medium transition-all ${
-                period === p.days
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-accent'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+      <div className="mb-4">
+        <h3 className="font-semibold text-slate-800">Tendência de Consumo</h3>
+        <p className="text-xs text-slate-500 mt-0.5">Real vs. planejado por insumo</p>
       </div>
       {data.length === 0 ? (
         <div className="h-56 flex items-center justify-center text-muted-foreground text-sm">
