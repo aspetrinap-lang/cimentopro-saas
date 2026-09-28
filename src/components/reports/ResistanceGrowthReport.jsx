@@ -15,7 +15,7 @@ export default function ResistanceGrowthReport({ rows, target, reading, traceNam
   ].filter(Boolean).join('  ·  ') || 'Todos os traços e artefatos';
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 overflow-y-auto p-4 md:p-8">
+    <div className="print-root fixed inset-0 z-50 bg-slate-900/60 overflow-y-auto p-4 md:p-8">
       {/* Barra de ações (fora da área de impressão) */}
       <div className="max-w-[800px] mx-auto mb-3 flex items-center gap-2 rounded-xl bg-white/95 border border-slate-200 shadow px-3 py-2.5">
         <TrendingUp className="w-4 h-4 text-slate-500 shrink-0" />
