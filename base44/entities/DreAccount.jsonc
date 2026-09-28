@@ -96,6 +96,32 @@
       "default": false,
       "description": "Marca que o valor desta conta J\u00c1 est\u00e1 representado na energia operacional das linhas (kW \u00d7 h \u00d7 tarifa) \u2014 o motor v2 N\u00c3O soma novamente"
     },
+    "break_even_classification": {
+      "type": "string",
+      "enum": [
+        "revenue",
+        "variable",
+        "fixed_industrial",
+        "fixed_cash",
+        "fixed_non_cash",
+        "financial_cash",
+        "financial_non_cash",
+        "excluded"
+      ],
+      "default": "excluded",
+      "description": "Classifica\u00e7\u00e3o da conta no Ponto de Equil\u00edbrio: revenue (receita \u2014 base do faturamento, nunca \u00e9 custo), variable (custo/despesa que varia com venda ou produ\u00e7\u00e3o \u2014 reduz a Margem de Contribui\u00e7\u00e3o), fixed_industrial (custo industrial fixo \u2014 base do Ponto de Equil\u00edbrio Industrial), fixed_cash (custo fixo com desembolso de caixa \u2014 base do Ponto de Equil\u00edbrio de Caixa), fixed_non_cash (custo fixo sem desembolso imediato: deprecia\u00e7\u00e3o, amortiza\u00e7\u00e3o, provis\u00f5es \u2014 N\u00c3O entra no Ponto de Equil\u00edbrio de Caixa), financial_cash (compromisso financeiro pago: juros, tarifas banc\u00e1rias, parcelas \u2014 soma ao Ponto de Equil\u00edbrio Financeiro), financial_non_cash (item financeiro sem desembolso \u2014 fora dos pontos de equil\u00edbrio), excluded (n\u00e3o participa do c\u00e1lculo). Contas antigas sem classifica\u00e7\u00e3o s\u00e3o tratadas como excluded e geram alerta na An\u00e1lise de Custos"
+    },
+    "cash_effect": {
+      "type": "string",
+      "enum": [
+        "cash_in",
+        "cash_out",
+        "non_cash",
+        "none"
+      ],
+      "default": "none",
+      "description": "Efeito da conta no caixa (auditoria dos desembolsos): cash_in (entrada/recebimento), cash_out (sa\u00edda/desembolso), non_cash (sem desembolso imediato \u2014 deprecia\u00e7\u00e3o, amortiza\u00e7\u00e3o, provis\u00f5es), none (sem efeito definido)"
+    },
     "parent_id": {
       "type": "string",
       "description": "ID da conta-m\u00e3e (DreAccount) \u2014 subcontas criadas pela pr\u00f3pria empresa"
