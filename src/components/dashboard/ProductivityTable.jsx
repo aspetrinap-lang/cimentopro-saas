@@ -19,7 +19,7 @@ function CustomTooltip({ active, payload }) {
   );
 }
 
-export default function ProductivityTable({ orders, limit }) {
+export default function ProductivityTable({ orders, limit, view }) {
   const rows = useMemo(() => {
     const byKey = {};
     orders.filter((o) => o.status === 'Concluída' && o.actual_quantity > 0).forEach((o) => {
@@ -76,6 +76,10 @@ export default function ProductivityTable({ orders, limit }) {
     </div>
   );
 
+  if (view === 'table') {
+    return table;
+  }
+
   return (
     <div className="h-full min-h-[280px] flex flex-col">
       <div className="flex-1 min-h-0">
@@ -91,7 +95,6 @@ export default function ProductivityTable({ orders, limit }) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-      {table}
     </div>
   );
 }

@@ -25,7 +25,7 @@ function CustomTooltip({ active, payload }) {
 // teórico por unidade (ProductType.cement_per_unit etc.). Reutiliza a lógica
 // padrão de traço cadastrado no artefato — sem fórmula paralela.
 // `limit` restringe aos TOP N insumos no compacto; sem limite, mostra todos.
-export default function ForecastConsumptionChart({ orders, ptMap, limit }) {
+export default function ForecastConsumptionChart({ orders, ptMap, limit, view }) {
   const { names } = useInsumoNames();
   const { data, insufficient, orderCount, calculatedCount } = useMemo(() => {
     const inProgress = orders.filter((o) => o.status === 'Em Andamento');
@@ -110,6 +110,17 @@ export default function ForecastConsumptionChart({ orders, ptMap, limit }) {
     </div>
   );
 
+  if (view === 'detail') {
+    return (
+      <div className="space-y-2">
+        {insufficient > 0 && (
+          <p className="text-[11px] text-slate-400">{orderCount} ordens em andamento · {calculatedCount} com consumo calculado · {insufficient} sem dados suficientes</p>
+        )}
+        {detail}
+      </div>
+    );
+  }
+
   if (data.length === 0) {
     return (
       <div className="h-full min-h-[280px] flex flex-col items-center justify-center gap-2 text-center">
@@ -117,7 +128,6 @@ export default function ForecastConsumptionChart({ orders, ptMap, limit }) {
         {orderCount > 0 && (
           <p className="text-[11px] text-slate-400">{orderCount} ordens em andamento · {insufficient} sem dados suficientes</p>
         )}
-        {detail}
       </div>
     );
   }
@@ -140,7 +150,6 @@ export default function ForecastConsumptionChart({ orders, ptMap, limit }) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-      {detail}
     </div>
   );
 }

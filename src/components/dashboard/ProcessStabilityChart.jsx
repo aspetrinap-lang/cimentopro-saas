@@ -46,20 +46,12 @@ export default function ProcessStabilityChart({ orders, limit }) {
     return { data: limited, avgCV: avg };
   }, [orders, names, limit]);
 
-  const badgeColor = avgCV == null ? '#94a3b8' : avgCV <= 5 ? GREEN : avgCV <= 10 ? AMBER : RED;
-
   if (data.length === 0) {
     return <div className="h-full min-h-[280px] flex items-center justify-center text-sm text-slate-400">Sem dados</div>;
   }
 
   return (
-    <div className="h-full min-h-[280px] flex flex-col space-y-3">
-      <div className="flex items-center gap-2 shrink-0">
-        <span className="text-xs text-slate-500">CV Médio:</span>
-        <span className="px-2.5 py-1 rounded-full text-xs font-bold text-white" style={{ backgroundColor: badgeColor }}>
-          {avgCV != null ? `${avgCV.toFixed(1)}%` : '—'}
-        </span>
-      </div>
+    <div className="h-full min-h-[280px] flex flex-col">
       <div className="flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>

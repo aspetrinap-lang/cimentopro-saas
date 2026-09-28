@@ -22,7 +22,7 @@ function CustomTooltip({ active, payload }) {
   );
 }
 
-export default function MachinePerformanceChart({ orders, limit }) {
+export default function MachinePerformanceChart({ orders, limit, view }) {
   const all = useMemo(() => {
     const byMachine = {};
     orders.filter((o) => o.status === 'Concluída' && o.machine_name).forEach((o) => {
@@ -77,6 +77,10 @@ export default function MachinePerformanceChart({ orders, limit }) {
     </div>
   );
 
+  if (view === 'table') {
+    return table;
+  }
+
   return (
     <div className="h-full min-h-[280px] flex flex-col">
       <div className="flex-1 min-h-0">
@@ -92,7 +96,6 @@ export default function MachinePerformanceChart({ orders, limit }) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-      {table}
     </div>
   );
 }

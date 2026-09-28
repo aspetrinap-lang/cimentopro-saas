@@ -69,7 +69,7 @@ export default function KpiStrip({ orders, ptMap, traceMap, costs }) {
       { icon: TrendingUp, label: 'Desvio de Consumo', value: deviation != null ? `${deviation > 0 ? '+' : ''}${fmtPct(deviation)}` : '—', sub: 'real vs. teórico' },
       { icon: AlertTriangle, label: 'Desperdício', value: fmtInt(lost), sub: `${lossPct != null ? fmtPct(lossPct) : '—'} · ${fmtBRL(lossCost)}` },
       { icon: PlayCircle, label: 'Ordens em Andamento', value: fmtInt(ipCount), sub: `${fmtInt(ipRemaining)} un. restantes` },
-      { icon: Coins, label: 'Consumo Previsto', value: fmtBRL(forecastCost), sub: `custo estimado dos insumos restantes · ${forecastCalculated} ordens` },
+      { icon: Coins, label: 'Custo Previsto dos Insumos', value: fmtBRL(forecastCost), sub: `${fmtInt(ipRemaining)} un. restantes · ${forecastCalculated} ordens` },
     ];
   }, [orders, ptMap, traceMap, costs]);
 

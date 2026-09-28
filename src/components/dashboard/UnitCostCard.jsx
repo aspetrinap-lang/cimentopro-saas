@@ -1,196 +1,154 @@
-import { useMemo, useState, useEffect } from 'react';
-import { scopedFilter } from '@/lib/companyScope';
-import { base44 } from '@/api/base44Client';
+import { useMemo } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useInsumoCosts } from '@/hooks/useInsumoCosts';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
-import { DollarSign, AlertCircle } from 'lucide-react';
 
-function fmt(val) {
-  return val.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+const COLORS = ['#2563eb', '#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#f97316'];
+const fmtCurrency = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtCurrency4 = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 4 });
+
+function abbreviate(name, max = 14) {
+  if (!name) return '—';
+  return name.length > max ? name.slice(0, max - 1) + '…' : name;
 }
 
-function fmtCurrency(val) {
-  return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 4 });
+function CustomTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0]?.payload;
+  if (!d) return null;
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs space-y-1 min-w-[160px]">
+      <p className="font-semibold text-slate-800">{d.fullName}</p>
+      <div className="flex justify-between gap-4"><span className="text-slate-500">Custo/un:</span><span className="font-semibold">{fmtCurrency(d.costPerUnit)}</span></div>
+      <div className="flex justify-between gap-4"><span className="text-slate-500">Quantidade:</span><span className="font-semibold">{d.totalQty.toLocaleString('pt-BR')} un</span></div>
+      <div className="flex justify-between gap-4"><span className="text-slate-500">Custo total:</span><span className="font-semibold">{fmtCurrency(d.totalCost)}</span></div>
+    </div>
+  );
 }
 
+// Compacto: gráfico horizontal TOP 5 do custo unitário por artefato.
+// Sem composição detalhada — essa fica no detailView (modal).
 export default function UnitCostCard({ orders, limit }) {
   const { costs, loading: costsLoading } = useInsumoCosts();
   const { names } = useInsumoNames();
-  const [productTypes, setProductTypes] = useState([]);
-  const [selectedProduct, setSelectedProduct] = useState('all');
 
-  useEffect(() => {
-    base44.entities.ProductType.filter(scopedFilter({})).then(setProductTypes);
-  }, []);
-
-  // Lista de artefatos disponíveis nas ordens concluídas
-  const availableProducts = useMemo(() => {
-    const set = new Set();
-    orders.filter(o => o.status === 'Concluída' && o.actual_quantity > 0)
-      .forEach(o => set.add(o.product_type_name || 'Desconhecido'));
-    return Array.from(set).sort();
-  }, [orders]);
-
-  // Mapa de product_type_id -> mold_cost_per_unit
-  const moldCostMap = useMemo(() => {
-    const map = {};
-    productTypes.forEach(pt => {
-      if (pt.mold_cost_per_unit) map[pt.id] = pt.mold_cost_per_unit;
-    });
-    return map;
-  }, [productTypes]);
-
-  const costsConfigured = useMemo(() =>
-    Object.values(costs).some(v => v > 0), [costs]);
-
-  // Agrupa ordens concluídas por artefato e calcula custo unitário médio
   const productCosts = useMemo(() => {
     const byProduct = {};
-
     orders
-      .filter(o => o.status === 'Concluída' && o.actual_quantity > 0)
-      .forEach(o => {
+      .filter((o) => o.status === 'Concluída' && o.actual_quantity > 0)
+      .forEach((o) => {
         const name = o.product_type_name || 'Desconhecido';
         if (!byProduct[name]) {
-          byProduct[name] = { name, totalQty: 0, totalCost: 0, moldCost: 0, insumoBreakdown: {} };
-          INSUMO_KEYS.forEach(k => { byProduct[name].insumoBreakdown[k] = 0; });
+          byProduct[name] = { name, fullName: name, totalQty: 0, totalCost: 0, insumoBreakdown: {} };
+          INSUMO_KEYS.forEach((k) => { byProduct[name].insumoBreakdown[k] = 0; });
         }
         byProduct[name].totalQty += o.actual_quantity;
-
         let orderCost = 0;
-        INSUMO_KEYS.forEach(key => {
-          const { actual } = INSUMO_FIELDS[key];
-          const qty = o[actual] || 0;
+        INSUMO_KEYS.forEach((key) => {
+          const qty = Number(o[INSUMO_FIELDS[key].actual]) || 0;
           const cost = qty * (costs[key] || 0);
           orderCost += cost;
           byProduct[name].insumoBreakdown[key] += cost;
         });
-
-        // Custo do molde por peça × quantidade real
-        const moldPerUnit = moldCostMap[o.product_type_id] || 0;
-        const moldCost = moldPerUnit * o.actual_quantity;
-        byProduct[name].moldCost += moldCost;
-        orderCost += moldCost;
-
         byProduct[name].totalCost += orderCost;
       });
 
-    const sorted = Object.values(byProduct)
-      .map(p => ({
-        ...p,
-        costPerUnit: p.totalQty > 0 ? p.totalCost / p.totalQty : 0,
-      }))
-      .filter(p => selectedProduct === 'all' || p.name === selectedProduct)
+    return Object.values(byProduct)
+      .map((p) => ({ ...p, costPerUnit: p.totalQty > 0 ? p.totalCost / p.totalQty : 0 }))
       .sort((a, b) => b.costPerUnit - a.costPerUnit);
-    return limit ? sorted.slice(0, limit) : sorted;
-  }, [orders, costs, moldCostMap, selectedProduct, limit]);
+  }, [orders, costs]);
 
   if (costsLoading) return null;
 
-  if (!costsConfigured) {
-    return (
-      <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-2">
-          <DollarSign className="w-4 h-4 text-primary" />
-          <h3 className="text-sm font-semibold text-foreground">Custo Unitário por Artefato</h3>
-        </div>
-        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>Configure os custos de matéria-prima em <strong>Configurações → Custos de Insumos</strong> para visualizar o custo unitário de cada artefato.</span>
-        </div>
-      </div>
-    );
-  }
+  const data = (limit ? productCosts.slice(0, limit) : productCosts).map((p) => ({
+    ...p,
+    label: abbreviate(p.name),
+  }));
 
-  if (productCosts.length === 0) {
-    return (
-      <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <DollarSign className="w-4 h-4 text-primary" />
-          <h3 className="text-sm font-semibold text-foreground">Custo Unitário por Artefato</h3>
-        </div>
-        <p className="text-sm text-muted-foreground text-center py-8">Nenhuma ordem concluída no período.</p>
-      </div>
-    );
+  if (data.length === 0) {
+    return <div className="h-full min-h-[280px] flex items-center justify-center text-sm text-slate-400">Sem dados</div>;
   }
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
-          <DollarSign className="w-4 h-4 text-primary" />
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Custo Unitário por Artefato</h3>
-            <p className="text-xs text-muted-foreground">Baseado no consumo real de matéria-prima das ordens concluídas</p>
-          </div>
-        </div>
-        <select
-          value={selectedProduct}
-          onChange={e => setSelectedProduct(e.target.value)}
-          className="px-3 py-1.5 border border-input rounded-lg text-xs bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring max-w-[220px]"
-        >
-          <option value="all">Todos os artefatos</option>
-          {availableProducts.map(name => (
-            <option key={name} value={name}>{name}</option>
-          ))}
-        </select>
+    <div className="h-full min-h-[280px] flex flex-col">
+      <div className="flex-1 min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => fmtCurrency(v)} />
+            <YAxis type="category" dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} width={90} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f1f5f9' }} />
+            <Bar dataKey="costPerUnit" name="Custo/un" radius={[0, 4, 4, 0]}>
+              {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </div>
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {productCosts.map(p => (
-          <div key={p.name} className="border border-border rounded-xl p-4 space-y-3">
-            <div className="flex items-start justify-between gap-2">
-              <span className="font-semibold text-sm text-foreground">{p.name}</span>
-              <span className="text-xs text-muted-foreground whitespace-nowrap">{p.totalQty.toLocaleString('pt-BR')} un</span>
-            </div>
+// Detalhamento para o modal: tabela com composição de custo por artefato.
+export function UnitCostDetail({ orders }) {
+  const { costs } = useInsumoCosts();
+  const { names } = useInsumoNames();
 
-            {/* Custo por unidade em destaque */}
-            <div className="bg-primary/5 rounded-lg px-3 py-2 text-center">
-              <p className="text-xs text-muted-foreground">Custo por unidade</p>
-              <p className="text-2xl font-bold text-primary">{fmtCurrency(p.costPerUnit)}</p>
-            </div>
+  const productCosts = useMemo(() => {
+    const byProduct = {};
+    orders
+      .filter((o) => o.status === 'Concluída' && o.actual_quantity > 0)
+      .forEach((o) => {
+        const name = o.product_type_name || 'Desconhecido';
+        if (!byProduct[name]) {
+          byProduct[name] = { name, totalQty: 0, totalCost: 0, insumoBreakdown: {} };
+          INSUMO_KEYS.forEach((k) => { byProduct[name].insumoBreakdown[k] = 0; });
+        }
+        byProduct[name].totalQty += o.actual_quantity;
+        INSUMO_KEYS.forEach((key) => {
+          const qty = Number(o[INSUMO_FIELDS[key].actual]) || 0;
+          byProduct[name].insumoBreakdown[key] += qty * (costs[key] || 0);
+        });
+        byProduct[name].totalCost += INSUMO_KEYS.reduce((s, k) => s + (Number(o[INSUMO_FIELDS[k].actual]) || 0) * (costs[k] || 0), 0);
+      });
+    return Object.values(byProduct)
+      .map((p) => ({ ...p, costPerUnit: p.totalQty > 0 ? p.totalCost / p.totalQty : 0 }))
+      .sort((a, b) => b.costPerUnit - a.costPerUnit);
+  }, [orders, costs]);
 
-            {/* Breakdown por insumo */}
-            <div className="space-y-1">
-              <p className="text-xs font-semibold text-muted-foreground">Composição do custo</p>
-              {INSUMO_KEYS.map(key => {
-                const costForKey = p.insumoBreakdown[key];
-                if (!costForKey || costForKey === 0) return null;
-                const pct = p.totalCost > 0 ? (costForKey / p.totalCost) * 100 : 0;
-                const perUnit = p.totalQty > 0 ? costForKey / p.totalQty : 0;
-                return (
-                  <div key={key} className="flex items-center gap-2 text-xs">
-                    <span className="text-muted-foreground w-24 truncate">{names[key]}</span>
-                    <div className="flex-1 bg-muted rounded-full h-1.5 overflow-hidden">
-                      <div className="h-full bg-primary/60 rounded-full" style={{ width: `${pct}%` }} />
-                    </div>
-                    <span className="text-muted-foreground w-16 text-right">{fmtCurrency(perUnit)}/un</span>
-                  </div>
-                );
+  if (productCosts.length === 0) {
+    return <div className="text-sm text-slate-400 text-center py-8">Sem dados</div>;
+  }
+
+  return (
+    <div className="overflow-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-left text-slate-400 border-b border-slate-200">
+            <th className="py-2 pr-3 font-semibold">Artefato</th>
+            <th className="py-2 px-3 font-semibold text-right">Qtd (un)</th>
+            <th className="py-2 px-3 font-semibold text-right">Custo/un</th>
+            {INSUMO_KEYS.map((k) => (
+              <th key={k} className="py-2 px-3 font-semibold text-right">{names[k]}</th>
+            ))}
+            <th className="py-2 pl-3 font-semibold text-right">Custo total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {productCosts.map((p) => (
+            <tr key={p.name} className="border-b border-slate-100">
+              <td className="py-2 pr-3 font-medium text-slate-700">{p.name}</td>
+              <td className="py-2 px-3 text-right text-slate-700">{p.totalQty.toLocaleString('pt-BR')}</td>
+              <td className="py-2 px-3 text-right font-semibold text-slate-800">{fmtCurrency4(p.costPerUnit)}</td>
+              {INSUMO_KEYS.map((k) => {
+                const cost = p.insumoBreakdown[k] || 0;
+                return <td key={k} className="py-2 px-3 text-right text-slate-500">{cost > 0 ? fmtCurrency4(cost / p.totalQty) : '—'}</td>;
               })}
-              {p.moldCost > 0 && (
-                <div className="flex items-center gap-2 text-xs pt-1 border-t border-border">
-                  <span className="text-muted-foreground w-24 truncate">Molde</span>
-                  <div className="flex-1 bg-muted rounded-full h-1.5 overflow-hidden">
-                    <div className="h-full bg-amber-500/70 rounded-full" style={{ width: `${p.totalCost > 0 ? (p.moldCost / p.totalCost) * 100 : 0}%` }} />
-                  </div>
-                  <span className="text-muted-foreground w-16 text-right">
-                    {fmtCurrency(p.totalQty > 0 ? p.moldCost / p.totalQty : 0)}/un
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-border pt-2 flex justify-between text-xs text-muted-foreground">
-              <span>Custo total do período</span>
-              <span className="font-semibold text-foreground">
-                {p.totalCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
+              <td className="py-2 pl-3 text-right font-semibold text-slate-700">{fmtCurrency(p.totalCost)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
