@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Pencil, Trash2, CheckCircle2, XCircle, Layers, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import ProductTypeForm from '@/components/settings/ProductTypeForm';
+import { unitLabel } from '@/lib/costUtils';
 
 export default function ArtifactTab({ types, traces, loading, categories, onChanged }) {
   const [showForm, setShowForm] = useState(false);
@@ -96,6 +97,7 @@ export default function ArtifactTab({ types, traces, loading, categories, onChan
                       <tr className="bg-muted/50 text-xs text-muted-foreground uppercase tracking-wide">
                         <th className="px-5 py-3 text-left font-semibold">Nome</th>
                         <th className="px-5 py-3 text-left font-semibold">Código</th>
+                        <th className="px-5 py-3 text-center font-semibold">Un. venda</th>
                         <th className="px-5 py-3 text-center font-semibold">Dimensões (mm)</th>
                         <th className="px-5 py-3 text-right font-semibold">Peças/m</th>
                         <th className="px-5 py-3 text-right font-semibold">Cimento (kg/un)</th>
@@ -110,6 +112,7 @@ export default function ArtifactTab({ types, traces, loading, categories, onChan
                         <tr key={t.id} className="border-b border-border hover:bg-muted/30 transition-colors">
                           <td className="px-5 py-3 font-medium text-foreground">{t.name}</td>
                           <td className="px-5 py-3 text-muted-foreground font-mono text-xs">{t.code}</td>
+                          <td className="px-5 py-3 text-center">{unitLabel(t)}</td>
                           <td className="px-5 py-3 text-center text-xs text-muted-foreground whitespace-nowrap">
                             {t.length_mm || t.width_mm || t.height_mm
                               ? `${t.length_mm || '—'} × ${t.width_mm || '—'} × ${t.height_mm || '—'}`
