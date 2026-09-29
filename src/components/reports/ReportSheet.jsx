@@ -107,7 +107,8 @@ export default function ReportSheet({ title, subtitle, icon: Icon, initialStart,
           </div>
         </div>
 
-        {children && children({ start, end, days })}
+        {/* children pode ser render-prop ({ start, end, days }) ou JSX comum */}
+        {typeof children === 'function' ? children({ start, end, days }) : children}
 
         <p className="text-[10px] text-slate-400 text-center border-t border-slate-200 mt-8 pt-3">
           Relatório gerado automaticamente pelo CimentoPro. Valores conforme os registros do período selecionado.
