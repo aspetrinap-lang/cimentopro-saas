@@ -1,8 +1,57 @@
 // Acesso por assinatura: consulta a assinatura/plano vigente de uma empresa e
 // valida os limites de cadastro do plano. Compartilhado entre as funções de
-// backend (subscriptionManagement e companyMembers) — sem duplicação.
+// backend (subscriptionManagement, companyMembers e adminCompanies) — sem
+// duplicação.
 // Regra de compatibilidade: empresa SEM assinatura registrada mantém acesso
 // integral (legado) até o SUPER_ADMIN atribuir um plano.
+
+// Configuração GLOBAL de assinatura (AppSettings, chave fixa — sem company_id).
+// trial_days é usado apenas em NOVOS trials; trials existentes não mudam.
+export const SUBSCRIPTION_CONFIG_KEY = 'subscription_config';
+
+export async function getSubscriptionConfig(svc) {
+  const rows = await svc.entities.AppSettings.filter({ key: SUBSCRIPTION_CONFIG_KEY }, '-created_date', 5).catch(() => []);
+  const days = Number(rows[0]?.value?.trial_days);
+  return { trial_days: Number.isFinite(days) && days > 0 ? days : 15 };
+}
+
+// Datas em ISO (YYYY-MM-DD) calculadas em UTC — determinístico no backend.
+export function todayISO() {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+export function addDaysISO(isoDate, days) {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+// Vigência padrão por ciclo: mensal = +30 dias; anual = +365 dias.
+export function computeEndDate(startDate, billingCycle) {
+  const start = startDate || todayISO();
+  return addDaysISO(start, billingCycle === 'annual' ? 365 : 30);
+}
+
+// Cria automaticamente a assinatura trial de uma empresa recém-criada.
+// Idempotente: se a empresa já tiver QUALQUER assinatura, não cria nada.
+// Trial sem plano — acesso integral durante o período (plan_id vazio).
+export async function ensureTrialSubscription(svc, company) {
+  const existing = await svc.entities.Subscription.filter({ company_id: company.id }, '-created_date', 5).catch(() => []);
+  if (existing.length) return null;
+  const { trial_days } = await getSubscriptionConfig(svc);
+  const start = todayISO();
+  return svc.entities.Subscription.create({
+    company_id: company.id,
+    company_name: company.name || '',
+    plan_id: '',
+    plan_name: 'Trial',
+    status: 'trial',
+    billing_cycle: 'monthly',
+    start_date: start,
+    end_date: addDaysISO(start, trial_days),
+  });
+}
 
 export async function getCompanySubscription(svc, companyId) {
   const subs = await svc.entities.Subscription.filter({ company_id: companyId }, '-created_date', 20).catch(() => []);
@@ -20,7 +69,7 @@ export function isSubscriptionBlocked(subscription) {
   if (subscription.end_date) {
     const end = new Date(`${subscription.end_date}T23:59:59`);
     if (!isNaN(end.getTime()) && end.getTime() < Date.now()) {
-      return { blocked: true, reason: 'expired' };
+      return { blocked: true, reason: subscription.status === 'trial' ? 'trial_expired' : 'expired' };
     }
   }
   return { blocked: false, reason: null };
@@ -28,6 +77,8 @@ export function isSubscriptionBlocked(subscription) {
 
 // Valida o limite de cadastro do plano vigente. resource: 'users' | 'machines' | 'lines'.
 // Retorno: allowed (false = limite atingido), limit (null = ilimitado), current, plan_name.
+// Bloqueia apenas NOVAS inclusões — registros existentes nunca são excluídos
+// nem alterados quando o plano é reduzido.
 export async function checkPlanLimit(svc, companyId, resource) {
   const { subscription, plan } = await getCompanySubscription(svc, companyId);
   if (!subscription || !plan) {

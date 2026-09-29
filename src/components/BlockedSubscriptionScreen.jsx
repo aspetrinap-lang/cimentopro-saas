@@ -9,6 +9,10 @@ const REASONS = {
     title: 'Empresa suspensa',
     message: 'O acesso da sua empresa à plataforma está suspenso pela administração. Nenhum dado foi apagado — contate o administrador da plataforma CimentoPro para regularizar.',
   },
+  trial_expired: {
+    title: 'Trial expirado',
+    message: 'O período de avaliação gratuito da sua empresa terminou. Nenhum dado foi apagado — o acesso volta assim que um plano for contratado.',
+  },
   expired: {
     title: 'Assinatura vencida',
     message: 'A assinatura do CimentoPro da sua empresa venceu. Nenhum dado foi apagado — o acesso volta assim que a assinatura for renovada.',

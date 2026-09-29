@@ -1,6 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.44';
 import { requirePlatformAdmin, isPlatformAdminVerified } from '../../shared/platformAdmin.ts';
-import { getCompanySubscription, isSubscriptionBlocked, checkPlanLimit } from '../../shared/subscriptionAccess.ts';
+import {
+  getCompanySubscription, isSubscriptionBlocked, checkPlanLimit,
+  getSubscriptionConfig, SUBSCRIPTION_CONFIG_KEY, todayISO, computeEndDate,
+} from '../../shared/subscriptionAccess.ts';
 
 // Gestão de Planos e Assinaturas da plataforma CimentoPro.
 // - Ações administrativas (listPlans, savePlan, listSubscriptions,
@@ -8,7 +11,7 @@ import { getCompanySubscription, isSubscriptionBlocked, checkPlanLimit } from '.
 // - 'current' e 'checkLimit': disponíveis a membros ativos da empresa e ao
 //   SUPER_ADMIN. A assinatura vigente é lida pelo acesso de serviço — não
 //   depende do cache da sessão (mesma correção dos vínculos de empresa).
-const PLAN_FIELDS = ['name', 'description', 'price', 'max_users', 'max_machines', 'max_production_lines', 'features', 'status'];
+const PLAN_FIELDS = ['name', 'description', 'price', 'annual_price', 'max_users', 'max_machines', 'max_production_lines', 'features', 'status'];
 const SUB_STATUSES = ['trial', 'active', 'past_due', 'suspended', 'cancelled'];
 
 export default async function(req) {
@@ -44,6 +47,7 @@ export default async function(req) {
           subscription: subscription ? {
             id: subscription.id,
             status: subscription.status,
+            billing_cycle: subscription.billing_cycle || 'monthly',
             start_date: subscription.start_date,
             end_date: subscription.end_date,
           } : null,
@@ -100,7 +104,7 @@ export default async function(req) {
         return Response.json({ error: 'Situação inválida' }, { status: 400 });
       }
       const data = { name };
-      for (const field of ['description', 'price', 'max_users', 'max_machines', 'max_production_lines']) {
+      for (const field of ['description', 'price', 'annual_price', 'max_users', 'max_machines', 'max_production_lines']) {
         if (body[field] !== undefined) data[field] = body[field];
       }
       if (body.features !== undefined) {
@@ -139,6 +143,7 @@ export default async function(req) {
             subscription: sub ? {
               id: sub.id,
               status: sub.status,
+              billing_cycle: sub.billing_cycle || 'monthly',
               start_date: sub.start_date,
               end_date: sub.end_date,
               plan_id: sub.plan_id,
@@ -148,6 +153,7 @@ export default async function(req) {
               id: plan.id,
               name: plan.name,
               price: plan.price,
+              annual_price: plan.annual_price,
               features: plan.features || [],
               max_users: plan.max_users,
               max_machines: plan.max_machines,
@@ -157,15 +163,39 @@ export default async function(req) {
         }),
         plans: plans
           .filter((p) => p.status !== 'inactive')
-          .map((p) => ({ id: p.id, name: p.name, price: p.price })),
+          .map((p) => ({ id: p.id, name: p.name, price: p.price, annual_price: p.annual_price, max_users: p.max_users })),
       });
     }
 
+    if (action === 'getConfig') {
+      return Response.json({ config: await getSubscriptionConfig(svc) });
+    }
+
+    if (action === 'saveConfig') {
+      const days = Number(body.trial_days);
+      if (!Number.isInteger(days) || days < 1 || days > 365) {
+        return Response.json({ error: 'Dias de trial deve ser um número inteiro entre 1 e 365' }, { status: 400 });
+      }
+      const existing = await svc.entities.AppSettings.filter({ key: SUBSCRIPTION_CONFIG_KEY }, '-created_date', 5);
+      if (existing.length) {
+        await svc.entities.AppSettings.update(existing[0].id, { value: { trial_days: days } });
+      } else {
+        await svc.entities.AppSettings.create({ key: SUBSCRIPTION_CONFIG_KEY, value: { trial_days: days } });
+      }
+      await audit('UPDATE', 'AppSettings', SUBSCRIPTION_CONFIG_KEY, null, null, { trial_days: days });
+      return Response.json({ config: { trial_days: days } });
+    }
+
     if (action === 'saveSubscription') {
-      const { company_id, plan_id, status, start_date, end_date } = body;
+      const { company_id, plan_id, status, start_date, end_date, billing_cycle } = body;
       if (!company_id) return Response.json({ error: 'company_id é obrigatório' }, { status: 400 });
       if (!plan_id) return Response.json({ error: 'plan_id é obrigatório' }, { status: 400 });
       if (!SUB_STATUSES.includes(status)) return Response.json({ error: 'Situação de assinatura inválida' }, { status: 400 });
+      // Ciclo de cobrança (manual): mensal (padrão) ou anual. A end_date
+      // explícita do SUPER_ADMIN tem prioridade; sem ela, é calculada pelo
+      // ciclo a partir da data de início (ou hoje).
+      const cycle = billing_cycle === 'annual' ? 'annual' : 'monthly';
+      const finalEnd = end_date || computeEndDate(start_date, cycle);
       const company = await svc.entities.Company.get(company_id).catch(() => null);
       if (!company) return Response.json({ error: 'Empresa não encontrada' }, { status: 404 });
       const plan = await svc.entities.SubscriptionPlan.get(plan_id).catch(() => null);
@@ -179,21 +209,22 @@ export default async function(req) {
         plan_id,
         plan_name: plan.name,
         status,
+        billing_cycle: cycle,
         start_date: start_date || null,
-        end_date: end_date || null,
+        end_date: finalEnd,
       };
       const existing = await svc.entities.Subscription.filter({ company_id }, '-created_date', 20);
       if (existing.length) {
         const prev = existing[0];
         const updated = await svc.entities.Subscription.update(prev.id, data);
         await audit('UPDATE', 'Subscription', updated.id, company_id,
-          { plan_id: prev.plan_id, plan_name: prev.plan_name, status: prev.status, start_date: prev.start_date, end_date: prev.end_date },
-          { plan_id, plan_name: plan.name, status, start_date: start_date || null, end_date: end_date || null });
+          { plan_id: prev.plan_id, plan_name: prev.plan_name, status: prev.status, billing_cycle: prev.billing_cycle, start_date: prev.start_date, end_date: prev.end_date },
+          { plan_id, plan_name: plan.name, status, billing_cycle: cycle, start_date: start_date || null, end_date: finalEnd });
         return Response.json({ subscription: updated });
       }
       const created = await svc.entities.Subscription.create(data);
       await audit('CREATE', 'Subscription', created.id, company_id, null,
-        { plan_id, plan_name: plan.name, status, start_date: start_date || null, end_date: end_date || null });
+        { plan_id, plan_name: plan.name, status, billing_cycle: cycle, start_date: start_date || null, end_date: finalEnd });
       return Response.json({ subscription: created });
     }
 

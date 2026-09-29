@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.44';
 import { requirePlatformAdmin } from '../../shared/platformAdmin.ts';
+import { ensureTrialSubscription } from '../../shared/subscriptionAccess.ts';
 
 const EDITABLE_FIELDS = ['name', 'legal_name', 'document', 'email', 'phone', 'address', 'city', 'state', 'zip_code', 'logo_url'];
 
@@ -63,6 +64,10 @@ export default async function(req) {
       data.name = String(body.name).trim();
       const created = await svc.entities.Company.create(data);
       await audit('CREATE', created.id, null, { name: created.name, status: created.status });
+      // Trial automático: toda empresa nova nasce com assinatura trial
+      // (dias vindos da configuração global; fallback 15). A falha na criação
+      // do trial não desfaz a empresa — pode ser atribuída manualmente depois.
+      await ensureTrialSubscription(svc, created).catch(() => null);
       return Response.json({ company: created });
     }
 

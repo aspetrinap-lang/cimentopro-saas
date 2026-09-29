@@ -130,7 +130,14 @@ export default function AdminSubscriptions() {
                       )}
                     </TableCell>
                     <TableCell className="text-slate-600 text-sm">
-                      {r.subscription ? `${fmtDate(r.subscription.start_date)} → ${fmtDate(r.subscription.end_date)}` : '—'}
+                      {r.subscription ? (
+                        <>
+                          {fmtDate(r.subscription.start_date)} → {fmtDate(r.subscription.end_date)}
+                          <span className="ml-1 text-[11px] text-slate-400">
+                            ({r.subscription.billing_cycle === 'annual' ? 'Anual' : 'Mensal'})
+                          </span>
+                        </>
+                      ) : '—'}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button

@@ -12,7 +12,7 @@
     },
     "plan_id": {
       "type": "string",
-      "description": "ID do plano (SubscriptionPlan)"
+      "description": "ID do plano (SubscriptionPlan) \u2014 vazio no trial autom\u00e1tico (acesso integral durante o trial)"
     },
     "plan_name": {
       "type": "string",
@@ -30,6 +30,15 @@
       "default": "trial",
       "description": "Situa\u00e7\u00e3o da assinatura"
     },
+    "billing_cycle": {
+      "type": "string",
+      "enum": [
+        "monthly",
+        "annual"
+      ],
+      "default": "monthly",
+      "description": "Ciclo de cobran\u00e7a (manual): mensal (end_date = in\u00edcio + 30 dias) ou anual (end_date = in\u00edcio + 365 dias)"
+    },
     "start_date": {
       "type": "string",
       "format": "date",
@@ -38,12 +47,11 @@
     "end_date": {
       "type": "string",
       "format": "date",
-      "description": "Data de t\u00e9rmino (vencimento) da assinatura"
+      "description": "Data de t\u00e9rmino (vencimento) da assinatura \u2014 calculada pelo ciclo quando n\u00e3o informada manualmente"
     }
   },
   "required": [
     "company_id",
-    "plan_id",
     "status"
   ],
   "rls": {

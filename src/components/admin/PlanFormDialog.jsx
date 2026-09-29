@@ -8,6 +8,7 @@ const emptyForm = {
   name: '',
   description: '',
   price: '',
+  annual_price: '',
   max_users: '',
   max_machines: '',
   max_production_lines: '',
@@ -28,6 +29,7 @@ export default function PlanFormDialog({ plan, onClose, onSaved }) {
         name: plan.name || '',
         description: plan.description || '',
         price: plan.price ?? '',
+        annual_price: plan.annual_price ?? '',
         max_users: plan.max_users ?? '',
         max_machines: plan.max_machines ?? '',
         max_production_lines: plan.max_production_lines ?? '',
@@ -68,6 +70,7 @@ export default function PlanFormDialog({ plan, onClose, onSaved }) {
         name: form.name.trim(),
         description: form.description,
         price: form.price === '' ? 0 : Number(form.price),
+        annual_price: form.annual_price === '' ? null : Number(form.annual_price),
         max_users: form.max_users === '' ? null : Number(form.max_users),
         max_machines: form.max_machines === '' ? null : Number(form.max_machines),
         max_production_lines: form.max_production_lines === '' ? null : Number(form.max_production_lines),
@@ -112,6 +115,10 @@ export default function PlanFormDialog({ plan, onClose, onSaved }) {
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1">Preço Mensal (R$)</label>
               <input type="number" min="0" step="0.01" className={inputCls} value={form.price} onChange={(e) => set('price', e.target.value)} placeholder="0,00" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Preço Anual (R$)</label>
+              <input type="number" min="0" step="0.01" className={inputCls} value={form.annual_price} onChange={(e) => set('annual_price', e.target.value)} placeholder="Opcional" />
             </div>
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1">Situação</label>

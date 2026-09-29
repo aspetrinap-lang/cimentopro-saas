@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, Pencil, CreditCard } from 'lucide-react';
+import { Plus, Pencil, CreditCard, CalendarClock, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -23,12 +23,17 @@ export default function AdminPlans() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [trialDays, setTrialDays] = useState(15);
+  const [trialOpen, setTrialOpen] = useState(false);
+  const [trialSaving, setTrialSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await base44.functions.invoke('subscriptionManagement', { action: 'listPlans' });
       setPlans(res.data.plans || []);
+      const cfg = await base44.functions.invoke('subscriptionManagement', { action: 'getConfig' });
+      setTrialDays(cfg.data?.config?.trial_days ?? 15);
     } catch (e) {
       toast({ title: 'Erro ao carregar planos', description: e.response?.data?.error || e.message, variant: 'destructive' });
     } finally {
@@ -47,9 +52,14 @@ export default function AdminPlans() {
             Planos da plataforma — definem os módulos e limites de cadastro de cada empresa assinante
           </p>
         </div>
-        <Button onClick={() => { setEditing(null); setDialogOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
-          <Plus className="w-4 h-4" /> Novo Plano
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setTrialOpen(true)} className="gap-2">
+            <CalendarClock className="w-4 h-4" /> Trial: {trialDays} dias
+          </Button>
+          <Button onClick={() => { setEditing(null); setDialogOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
+            <Plus className="w-4 h-4" /> Novo Plano
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -70,6 +80,7 @@ export default function AdminPlans() {
               <TableRow className="bg-slate-50 hover:bg-slate-50">
                 <TableHead className="text-slate-500">Plano</TableHead>
                 <TableHead className="text-slate-500">Preço mensal</TableHead>
+                <TableHead className="text-slate-500">Preço anual</TableHead>
                 <TableHead className="text-slate-500 text-center">Usuários</TableHead>
                 <TableHead className="text-slate-500 text-center">Máquinas</TableHead>
                 <TableHead className="text-slate-500 text-center">Linhas</TableHead>
@@ -88,6 +99,9 @@ export default function AdminPlans() {
                   </TableCell>
                   <TableCell className="text-slate-600 text-sm">
                     {p.price ? `R$ ${Number(p.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                  </TableCell>
+                  <TableCell className="text-slate-600 text-sm">
+                    {p.annual_price ? `R$ ${Number(p.annual_price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
                   </TableCell>
                   <TableCell className="text-center text-slate-600 text-sm">{limitLabel(p.max_users)}</TableCell>
                   <TableCell className="text-center text-slate-600 text-sm">{limitLabel(p.max_machines)}</TableCell>
@@ -126,6 +140,50 @@ export default function AdminPlans() {
           onClose={() => setDialogOpen(false)}
           onSaved={load}
         />
+      )}
+
+      {trialOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 p-6">
+            <h2 className="font-semibold text-slate-900 flex items-center gap-2">
+              <CalendarClock className="w-5 h-5 text-indigo-600" /> Dias de Trial
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Configuração global da plataforma. Vale apenas para novos trials — empresas recém-criadas começam automaticamente em trial por este período.
+            </p>
+            <div className="mt-4">
+              <label className="block text-xs font-medium text-slate-500 mb-1">Dias de trial</label>
+              <input
+                type="number" min="1" max="365" step="1"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                value={trialDays}
+                onChange={(e) => setTrialDays(e.target.value === '' ? '' : Number(e.target.value))}
+              />
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setTrialOpen(false)} className="flex-1 border border-slate-200 rounded-lg py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
+              <button
+                disabled={trialSaving || !Number.isInteger(Number(trialDays)) || Number(trialDays) < 1}
+                onClick={async () => {
+                  setTrialSaving(true);
+                  try {
+                    const res = await base44.functions.invoke('subscriptionManagement', { action: 'saveConfig', trial_days: Number(trialDays) });
+                    setTrialDays(res.data.config.trial_days);
+                    toast({ title: 'Configuração salva', description: `Novos trials terão ${res.data.config.trial_days} dias.` });
+                    setTrialOpen(false);
+                  } catch (e) {
+                    toast({ title: 'Não foi possível salvar', description: e.response?.data?.error || e.message, variant: 'destructive' });
+                  } finally {
+                    setTrialSaving(false);
+                  }
+                }}
+                className="flex-1 bg-indigo-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {trialSaving && <Loader2 className="w-4 h-4 animate-spin" />} Salvar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

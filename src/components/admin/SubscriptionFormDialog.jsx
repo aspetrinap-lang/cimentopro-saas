@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
 import { X, Loader2, Save } from 'lucide-react';
@@ -19,10 +19,35 @@ export default function SubscriptionFormDialog({ company, subscription, plans, o
   const [form, setForm] = useState({
     plan_id: subscription?.plan_id || '',
     status: subscription?.status || 'active',
+    billing_cycle: subscription?.billing_cycle || 'monthly',
     start_date: subscription?.start_date || '',
     end_date: subscription?.end_date || '',
   });
   const [saving, setSaving] = useState(false);
+
+  // Vigência calculada pelo ciclo no frontend (mesma regra do backend):
+  // mensal = início + 30 dias; anual = início + 365 dias. A data pode ser
+  // ajustada manualmente depois — mudar ciclo ou início recalcula.
+  function addDaysISO(iso, days) {
+    if (!iso) return '';
+    const d = new Date(`${iso}T00:00:00`);
+    d.setDate(d.getDate() + days);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+  const todayISO = () => {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+  const cycleStartRef = useRef({ cycle: form.billing_cycle, start: form.start_date });
+  useEffect(() => {
+    const prev = cycleStartRef.current;
+    if (prev.cycle === form.billing_cycle && prev.start === form.start_date) return;
+    cycleStartRef.current = { cycle: form.billing_cycle, start: form.start_date };
+    const base = form.start_date || todayISO();
+    setForm((f) => ({ ...f, end_date: addDaysISO(base, f.billing_cycle === 'annual' ? 365 : 30) }));
+  }, [form.billing_cycle, form.start_date]);
 
   useEffect(() => {
     if (!form.plan_id && plans.length) {
@@ -45,6 +70,7 @@ export default function SubscriptionFormDialog({ company, subscription, plans, o
         company_id: company.company_id,
         plan_id: form.plan_id,
         status: form.status,
+        billing_cycle: form.billing_cycle,
         start_date: form.start_date || null,
         end_date: form.end_date || null,
       });
@@ -101,19 +127,34 @@ export default function SubscriptionFormDialog({ company, subscription, plans, o
                 ))}
               </select>
             </div>
-            {selectedPlan?.price != null && (
-              <div className="flex items-end">
-                <p className="text-xs text-muted-foreground">
-                  Preço do plano: <strong className="text-foreground">R$ {Number(selectedPlan.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>/mês
-                </p>
-              </div>
-            )}
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Ciclo</label>
+              <select className={inputCls} value={form.billing_cycle} onChange={(e) => set('billing_cycle', e.target.value)}>
+                <option value="monthly">Mensal</option>
+                <option value="annual">Anual</option>
+              </select>
+            </div>
+            {form.billing_cycle === 'annual'
+              ? selectedPlan?.annual_price != null && (
+                <div className="flex items-end">
+                  <p className="text-xs text-muted-foreground">
+                    Preço do plano: <strong className="text-foreground">R$ {Number(selectedPlan.annual_price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>/ano
+                  </p>
+                </div>
+              )
+              : selectedPlan?.price != null && (
+                <div className="flex items-end">
+                  <p className="text-xs text-muted-foreground">
+                    Preço do plano: <strong className="text-foreground">R$ {Number(selectedPlan.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>/mês
+                  </p>
+                </div>
+              )}
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1">Início</label>
               <input type="date" className={inputCls} value={form.start_date || ''} onChange={(e) => set('start_date', e.target.value)} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Vencimento</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Vencimento (calculado pelo ciclo — ajustável)</label>
               <input type="date" className={inputCls} value={form.end_date || ''} onChange={(e) => set('end_date', e.target.value)} />
             </div>
           </div>

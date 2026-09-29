@@ -13,7 +13,11 @@
     "price": {
       "type": "number",
       "default": 0,
-      "description": "Pre\u00e7o mensal do plano (R$)"
+      "description": "Pre\u00e7o mensal do plano (R$) \u2014 fonte \u00fanica, configur\u00e1vel pelo SUPER_ADMIN"
+    },
+    "annual_price": {
+      "type": "number",
+      "description": "Pre\u00e7o anual do plano (R$) \u2014 opcional; usado quando a assinatura tem ciclo anual (cobran\u00e7a manual)"
     },
     "max_users": {
       "type": "number",
