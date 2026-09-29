@@ -8,7 +8,7 @@
     },
     "report_number": {
       "type": "string",
-      "description": "N\u00ba do laudo (sequencial; vers\u00f5es de rec\u00e1lculo recebem sufixo -R1, -R2... ex: 012/26-R1)"
+      "description": "N\u00ba do laudo (sequencial)"
     },
     "order_id": {
       "type": "string",
@@ -30,14 +30,6 @@
       "type": "string",
       "description": "Categoria do artefato (Blocos/Pavimento)"
     },
-    "product_family": {
-      "type": "string",
-      "enum": [
-        "PAVER",
-        "CONCRETE_BLOCK"
-      ],
-      "description": "Fam\u00edlia do produto resolvida na emiss\u00e3o (PAVER = pavimento intertravado; CONCRETE_BLOCK = bloco de alvenaria). Laudos hist\u00f3ricos podem n\u00e3o ter o campo \u2014 resolvido apenas em leitura, nunca gravado automaticamente"
-    },
     "norm_reference": {
       "type": "string",
       "enum": [
@@ -45,10 +37,6 @@
         "NBR 9781"
       ],
       "description": "Norma de refer\u00eancia (blocos ou pavimentos)"
-    },
-    "norm_revision": {
-      "type": "string",
-      "description": "Revis\u00e3o normativa utilizada no ensaio (ex: NBR 9781:2013, NBR 9781-1:2026, NBR 9781-2:2026, NBR 6136:2018). Ausente em laudos hist\u00f3ricos \u2014 n\u00e3o preencher automaticamente"
     },
     "laboratory_name": {
       "type": "string",
@@ -113,38 +101,17 @@
           "age_days": {
             "type": "number"
           },
-          "test_age_days": {
-            "type": "number",
-            "description": "Alias de leitura da idade do ensaio (agrupamento usa age_days; test_age_days \u00e9 aceito como fallback em laudos externos)"
-          },
           "width_mm": {
             "type": "number"
           },
           "height_mm": {
-            "type": "number",
-            "description": "Altura (blocos). Para PAVER altura f\u00edsica = espessura \u2014 usar nominal_thickness_mm/measured_thickness_mm"
+            "type": "number"
           },
           "length_mm": {
             "type": "number"
           },
           "area_cm2": {
             "type": "number"
-          },
-          "nominal_thickness_mm": {
-            "type": "number",
-            "description": "PAVER \u2014 espessura nominal do corpo de prova (mm), base do fator p (Tabela A.1)"
-          },
-          "measured_thickness_mm": {
-            "type": "number",
-            "description": "PAVER \u2014 espessura medida do corpo de prova (mm), resultado dimensional do ensaio"
-          },
-          "loading_area_cm2": {
-            "type": "number",
-            "description": "PAVER \u2014 \u00e1rea do dispositivo de carregamento (cm\u00b2; valor normativo fixo 56,75 cm\u00b2 \u2014 NUNCA a \u00e1rea geom\u00e9trica da pe\u00e7a)"
-          },
-          "p_factor": {
-            "type": "number",
-            "description": "PAVER \u2014 fator multiplicativo p aplicado \u00e0 resist\u00eancia individual (Tabela A.1 da revis\u00e3o)"
           },
           "mass_g": {
             "type": "number",
@@ -175,35 +142,11 @@
     },
     "estimated_fck": {
       "type": "number",
-      "description": "CAMPO LEGADO \u2014 resist\u00eancia caracter\u00edstica estimada (MPa). Mantido por compatibilidade com AIAnalysis, AnalysisReport, ResistanceGrowthReport e laudos hist\u00f3ricos; nunca apagado nem migrado destrutivamente"
-    },
-    "characteristic_resistance": {
-      "type": "number",
-      "description": "Resist\u00eancia caracter\u00edstica (MPa) com r\u00f3tulo correto \u2014 mesmo valor de estimated_fck no motor atual"
-    },
-    "characteristic_label": {
-      "type": "string",
-      "enum": [
-        "fpk",
-        "fbk"
-      ],
-      "description": "R\u00f3tulo da resist\u00eancia caracter\u00edstica: fpk (pavimento intertravado) ou fbk (bloco de alvenaria)"
-    },
-    "statistical_method": {
-      "type": "string",
-      "description": "M\u00e9todo estat\u00edstico da resist\u00eancia caracter\u00edstica (ex: NBR 9781:2013 \u2014 Tabela A.2). Audita COMO o fpk/fbk,est foi calculado"
-    },
-    "student_n": {
-      "type": "number",
-      "description": "Tamanho da amostra (n) usado no m\u00e9todo estat\u00edstico"
-    },
-    "student_t": {
-      "type": "number",
-      "description": "Coeficiente de Student (t) da tabela normativa aplicada"
+      "description": "Resist\u00eancia caracter\u00edstica estimada (fck est \u2014 MPa)"
     },
     "target_resistance": {
       "type": "number",
-      "description": "Resist\u00eancia caracter\u00edstica de projeto (fpk/fbk MPa)"
+      "description": "Resist\u00eancia caracter\u00edstica de projeto (fck MPa)"
     },
     "traffic_type": {
       "type": "string",
@@ -215,11 +158,11 @@
     },
     "nominal_thickness_mm": {
       "type": "number",
-      "description": "Espessura nominal (mm) \u2014 para pavimentos, altura = espessura (mesma dimens\u00e3o; 60/80/100 mm e outros)"
+      "description": "Espessura nominal (mm) \u2014 NBR 9781"
     },
     "measured_thickness_mm": {
       "type": "number",
-      "description": "Espessura medida (mm) \u2014 resultado dimensional do ensaio (NBR 9781)"
+      "description": "Espessura medida (mm) \u2014 NBR 9781"
     },
     "thickness_ok": {
       "type": "boolean",
@@ -227,7 +170,7 @@
     },
     "is_compliant": {
       "type": "boolean",
-      "description": "Conformidade do lote frente \u00e0 norma (idade de refer\u00eancia). Nulo em rascunhos com revis\u00e3o normativa pendente de parametriza\u00e7\u00e3o"
+      "description": "Conformidade do lote frente \u00e0 norma (idade de refer\u00eancia)"
     },
     "alerts": {
       "type": "array",
@@ -235,35 +178,6 @@
         "type": "string"
       },
       "description": "Alertas de n\u00e3o conformidade (informativos, n\u00e3o bloqueantes)"
-    },
-    "report_version": {
-      "type": "number",
-      "default": 1,
-      "description": "Vers\u00e3o do laudo: 1 = original; 2+ = vers\u00f5es de rec\u00e1lculo (012/26-R1, -R2...)"
-    },
-    "original_report_id": {
-      "type": "string",
-      "description": "ID do laudo ORIGINAL (raiz da cadeia de vers\u00f5es) \u2014 presente apenas em laudos recalculados"
-    },
-    "calculation_version": {
-      "type": "string",
-      "description": "Vers\u00e3o do motor de c\u00e1lculo (ex: quality-engine-1.0) \u2014 reproduz como o resultado foi calculado"
-    },
-    "recalculated_from_report_id": {
-      "type": "string",
-      "description": "ID do laudo imediatamente anterior a partir do qual este foi recalculado"
-    },
-    "recalculation_reason": {
-      "type": "string",
-      "description": "Motivo informado para o rec\u00e1lculo"
-    },
-    "recalculated_at": {
-      "type": "string",
-      "description": "Data/hora ISO do rec\u00e1lculo"
-    },
-    "recalculated_by": {
-      "type": "string",
-      "description": "Usu\u00e1rio respons\u00e1vel pelo rec\u00e1lculo"
     },
     "conclusion": {
       "type": "string",
@@ -281,7 +195,7 @@
         "Revisado"
       ],
       "default": "Emitido",
-      "description": "Situa\u00e7\u00e3o do laudo. Revis\u00f5es normativas PENDENTE_PARAMETRIZACAO s\u00f3 podem gerar Rascunho"
+      "description": "Situa\u00e7\u00e3o do laudo"
     }
   },
   "required": [

@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Printer, Pencil, X, CheckCircle2, AlertTriangle, RefreshCw, GitCompare } from 'lucide-react';
+import { Printer, Pencil, X, CheckCircle2, AlertTriangle } from 'lucide-react';
 import CompanyBrand from '@/components/CompanyBrand';
 import PrintPortal from '@/components/reports/PrintPortal';
 import {
   MIN_RESISTANCE_BY_TRAFFIC, MIN_THICKNESS_BY_TRAFFIC, DIMENSIONAL_TOLERANCE_MM,
   groupByAge, ageStats, estimateFck, checkCompliance, buildAlerts,
-  characteristicLabelForReport, versionBadge, estimatePaverFpk,
 } from '@/lib/qualityNorms';
 
 function fmtDate(d) {
@@ -23,21 +22,9 @@ function ruptureDate(moldingDate, ageDays) {
 function ageRowData(report, group) {
   const validSpecs = group.specimens.filter(s => Number(s.resistance_mpa) > 0);
   const stats = ageStats(group.specimens);
-  const isPaver = report.norm_reference === 'NBR 9781';
-  // PAVER com revisão: fpk,est pelo Anexo A (Tabela A.2); fora do método
-  // normativo (amostra insuficiente/tamanho fora da tabela/pendente) o valor
-  // NÃO é exibido como fpk calculado — apenas a advertência.
-  const paverEst = isPaver
-    ? estimatePaverFpk({ normRevision: report.norm_revision, resistances: group.specimens })
-    : null;
-  const estFck = paverEst ? (paverEst.status === 'OK' ? paverEst.fpk_est : null) : estimateFck(group.specimens);
+  const estFck = estimateFck(group.specimens);
   const target = Number(report.target_resistance) || 0;
-  let compliant = validSpecs.length >= 3 ? checkCompliance({ average: stats.average, min: stats.min, target }) : null;
-  if (isPaver) {
-    compliant = paverEst && paverEst.status === 'OK' && paverEst.fpk_est != null && target > 0
-      ? paverEst.fpk_est >= target
-      : null;
-  }
+  const compliant = validSpecs.length >= 3 ? checkCompliance({ average: stats.average, min: stats.min, target }) : null;
   return {
     age_days: group.age_days,
     rupture_date: ruptureDate(report.molding_date, group.age_days),
@@ -45,17 +32,13 @@ function ageRowData(report, group) {
     average: stats.average,
     min: stats.min,
     estimated_fck: estFck,
-    est_warning: paverEst?.status !== 'OK' ? (paverEst?.warning || null) : null,
-    est_meta: paverEst && paverEst.status === 'OK' ? `Método: ${paverEst.statistical_method} — n = ${paverEst.student_n}, t = ${paverEst.student_t}` : null,
     target,
     compliant,
   };
 }
 
-export default function QualityReportView({ report, onClose, onEdit, onRecalculate, onCompare }) {
+export default function QualityReportView({ report, onClose, onEdit }) {
   const pavimento = report.norm_reference === 'NBR 9781';
-  const charLabel = characteristicLabelForReport(report);
-  const versionBadgeLabel = versionBadge(report.report_number);
   const groups = groupByAge(report.specimens || []);
   const rows = groups.map(g => ageRowData(report, g));
   const finalAge = report.final_age_days || (groups.length ? Math.max(...groups.map(g => g.age_days)) : 0);
@@ -78,12 +61,7 @@ export default function QualityReportView({ report, onClose, onEdit, onRecalcula
       <div className="bg-white text-slate-900 rounded-xl shadow-xl border border-slate-200 w-full max-w-4xl max-h-[92vh] overflow-y-auto print:max-w-none print:shadow-none print:border-none print:rounded-none print:max-h-none print:overflow-visible print:p-0 print-area">
         {/* Toolbar */}
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between print:hidden">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold">Laudo {report.report_number}</h2>
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${versionBadgeLabel === 'ORIGINAL' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-              {versionBadgeLabel}
-            </span>
-          </div>
+          <h2 className="text-sm font-semibold">Laudo {report.report_number}</h2>
           <div className="flex items-center gap-2 flex-wrap">
             {groups.length > 0 && (
               <div className="flex items-center gap-1 mr-2">
@@ -102,16 +80,6 @@ export default function QualityReportView({ report, onClose, onEdit, onRecalcula
             <button onClick={onEdit} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100">
               <Pencil className="w-3.5 h-3.5" /> Editar
             </button>
-            {onCompare && (
-              <button onClick={onCompare} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100">
-                <GitCompare className="w-3.5 h-3.5" /> Comparar versões
-              </button>
-            )}
-            {onRecalculate && (
-              <button onClick={onRecalculate} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100">
-                <RefreshCw className="w-3.5 h-3.5" /> Recalcular
-              </button>
-            )}
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-4 h-4" /></button>
           </div>
         </div>
@@ -162,12 +130,12 @@ export default function QualityReportView({ report, onClose, onEdit, onRecalcula
               <Info label="Ordem de Produção" value={report.order_number} />
               <Info label="Artefato" value={report.product_type_name} />
               <Info label="Categoria" value={report.category} />
-              <Info label="Norma" value={report.norm_revision ? `${report.norm_reference} — ${report.norm_revision}` : report.norm_reference} />
+              <Info label="Norma" value={report.norm_reference} />
               <Info label="Fabricante" value={report.manufacturer} />
               <Info label="Local de Aplicação" value={report.application_location} />
               <Info label="Data de Moldagem" value={fmtDate(report.molding_date)} />
               <Info label="Idade de Referência" value={`${finalAge} dias`} />
-              <Info label={`${charLabel} de Projeto`} value={report.target_resistance ? `${report.target_resistance} MPa` : '—'} />
+              <Info label="fck de Projeto" value={report.target_resistance ? `${report.target_resistance} MPa` : '—'} />
             </div>
           </section>
 
@@ -216,8 +184,8 @@ export default function QualityReportView({ report, onClose, onEdit, onRecalcula
                     <th className="border border-slate-200 px-3 py-2 text-left">Data de Rompimento</th>
                     <th className="border border-slate-200 px-3 py-2 text-center">Nº de CPs</th>
                     <th className="border border-slate-200 px-3 py-2 text-right">Resistência Média (MPa)</th>
-                    <th className="border border-slate-200 px-3 py-2 text-right">{charLabel} Estimado (MPa)</th>
-                    <th className="border border-slate-200 px-3 py-2 text-right">{charLabel} Projeto (MPa)</th>
+                    <th className="border border-slate-200 px-3 py-2 text-right">fck Estimado (MPa)</th>
+                    <th className="border border-slate-200 px-3 py-2 text-right">fck Projeto (MPa)</th>
                     <th className="border border-slate-200 px-3 py-2 text-center">Conformidade</th>
                   </tr>
                 </thead>
@@ -253,12 +221,6 @@ export default function QualityReportView({ report, onClose, onEdit, onRecalcula
             <p className="text-[11px] text-slate-500 mt-2">
               A conformidade de cada idade é calculada quando há 3+ corpos de prova válidos. Linhas em verde = conforme; vermelho = não conforme.
             </p>
-            {rows.some(r => r.est_warning) && (
-              <p className="text-[11px] text-amber-700 mt-1">{rows.find(r => r.est_warning)?.est_warning}</p>
-            )}
-            {rows.some(r => r.est_meta) && (
-              <p className="text-[11px] text-slate-500 mt-1">{rows.find(r => r.est_meta)?.est_meta} • fpk,est = fp − t × s (fp = média, s = desvio-padrão)</p>
-            )}
           </section>
 
           {/* Resultados detalhados por idade */}
@@ -292,20 +254,9 @@ export default function QualityReportView({ report, onClose, onEdit, onRecalcula
                             <th className="border border-slate-200 px-2 py-1 text-left">CP</th>
                             <th className="border border-slate-200 px-2 py-1 text-right">Larg. (mm)</th>
                             <th className="border border-slate-200 px-2 py-1 text-right">Comp. (mm)</th>
-                            {pavimento ? (
-                              <>
-                                <th className="border border-slate-200 px-2 py-1 text-right">Esp. Nom. (mm)</th>
-                                <th className="border border-slate-200 px-2 py-1 text-right">Esp. Med. (mm)</th>
-                                <th className="border border-slate-200 px-2 py-1 text-right">Área disp. (cm²)</th>
-                                <th className="border border-slate-200 px-2 py-1 text-right">p</th>
-                              </>
-                            ) : (
-                              <>
-                                <th className="border border-slate-200 px-2 py-1 text-right">Alt. (mm)</th>
-                                <th className="border border-slate-200 px-2 py-1 text-right">Área (cm²)</th>
-                                <th className="border border-slate-200 px-2 py-1 text-right">Massa (g)</th>
-                              </>
-                            )}
+                            <th className="border border-slate-200 px-2 py-1 text-right">Alt. (mm)</th>
+                            <th className="border border-slate-200 px-2 py-1 text-right">Área (cm²)</th>
+                            <th className="border border-slate-200 px-2 py-1 text-right">Massa (g)</th>
                             <th className="border border-slate-200 px-2 py-1 text-right">Carga (kN)</th>
                             <th className="border border-slate-200 px-2 py-1 text-right">Resist. (MPa)</th>
                           </tr>
@@ -316,20 +267,9 @@ export default function QualityReportView({ report, onClose, onEdit, onRecalcula
                               <td className="border border-slate-200 px-2 py-1 font-medium">{s.id}</td>
                               <td className="border border-slate-200 px-2 py-1 text-right">{s.width_mm || '—'}</td>
                               <td className="border border-slate-200 px-2 py-1 text-right">{s.length_mm || '—'}</td>
-                              {pavimento ? (
-                                <>
-                                  <td className="border border-slate-200 px-2 py-1 text-right">{s.nominal_thickness_mm || '—'}</td>
-                                  <td className="border border-slate-200 px-2 py-1 text-right">{s.measured_thickness_mm || '—'}</td>
-                                  <td className="border border-slate-200 px-2 py-1 text-right">{s.area_cm2}</td>
-                                  <td className="border border-slate-200 px-2 py-1 text-right">{s.p_factor != null ? s.p_factor : '—'}</td>
-                                </>
-                              ) : (
-                                <>
-                                  <td className="border border-slate-200 px-2 py-1 text-right">{s.height_mm || '—'}</td>
-                                  <td className="border border-slate-200 px-2 py-1 text-right">{s.area_cm2}</td>
-                                  <td className="border border-slate-200 px-2 py-1 text-right">{s.mass_g || '—'}</td>
-                                </>
-                              )}
+                              <td className="border border-slate-200 px-2 py-1 text-right">{s.height_mm || '—'}</td>
+                              <td className="border border-slate-200 px-2 py-1 text-right">{s.area_cm2}</td>
+                              <td className="border border-slate-200 px-2 py-1 text-right">{s.mass_g || '—'}</td>
                               <td className="border border-slate-200 px-2 py-1 text-right">{s.rupture_load_kn}</td>
                               <td className="border border-slate-200 px-2 py-1 text-right font-semibold">{s.resistance_mpa}</td>
                             </tr>
@@ -347,8 +287,8 @@ export default function QualityReportView({ report, onClose, onEdit, onRecalcula
           <section className="grid grid-cols-5 gap-3 text-sm">
             <Box label={`Resistência Média (${finalAge}d)`} value={`${(report.average_resistance || 0).toFixed(2)} MPa`} />
             <Box label="Menor Individual" value={`${(report.min_resistance || 0).toFixed(2)} MPa`} />
-            <Box label={`${charLabel} Estimado`} value={(report.characteristic_resistance ?? report.estimated_fck) ? `${(report.characteristic_resistance ?? report.estimated_fck).toFixed(2)} MPa` : '—'} />
-            <Box label={`${charLabel} Projeto`} value={report.target_resistance ? `${report.target_resistance} MPa` : '—'} />
+            <Box label="fck Estimado" value={report.estimated_fck ? `${report.estimated_fck.toFixed(2)} MPa` : '—'} />
+            <Box label="fck Projeto" value={report.target_resistance ? `${report.target_resistance} MPa` : '—'} />
             <Box label="Conformidade" value={compliant ? 'CONFORME' : 'NÃO CONFORME'} highlight={compliant ? 'green' : 'red'} />
           </section>
 
@@ -365,19 +305,6 @@ export default function QualityReportView({ report, onClose, onEdit, onRecalcula
                   </li>
                 ))}
               </ul>
-            </section>
-          )}
-
-          {/* Recálculo — auditoria da versão (apenas na tela; impressão inalterada) */}
-          {(report.original_report_id || versionBadgeLabel !== 'ORIGINAL') && (
-            <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <h2 className="text-sm font-bold uppercase text-slate-700 border-b border-slate-200 pb-1 mb-3">Recálculo — Versão {versionBadgeLabel}</h2>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                <Info label="Recalculado em" value={report.recalculated_at ? new Date(report.recalculated_at).toLocaleString('pt-BR') : '—'} />
-                <Info label="Responsável" value={report.recalculated_by} />
-                <Info label="Revisão Normativa aplicada" value={report.norm_revision || '—'} />
-                <Info label="Motivo" value={report.recalculation_reason} />
-              </div>
             </section>
           )}
 
@@ -536,20 +463,9 @@ function PrintLaudoBlock({ report, group }) {
                   <th className="border border-slate-200 px-2 py-1 text-left">CP</th>
                   <th className="border border-slate-200 px-2 py-1 text-right">Larg. (mm)</th>
                   <th className="border border-slate-200 px-2 py-1 text-right">Comp. (mm)</th>
-                  {pavimento ? (
-                    <>
-                      <th className="border border-slate-200 px-2 py-1 text-right">Esp. Nom. (mm)</th>
-                      <th className="border border-slate-200 px-2 py-1 text-right">Esp. Med. (mm)</th>
-                      <th className="border border-slate-200 px-2 py-1 text-right">Área disp. (cm²)</th>
-                      <th className="border border-slate-200 px-2 py-1 text-right">p</th>
-                    </>
-                  ) : (
-                    <>
-                      <th className="border border-slate-200 px-2 py-1 text-right">Alt. (mm)</th>
-                      <th className="border border-slate-200 px-2 py-1 text-right">Área (cm²)</th>
-                      <th className="border border-slate-200 px-2 py-1 text-right">Massa (g)</th>
-                    </>
-                  )}
+                  <th className="border border-slate-200 px-2 py-1 text-right">Alt. (mm)</th>
+                  <th className="border border-slate-200 px-2 py-1 text-right">Área (cm²)</th>
+                  <th className="border border-slate-200 px-2 py-1 text-right">Massa (g)</th>
                   <th className="border border-slate-200 px-2 py-1 text-right">Carga (kN)</th>
                   <th className="border border-slate-200 px-2 py-1 text-right">Resist. (MPa)</th>
                 </tr>
@@ -560,20 +476,9 @@ function PrintLaudoBlock({ report, group }) {
                     <td className="border border-slate-200 px-2 py-1 font-medium">{s.id}</td>
                     <td className="border border-slate-200 px-2 py-1 text-right">{s.width_mm || '—'}</td>
                     <td className="border border-slate-200 px-2 py-1 text-right">{s.length_mm || '—'}</td>
-                    {pavimento ? (
-                      <>
-                        <td className="border border-slate-200 px-2 py-1 text-right">{s.nominal_thickness_mm || '—'}</td>
-                        <td className="border border-slate-200 px-2 py-1 text-right">{s.measured_thickness_mm || '—'}</td>
-                        <td className="border border-slate-200 px-2 py-1 text-right">{s.area_cm2}</td>
-                        <td className="border border-slate-200 px-2 py-1 text-right">{s.p_factor != null ? s.p_factor : '—'}</td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="border border-slate-200 px-2 py-1 text-right">{s.height_mm || '—'}</td>
-                        <td className="border border-slate-200 px-2 py-1 text-right">{s.area_cm2}</td>
-                        <td className="border border-slate-200 px-2 py-1 text-right">{s.mass_g || '—'}</td>
-                      </>
-                    )}
+                    <td className="border border-slate-200 px-2 py-1 text-right">{s.height_mm || '—'}</td>
+                    <td className="border border-slate-200 px-2 py-1 text-right">{s.area_cm2}</td>
+                    <td className="border border-slate-200 px-2 py-1 text-right">{s.mass_g || '—'}</td>
                     <td className="border border-slate-200 px-2 py-1 text-right">{s.rupture_load_kn}</td>
                     <td className="border border-slate-200 px-2 py-1 text-right font-semibold">{s.resistance_mpa}</td>
                   </tr>

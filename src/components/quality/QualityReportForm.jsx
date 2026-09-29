@@ -9,10 +9,6 @@ import {
   MIN_RESISTANCE_BY_TRAFFIC, MIN_THICKNESS_BY_TRAFFIC, DIMENSIONAL_TOLERANCE_MM,
   inferNorm, computeSpecimen, groupByAge, ageStats,
   checkThickness, buildAlerts, checkApproval, estimateFck, getClassFbk,
-  PAVER_LOADING_DEVICE_AREA_CM2, estimatePaverFpk, evaluatePaverCompliance,
-  getAvailableRevisions, isRevisionValidated, resolveQualityProductFamily,
-  familyForNormReference, characteristicLabelForReport,
-  DEFAULT_REVISION_BY_NORM, CALCULATION_VERSION, REVISION_STATES,
 } from '@/lib/qualityNorms';
 
 // Resolve o fck de referência: usa o fck de projeto informado; na NBR 9781 sem
@@ -31,13 +27,12 @@ function resolveTargetFck(form) {
 
 let specIdCounter = 1000;
 
-function emptySpecimen(ageDays = 7, base = {}) {
+function emptySpecimen(ageDays = 7) {
   return {
     id: ++specIdCounter,
     age_days: ageDays,
     width_mm: 0, height_mm: 0, length_mm: 0, area_cm2: 0, mass_g: 0,
     rupture_load_kn: 0, resistance_mpa: 0,
-    ...base,
   };
 }
 
@@ -51,13 +46,6 @@ export default function QualityReportForm({ order, productType, report, onClose,
         specimen_count: report.specimens?.length || 6,
         final_age_days: report.final_age_days ?? 28,
         ...rest,
-        // Campos estruturais — laudos históricos sem os campos mantêm os
-        // valores ausentes (fallback somente de leitura, nunca gravado)
-        product_family: report.product_family || familyForNormReference(report.norm_reference) || null,
-        norm_revision: report.norm_revision || '',
-        report_version: report.report_version || 1,
-        characteristic_resistance: report.characteristic_resistance ?? report.estimated_fck ?? null,
-        characteristic_label: report.characteristic_label || '',
       };
     }
     return {
@@ -68,12 +56,6 @@ export default function QualityReportForm({ order, productType, report, onClose,
       product_type_name: productType?.name || order?.product_type_name || '',
       category: productType?.category || '',
       norm_reference: inferNorm(productType?.category),
-      product_family: resolveQualityProductFamily(productType) || familyForNormReference(inferNorm(productType?.category)) || 'CONCRETE_BLOCK',
-      norm_revision: DEFAULT_REVISION_BY_NORM[inferNorm(productType?.category)] || '',
-      report_version: 1,
-      characteristic_resistance: null,
-      characteristic_label: '',
-      calculation_version: CALCULATION_VERSION,
       laboratory_name: '',
       test_equipment: 'Prensa PAVITEST 100 toneladas, acionamento hidráulico',
       calibration_number: '0212/26',
@@ -101,19 +83,9 @@ export default function QualityReportForm({ order, productType, report, onClose,
     };
   });
 
-  // Base de campos de PAVER para novos corpos de prova (espessura nominal +
-  // área do dispositivo de carregamento — valor normativo fixo, só leitura)
-  const specBase = isPavimento(form)
-    ? { nominal_thickness_mm: Number(form.nominal_thickness_mm) || 0, loading_area_cm2: PAVER_LOADING_DEVICE_AREA_CM2 }
-    : {};
-
   const [specimens, setSpecimens] = useState(() => {
     if (report?.specimens?.length) return report.specimens.map(s => ({ ...s }));
-    const initialPaver = (report?.norm_reference || inferNorm(productType?.category)) === 'NBR 9781';
-    const initialBase = initialPaver
-      ? { nominal_thickness_mm: report?.nominal_thickness_mm ?? productType?.height_mm ?? 0, loading_area_cm2: PAVER_LOADING_DEVICE_AREA_CM2 }
-      : {};
-    return Array.from({ length: 6 }, () => emptySpecimen(7, initialBase));
+    return Array.from({ length: 6 }, () => emptySpecimen(7));
   });
   const [loading, setLoading] = useState(false);
   const [existing, setExisting] = useState([]);
@@ -140,13 +112,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
     }
   }, [existing, form.report_number, existingLoaded, report]);
 
-  const computedSpecimens = useMemo(
-    () => specimens.map(s => computeSpecimen(s, form.norm_reference, {
-      nominalThicknessMm: form.nominal_thickness_mm,
-      normRevision: form.norm_revision,
-    })),
-    [specimens, form.norm_reference, form.norm_revision, form.nominal_thickness_mm]
-  );
+  const computedSpecimens = useMemo(() => specimens.map(s => computeSpecimen(s, form.norm_reference)), [specimens, form.norm_reference]);
 
   const groups = useMemo(() => groupByAge(computedSpecimens), [computedSpecimens]);
   const availableAges = useMemo(() => {
@@ -162,23 +128,10 @@ export default function QualityReportForm({ order, productType, report, onClose,
     return ages.length ? Math.max(...ages) : 0;
   }, [groups, form.final_age_days]);
 
-  const charLabel = characteristicLabelForReport(form);
-  const revisionPending = form.norm_revision ? !isRevisionValidated(form.norm_reference, form.norm_revision) : false;
-
   const target = resolveTargetFck(form);
   const finalGroup = groups.find(g => g.age_days === finalAge) || { specimens: [] };
   const { average, min } = ageStats(finalGroup.specimens);
-  // PAVER com revisão: fpk,est pela revisão normativa (Tabela A.2 — Anexo A);
-  // status diferente de OK (amostra insuficiente / fora da tabela / pendente)
-  // NUNCA é apresentado como resultado normativo calculado.
-  const finalEstimation = useMemo(() => {
-    if (isPavimento(form) && form.norm_revision) {
-      const est = estimatePaverFpk({ normRevision: form.norm_revision, resistances: finalGroup.specimens });
-      return { est, value: est.status === 'OK' ? est.fpk_est : null };
-    }
-    return { est: null, value: estimateFck(finalGroup.specimens) };
-  }, [finalGroup, form.norm_reference, form.norm_revision]);
-  const estimatedFck = finalEstimation.value;
+  const estimatedFck = useMemo(() => estimateFck(finalGroup.specimens), [finalGroup]);
 
   // Valores de exibição: refletem a idade selecionada (activeAge) nos cartões de resumo
   const displayGroup = useMemo(
@@ -186,25 +139,14 @@ export default function QualityReportForm({ order, productType, report, onClose,
     [groups, activeAge]
   );
   const { average: displayAverage, min: displayMin } = ageStats(displayGroup.specimens);
-  const displayEstimation = useMemo(() => {
-    if (isPavimento(form) && form.norm_revision) {
-      const est = estimatePaverFpk({ normRevision: form.norm_revision, resistances: displayGroup.specimens });
-      return { est, value: est.status === 'OK' ? est.fpk_est : null };
-    }
-    return { est: null, value: estimateFck(displayGroup.specimens) };
-  }, [displayGroup, form.norm_reference, form.norm_revision]);
-  const displayEstimatedFck = displayEstimation.value;
+  const displayEstimatedFck = useMemo(() => estimateFck(displayGroup.specimens), [displayGroup]);
   const displayApproval = checkApproval({ estimatedFck: displayEstimatedFck, target });
 
-  // Espessura medida: média automática das medições dos corpos de prova
-  // (PAVER: espessura medida por CP — altura física = espessura; bloco: altura)
+  // Espessura medida: média automática das medições (alturas) dos corpos de prova
   const measuredThickness = useMemo(() => {
-    const src = isPavimento(form)
-      ? computedSpecimens.map(s => Number(s.measured_thickness_mm ?? s.height_mm) || 0)
-      : computedSpecimens.map(s => Number(s.height_mm) || 0);
-    const hs = src.filter(h => h > 0);
+    const hs = computedSpecimens.map(s => Number(s.height_mm) || 0).filter(h => h > 0);
     return hs.length ? +(hs.reduce((a, b) => a + b, 0) / hs.length).toFixed(1) : null;
-  }, [computedSpecimens, form.norm_reference]);
+  }, [computedSpecimens]);
 
   const effectiveMeasured = measuredThickness ?? (Number(form.measured_thickness_mm) || null);
   const thicknessOk = checkThickness(form.nominal_thickness_mm, effectiveMeasured);
@@ -218,21 +160,8 @@ export default function QualityReportForm({ order, productType, report, onClose,
     hasFinalAge,
   });
 
-  // Critério de aprovação: PAVER com revisão usa a conformidade normativa do
-  // motor (fpk,est ≥ fpk especificado); demais, o critério estrutural atual.
-  const paverCompliance = finalEstimation.est
-    ? evaluatePaverCompliance({
-        normRevision: form.norm_revision,
-        targetResistance: target,
-        characteristicResistance: estimatedFck,
-        finalAgeDays: finalAge,
-        referenceAgeDays: form.final_age_days || 28,
-      })
-    : null;
-  const finalApproval = paverCompliance
-    ? (paverCompliance.status === 'CONFORME' ? 'APROVADO'
-      : paverCompliance.status === 'NAO_CONFORME' ? 'REPROVADO' : null)
-    : checkApproval({ estimatedFck, target });
+  // Critério de aprovação: fck,est ≥ fck especificado (APROVADO/ATENÇÃO/REPROVADO)
+  const finalApproval = checkApproval({ estimatedFck, target });
   const compliant = finalApproval === 'APROVADO';
 
   useEffect(() => {
@@ -241,16 +170,13 @@ export default function QualityReportForm({ order, productType, report, onClose,
       is_compliant: compliant,
       average_resistance: +average.toFixed(2),
       min_resistance: +min.toFixed(2),
-      estimated_fck: estimatedFck != null ? +estimatedFck.toFixed(2) : null,
-      statistical_method: finalEstimation.est?.statistical_method ?? null,
-      student_n: finalEstimation.est?.student_n ?? null,
-      student_t: finalEstimation.est?.student_t ?? null,
+      estimated_fck: +estimatedFck.toFixed(2),
       thickness_ok: thicknessOk,
       alerts,
       final_age_days: finalAge,
       measured_thickness_mm: measuredThickness != null ? measuredThickness : f.measured_thickness_mm,
     }));
-  }, [compliant, average, min, estimatedFck, finalEstimation, thicknessOk, alerts, finalAge, measuredThickness]);
+  }, [compliant, average, min, estimatedFck, thicknessOk, alerts, finalAge, measuredThickness]);
 
   function setField(field, value) {
     setForm(f => ({ ...f, [field]: value }));
@@ -261,7 +187,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
   }
 
   function addSpecAtAge(age) {
-    setSpecimens(prev => [...prev, emptySpecimen(age, specBase)]);
+    setSpecimens(prev => [...prev, emptySpecimen(age)]);
     setActiveAge(age);
   }
 
@@ -277,43 +203,26 @@ export default function QualityReportForm({ order, productType, report, onClose,
       specimens: computedSpecimens,
       average_resistance: +average.toFixed(2),
       min_resistance: +min.toFixed(2),
-      estimated_fck: estimatedFck != null ? +estimatedFck.toFixed(2) : null,
-      statistical_method: finalEstimation.est?.statistical_method ?? null,
-      student_n: finalEstimation.est?.student_n ?? null,
-      student_t: finalEstimation.est?.student_t ?? null,
+      estimated_fck: +estimatedFck.toFixed(2),
       is_compliant: compliant,
       thickness_ok: thicknessOk,
       alerts,
       final_age_days: finalAge,
-      product_family: form.product_family,
-      norm_revision: form.norm_revision || '',
-      characteristic_label: charLabel,
-      characteristic_resistance: estimatedFck != null ? +estimatedFck.toFixed(2) : null,
-      calculation_version: CALCULATION_VERSION,
-      report_version: form.report_version || 1,
     };
-    // Revisão com parâmetros pendentes: apenas rascunho, sem conformidade definitiva
-    if (revisionPending) {
-      payload.status = 'Rascunho';
-      payload.is_compliant = null;
-    }
     if (!payload.test_date && payload.molding_date) {
       const d = new Date(payload.molding_date + 'T00:00:00');
       d.setDate(d.getDate() + (payload.final_age_days || 28));
       payload.test_date = d.toISOString().slice(0, 10);
     }
     const targetLabel = Number(form.target_resistance) > 0
-      ? `${charLabel} de ${target} MPa`
+      ? `fck de ${target} MPa`
       : `resistência mínima de ${target} MPa (${payload.norm_reference} — tráfego ${payload.traffic_type})`;
-    if (finalEstimation.est && finalEstimation.est.status !== 'OK') {
-      payload.conclusion = `Lote em avaliação — ${charLabel},est não calculado (${finalEstimation.est.warning}) Os resultados individuais, a média e o desvio-padrão permanecem registrados no laudo.`;
-    } else if (!estimatedFck || estimatedFck === 0) {
+    if (!estimatedFck || estimatedFck === 0) {
       payload.conclusion = `Laudo em fase de preenchimento — aguardando resultados do ensaio de compressão para avaliação da conformidade à norma ${payload.norm_reference}.`;
     } else {
       payload.conclusion = compliant
-        ? `Lote CONFORME à norma ${payload.norm_reference}. ${charLabel} estimado de ${estimatedFck.toFixed(2)} MPa na idade de ${finalAge} dias atende à ${targetLabel}.`
-        : `Lote NÃO CONFORME à norma ${payload.norm_reference}. ${charLabel} estimado de ${estimatedFck.toFixed(2)} MPa na idade de ${finalAge} dias não atende à ${targetLabel}.`;
-      if (revisionPending) payload.conclusion += ' Resultado preliminar — revisão normativa com parâmetros pendentes (rascunho).';
+        ? `Lote CONFORME à norma ${payload.norm_reference}. fck estimado de ${estimatedFck.toFixed(2)} MPa na idade de ${finalAge} dias atende à ${targetLabel}.`
+        : `Lote NÃO CONFORME à norma ${payload.norm_reference}. fck estimado de ${estimatedFck.toFixed(2)} MPa na idade de ${finalAge} dias não atende à ${targetLabel}.`;
     }
     try {
       if (report) {
@@ -356,15 +265,6 @@ export default function QualityReportForm({ order, productType, report, onClose,
             </TabsList>
 
             <TabsContent value="laudo" className="space-y-6 mt-4">
-              {revisionPending && (
-                <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-3">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-700 dark:text-amber-400">
-                    Esta revisão normativa está disponível para seleção, porém seus parâmetros de cálculo ainda não foram validados/configurados para emissão definitiva. O laudo será salvo como <strong>Rascunho</strong>, sem status de conformidade.
-                  </p>
-                </div>
-              )}
-
               {/* 1. Identificação */}
               <section>
                 <h3 className="text-sm font-semibold text-foreground mb-3">1. Identificação do Laboratório e Responsável</h3>
@@ -407,25 +307,9 @@ export default function QualityReportForm({ order, productType, report, onClose,
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Norma de Referência</label>
                     <select className="w-full px-3 py-2 border border-input rounded-lg text-sm bg-background"
-                      value={form.norm_reference} onChange={e => {
-                        const nr = e.target.value;
-                        setForm(f => ({ ...f, norm_reference: nr, product_family: familyForNormReference(nr) || f.product_family, norm_revision: DEFAULT_REVISION_BY_NORM[nr] || '' }));
-                      }}>
+                      value={form.norm_reference} onChange={e => setField('norm_reference', e.target.value)}>
                       {NORM_OPTIONS.map(n => <option key={n} value={n}>{n}{n === 'NBR 6136' ? ' (Blocos)' : ' (Pavimentos)'}</option>)}
                     </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Revisão Normativa</label>
-                    <select className="w-full px-3 py-2 border border-input rounded-lg text-sm bg-background"
-                      value={form.norm_revision || ''} onChange={e => setField('norm_revision', e.target.value)}>
-                      {report && !report.norm_revision && <option value="">Revisão não registrada (laudo histórico)</option>}
-                      {getAvailableRevisions(form.norm_reference).map(r => (
-                        <option key={r.id} value={r.id}>{r.label}{r.state === REVISION_STATES.PENDING ? ' — parâmetros pendentes' : ''}</option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Família: <strong>{form.product_family === 'PAVER' ? 'Pavimento intertravado (PAVER)' : 'Bloco de alvenaria (CONCRETE_BLOCK)'}</strong>
-                    </p>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Fabricante</label>
@@ -450,7 +334,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
                       value={form.application_location} onChange={e => setField('application_location', e.target.value)} placeholder="Obra / local" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Resistência Característica — {charLabel} (MPa)</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Resistência Característica — fck (MPa)</label>
                     <input type="number" step="0.1" required className="w-full px-3 py-2 border border-input rounded-lg text-sm bg-background"
                       value={form.target_resistance} onChange={e => setField('target_resistance', parseFloat(e.target.value))} />
                   </div>
@@ -517,10 +401,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
                   {availableAges.map(age => {
                     const g = groups.find(gg => gg.age_days === age);
                     const stats = ageStats(g?.specimens || []);
-                    const paverEst = pavimento && form.norm_revision
-                      ? estimatePaverFpk({ normRevision: form.norm_revision, resistances: g?.specimens || [] })
-                      : null;
-                    const fckEst = paverEst ? (paverEst.status === 'OK' ? paverEst.fpk_est : null) : estimateFck(g?.specimens || []);
+                    const fckEst = estimateFck(g?.specimens || []);
                     const isFinal = age === finalAge;
                     const isLaudo = stats.average > 0;
                     return (
@@ -530,7 +411,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
                           {isLaudo && <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary">laudo</span>}
                         </p>
                         <p className="text-base font-bold text-foreground">{stats.average ? stats.average.toFixed(2) : '—'} <span className="text-xs font-normal text-muted-foreground">MPa</span></p>
-                        <p className="text-[11px] text-muted-foreground">{charLabel} est: <strong className="text-foreground">{fckEst ? fckEst.toFixed(2) : '—'}</strong> MPa</p>
+                        <p className="text-[11px] text-muted-foreground">fck est: <strong className="text-foreground">{fckEst ? fckEst.toFixed(2) : '—'}</strong> MPa</p>
                         <p className="text-[10px] text-muted-foreground">{g?.specimens.length || 0} CP{stats.min ? ` • mín ${stats.min.toFixed(2)}` : ''}</p>
                       </div>
                     );
@@ -546,20 +427,9 @@ export default function QualityReportForm({ order, productType, report, onClose,
                         <th className="px-2 py-2 text-left">Idade (dias)</th>
                         <th className="px-2 py-2 text-left">Larg. (mm)</th>
                         <th className="px-2 py-2 text-left">Comp. (mm)</th>
-                        {pavimento ? (
-                          <>
-                            <th className="px-2 py-2 text-left">Esp. Nom. (mm)</th>
-                            <th className="px-2 py-2 text-left">Esp. Med. (mm)</th>
-                            <th className="px-2 py-2 text-left">Área disp. (cm²)</th>
-                            <th className="px-2 py-2 text-left">p</th>
-                          </>
-                        ) : (
-                          <>
-                            <th className="px-2 py-2 text-left">Alt. (mm)</th>
-                            <th className="px-2 py-2 text-left">Área (cm²)</th>
-                            <th className="px-2 py-2 text-left">Massa (g)</th>
-                          </>
-                        )}
+                        <th className="px-2 py-2 text-left">Alt. (mm)</th>
+                        <th className="px-2 py-2 text-left">Área (cm²)</th>
+                        <th className="px-2 py-2 text-left">Massa (g)</th>
                         <th className="px-2 py-2 text-left">Carga (kN)</th>
                         <th className="px-2 py-2 text-left">Resist. (MPa)</th>
                         <th className="px-2 py-2" />
@@ -575,20 +445,9 @@ export default function QualityReportForm({ order, productType, report, onClose,
                             <td className="px-1 py-1.5"><input type="number" className="w-16 px-2 py-1 border border-input rounded text-xs bg-background" value={s.age_days} onChange={e => updateSpec(globalIdx, 'age_days', parseInt(e.target.value) || 0)} /></td>
                             <td className="px-1 py-1.5"><input type="number" className="w-20 px-2 py-1 border border-input rounded text-xs bg-background" value={s.width_mm || ''} onChange={e => updateSpec(globalIdx, 'width_mm', parseFloat(e.target.value))} /></td>
                             <td className="px-1 py-1.5"><input type="number" className="w-20 px-2 py-1 border border-input rounded text-xs bg-background" value={s.length_mm || ''} onChange={e => updateSpec(globalIdx, 'length_mm', parseFloat(e.target.value))} /></td>
-                            {pavimento ? (
-                              <>
-                                <td className="px-1 py-1.5"><input type="number" className="w-20 px-2 py-1 border border-input rounded text-xs bg-background" value={s.nominal_thickness_mm || ''} onChange={e => updateSpec(globalIdx, 'nominal_thickness_mm', parseFloat(e.target.value))} /></td>
-                                <td className="px-1 py-1.5"><input type="number" step="0.1" className="w-20 px-2 py-1 border border-input rounded text-xs bg-background" value={s.measured_thickness_mm || ''} onChange={e => updateSpec(globalIdx, 'measured_thickness_mm', parseFloat(e.target.value))} /></td>
-                                <td className="px-2 py-1.5 text-muted-foreground" title="Área do dispositivo de carregamento (valor normativo fixo — NBR 9781)">{s.area_cm2}</td>
-                                <td className="px-2 py-1.5 text-center text-muted-foreground">{s.p_factor != null ? s.p_factor : '—'}</td>
-                              </>
-                            ) : (
-                              <>
-                                <td className="px-1 py-1.5"><input type="number" className="w-20 px-2 py-1 border border-input rounded text-xs bg-background" value={s.height_mm || ''} onChange={e => updateSpec(globalIdx, 'height_mm', parseFloat(e.target.value))} /></td>
-                                <td className="px-2 py-1.5 text-muted-foreground">{s.area_cm2}</td>
-                                <td className="px-1 py-1.5"><input type="number" step="0.1" className="w-20 px-2 py-1 border border-input rounded text-xs bg-background" value={s.mass_g || ''} onChange={e => updateSpec(globalIdx, 'mass_g', parseFloat(e.target.value))} /></td>
-                              </>
-                            )}
+                            <td className="px-1 py-1.5"><input type="number" className="w-20 px-2 py-1 border border-input rounded text-xs bg-background" value={s.height_mm || ''} onChange={e => updateSpec(globalIdx, 'height_mm', parseFloat(e.target.value))} /></td>
+                            <td className="px-2 py-1.5 text-muted-foreground">{s.area_cm2}</td>
+                            <td className="px-1 py-1.5"><input type="number" step="0.1" className="w-20 px-2 py-1 border border-input rounded text-xs bg-background" value={s.mass_g || ''} onChange={e => updateSpec(globalIdx, 'mass_g', parseFloat(e.target.value))} /></td>
                             <td className="px-1 py-1.5"><input type="number" step="0.1" className="w-24 px-2 py-1 border border-input rounded text-xs bg-background" value={s.rupture_load_kn || ''} onChange={e => updateSpec(globalIdx, 'rupture_load_kn', parseFloat(e.target.value))} /></td>
                             <td className="px-2 py-1.5 font-semibold text-foreground">{s.resistance_mpa}</td>
                             <td className="px-1 py-1.5 text-center">
@@ -597,7 +456,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
                           </tr>
                         ))}
                       {computedSpecimens.filter(s => Number(s.age_days) === activeAge).length === 0 && (
-                        <tr><td colSpan={pavimento ? 11 : 10} className="px-2 py-6 text-center text-xs text-muted-foreground">Nenhum corpo de prova aos {activeAge} dias. Clique em "+ CP" para adicionar.</td></tr>
+                        <tr><td colSpan={10} className="px-2 py-6 text-center text-xs text-muted-foreground">Nenhum corpo de prova aos {activeAge} dias. Clique em "+ CP" para adicionar.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -618,12 +477,12 @@ export default function QualityReportForm({ order, productType, report, onClose,
                     <p className="text-xs text-muted-foreground">MPa</p>
                   </div>
                   <div className="bg-primary/5 rounded-lg p-3 border border-primary/30 text-center">
-                    <p className="text-xs text-muted-foreground">{charLabel} Estimado</p>
+                    <p className="text-xs text-muted-foreground">fck Estimado</p>
                     <p className="text-xl font-bold text-primary">{displayEstimatedFck ? displayEstimatedFck.toFixed(2) : '—'}</p>
                     <p className="text-xs text-muted-foreground">MPa</p>
                   </div>
                   <div className="bg-muted/40 rounded-lg p-3 border border-border text-center">
-                    <p className="text-xs text-muted-foreground">{charLabel} Projeto</p>
+                    <p className="text-xs text-muted-foreground">fck Projeto</p>
                     <p className="text-xl font-bold text-foreground">{target || '—'}</p>
                     <p className="text-xs text-muted-foreground">MPa</p>
                   </div>
@@ -645,27 +504,9 @@ export default function QualityReportForm({ order, productType, report, onClose,
                       {displayApproval === 'REPROVADO' && <><XCircle className="w-5 h-5" /> REPROVADO</>}
                       {displayApproval === null && '—'}
                     </p>
-                    <p className="text-xs text-muted-foreground">{charLabel},est {displayEstimatedFck ? displayEstimatedFck.toFixed(2) : '—'} / {charLabel} {target || '—'} MPa</p>
+                    <p className="text-xs text-muted-foreground">fck,est {displayEstimatedFck ? displayEstimatedFck.toFixed(2) : '—'} / fck {target || '—'} MPa</p>
                   </div>
                 </div>
-
-                {pavimento && finalEstimation.est && (
-                  <div className="bg-muted/40 border border-border rounded-lg p-2.5 text-[11px] text-muted-foreground">
-                    {finalEstimation.est.status === 'OK' ? (
-                      <span>
-                        Método estatístico: <strong className="text-foreground">{finalEstimation.est.statistical_method}</strong>
-                        {' '}— n = {finalEstimation.est.student_n}, t = {finalEstimation.est.student_t} • fpk,est = fp − t × s (fp = média, s = desvio-padrão)
-                      </span>
-                    ) : (
-                      <span className="text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                        <span>
-                          {finalEstimation.est.warning} Média ({finalEstimation.est.fp != null ? finalEstimation.est.fp.toFixed(2) : '—'} MPa){finalEstimation.est.s != null ? ` e desvio-padrão (${finalEstimation.est.s.toFixed(2)} MPa)` : ''} permanecem registrados.
-                        </span>
-                      </span>
-                    )}
-                  </div>
-                )}
 
                 {alerts.length > 0 && (
                   <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-3 space-y-1.5">
