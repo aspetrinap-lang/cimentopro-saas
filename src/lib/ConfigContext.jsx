@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { DEFAULT_RAW_MATERIALS, INSUMO_KEYS } from '@/lib/insumos';
+import { useAuth } from '@/lib/AuthContext';
 import { useCompany } from '@/lib/CompanyContext';
 import { scopedFilter, withCompany } from '@/lib/companyScope';
 
@@ -24,6 +25,7 @@ export function ConfigProvider({ children }) {
   );
   const [maintenanceIntervals, setMaintenanceIntervals] = useState(DEFAULT_MAINTENANCE_INTERVALS);
   const [loading, setLoading] = useState(true);
+  const { isAuthenticated, isLoadingAuth } = useAuth();
   const { currentCompanyId } = useCompany();
 
   const refreshConfigs = useCallback(async () => {
@@ -44,14 +46,25 @@ export function ConfigProvider({ children }) {
       if (intervals?.value) {
         setMaintenanceIntervals({ ...DEFAULT_MAINTENANCE_INTERVALS, ...intervals.value });
       }
+    } catch (error) {
+      // Sem sessão válida (tela de login / sessão expirada) ou falha transitória
+      // (limite de requisições): o app continua com os valores padrão em vez de
+      // travar ou exibir o erro de "app privado".
+      console.warn('Configurações não carregadas:', error?.message || error);
     } finally {
-      // Em falha transitória (ex: limite de requisições), o app continua com os
-      // valores padrão em vez de travar na tela de carregamento.
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { refreshConfigs(); }, [refreshConfigs, currentCompanyId]);
+  // Só consulta a base com sessão autenticada — antes disso a chamada
+  // dispara "This app is private" na tela de login.
+  useEffect(() => {
+    if (isLoadingAuth || !isAuthenticated) {
+      setLoading(true);
+      return;
+    }
+    refreshConfigs();
+  }, [refreshConfigs, isLoadingAuth, isAuthenticated, currentCompanyId]);
 
   // Nomes derivados da lista de matérias-primas (compatibilidade com useInsumoNames)
   const insumoNames = Object.fromEntries(rawMaterials.map(m => [m.key, m.name]));
