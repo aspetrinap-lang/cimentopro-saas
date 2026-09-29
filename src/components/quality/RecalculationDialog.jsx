@@ -86,6 +86,9 @@ export default function RecalculationDialog({ report, reports, onClose, onSaved,
         recalculated_at: new Date().toISOString(),
         recalculated_by: recalculatedBy,
         calculation_version: CALCULATION_VERSION,
+        statistical_method: result.calculationMetadata.statistical_method ?? null,
+        student_n: result.calculationMetadata.student_n ?? null,
+        student_t: result.calculationMetadata.student_t ?? null,
         status: pending ? 'Rascunho' : (report.status || 'Emitido'),
       };
 

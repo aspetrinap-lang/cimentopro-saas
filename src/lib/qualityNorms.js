@@ -77,6 +77,15 @@ export {
   // Constantes normativas do motor
   MIN_RESISTANCE_BY_TRAFFIC,
   DIMENSIONAL_TOLERANCE_MM,
+  // Pavimento intertravado (NBR 9781) — fp, p, fpk,est e conformidade
+  PAVER_THICKNESS_FACTORS,
+  PAVER_STUDENT_TABLE_2013,
+  getPaverThicknessFactor,
+  calculatePaverIndividualResistance,
+  estimatePaverFpk,
+  estimatePaverFpk2013,
+  estimatePaverFpk2026,
+  evaluatePaverCompliance,
   // Revisões normativas
   getAvailableRevisions,
   getRevisionState,
