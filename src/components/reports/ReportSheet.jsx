@@ -26,7 +26,7 @@ export default function ReportSheet({ title, subtitle, icon: Icon, initialStart,
   const HeadIcon = Icon || FileText;
 
   return (
-    <PrintPortal>
+    <PrintPortal title={title}>
     <div className="print-root fixed inset-0 z-50 bg-slate-900/60 overflow-y-auto p-4 md:p-8">
       {/* Barra de ações e filtro de período (fora da área de impressão) */}
       <div className="max-w-[800px] mx-auto mb-3">
