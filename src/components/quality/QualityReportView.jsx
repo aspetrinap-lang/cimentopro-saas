@@ -5,7 +5,7 @@ import PrintPortal from '@/components/reports/PrintPortal';
 import {
   MIN_RESISTANCE_BY_TRAFFIC, MIN_THICKNESS_BY_TRAFFIC, DIMENSIONAL_TOLERANCE_MM,
   groupByAge, ageStats, estimateFck, checkCompliance, buildAlerts,
-  characteristicLabelForReport, versionBadge,
+  characteristicLabelForReport, versionBadge, estimatePaverFpk,
 } from '@/lib/qualityNorms';
 
 function fmtDate(d) {
@@ -23,9 +23,21 @@ function ruptureDate(moldingDate, ageDays) {
 function ageRowData(report, group) {
   const validSpecs = group.specimens.filter(s => Number(s.resistance_mpa) > 0);
   const stats = ageStats(group.specimens);
-  const estFck = estimateFck(group.specimens);
+  const isPaver = report.norm_reference === 'NBR 9781';
+  // PAVER com revisão: fpk,est pelo Anexo A (Tabela A.2); fora do método
+  // normativo (amostra insuficiente/tamanho fora da tabela/pendente) o valor
+  // NÃO é exibido como fpk calculado — apenas a advertência.
+  const paverEst = isPaver
+    ? estimatePaverFpk({ normRevision: report.norm_revision, resistances: group.specimens })
+    : null;
+  const estFck = paverEst ? (paverEst.status === 'OK' ? paverEst.fpk_est : null) : estimateFck(group.specimens);
   const target = Number(report.target_resistance) || 0;
-  const compliant = validSpecs.length >= 3 ? checkCompliance({ average: stats.average, min: stats.min, target }) : null;
+  let compliant = validSpecs.length >= 3 ? checkCompliance({ average: stats.average, min: stats.min, target }) : null;
+  if (isPaver) {
+    compliant = paverEst && paverEst.status === 'OK' && paverEst.fpk_est != null && target > 0
+      ? paverEst.fpk_est >= target
+      : null;
+  }
   return {
     age_days: group.age_days,
     rupture_date: ruptureDate(report.molding_date, group.age_days),
@@ -33,6 +45,8 @@ function ageRowData(report, group) {
     average: stats.average,
     min: stats.min,
     estimated_fck: estFck,
+    est_warning: paverEst?.status !== 'OK' ? (paverEst?.warning || null) : null,
+    est_meta: paverEst && paverEst.status === 'OK' ? `Método: ${paverEst.statistical_method} — n = ${paverEst.student_n}, t = ${paverEst.student_t}` : null,
     target,
     compliant,
   };
@@ -239,6 +253,12 @@ export default function QualityReportView({ report, onClose, onEdit, onRecalcula
             <p className="text-[11px] text-slate-500 mt-2">
               A conformidade de cada idade é calculada quando há 3+ corpos de prova válidos. Linhas em verde = conforme; vermelho = não conforme.
             </p>
+            {rows.some(r => r.est_warning) && (
+              <p className="text-[11px] text-amber-700 mt-1">{rows.find(r => r.est_warning)?.est_warning}</p>
+            )}
+            {rows.some(r => r.est_meta) && (
+              <p className="text-[11px] text-slate-500 mt-1">{rows.find(r => r.est_meta)?.est_meta} • fpk,est = fp − t × s (fp = média, s = desvio-padrão)</p>
+            )}
           </section>
 
           {/* Resultados detalhados por idade */}
@@ -272,9 +292,20 @@ export default function QualityReportView({ report, onClose, onEdit, onRecalcula
                             <th className="border border-slate-200 px-2 py-1 text-left">CP</th>
                             <th className="border border-slate-200 px-2 py-1 text-right">Larg. (mm)</th>
                             <th className="border border-slate-200 px-2 py-1 text-right">Comp. (mm)</th>
-                            <th className="border border-slate-200 px-2 py-1 text-right">Alt. (mm)</th>
-                            <th className="border border-slate-200 px-2 py-1 text-right">Área (cm²)</th>
-                            <th className="border border-slate-200 px-2 py-1 text-right">Massa (g)</th>
+                            {pavimento ? (
+                              <>
+                                <th className="border border-slate-200 px-2 py-1 text-right">Esp. Nom. (mm)</th>
+                                <th className="border border-slate-200 px-2 py-1 text-right">Esp. Med. (mm)</th>
+                                <th className="border border-slate-200 px-2 py-1 text-right">Área disp. (cm²)</th>
+                                <th className="border border-slate-200 px-2 py-1 text-right">p</th>
+                              </>
+                            ) : (
+                              <>
+                                <th className="border border-slate-200 px-2 py-1 text-right">Alt. (mm)</th>
+                                <th className="border border-slate-200 px-2 py-1 text-right">Área (cm²)</th>
+                                <th className="border border-slate-200 px-2 py-1 text-right">Massa (g)</th>
+                              </>
+                            )}
                             <th className="border border-slate-200 px-2 py-1 text-right">Carga (kN)</th>
                             <th className="border border-slate-200 px-2 py-1 text-right">Resist. (MPa)</th>
                           </tr>
@@ -285,9 +316,20 @@ export default function QualityReportView({ report, onClose, onEdit, onRecalcula
                               <td className="border border-slate-200 px-2 py-1 font-medium">{s.id}</td>
                               <td className="border border-slate-200 px-2 py-1 text-right">{s.width_mm || '—'}</td>
                               <td className="border border-slate-200 px-2 py-1 text-right">{s.length_mm || '—'}</td>
-                              <td className="border border-slate-200 px-2 py-1 text-right">{s.height_mm || '—'}</td>
-                              <td className="border border-slate-200 px-2 py-1 text-right">{s.area_cm2}</td>
-                              <td className="border border-slate-200 px-2 py-1 text-right">{s.mass_g || '—'}</td>
+                              {pavimento ? (
+                                <>
+                                  <td className="border border-slate-200 px-2 py-1 text-right">{s.nominal_thickness_mm || '—'}</td>
+                                  <td className="border border-slate-200 px-2 py-1 text-right">{s.measured_thickness_mm || '—'}</td>
+                                  <td className="border border-slate-200 px-2 py-1 text-right">{s.area_cm2}</td>
+                                  <td className="border border-slate-200 px-2 py-1 text-right">{s.p_factor != null ? s.p_factor : '—'}</td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="border border-slate-200 px-2 py-1 text-right">{s.height_mm || '—'}</td>
+                                  <td className="border border-slate-200 px-2 py-1 text-right">{s.area_cm2}</td>
+                                  <td className="border border-slate-200 px-2 py-1 text-right">{s.mass_g || '—'}</td>
+                                </>
+                              )}
                               <td className="border border-slate-200 px-2 py-1 text-right">{s.rupture_load_kn}</td>
                               <td className="border border-slate-200 px-2 py-1 text-right font-semibold">{s.resistance_mpa}</td>
                             </tr>
@@ -494,9 +536,20 @@ function PrintLaudoBlock({ report, group }) {
                   <th className="border border-slate-200 px-2 py-1 text-left">CP</th>
                   <th className="border border-slate-200 px-2 py-1 text-right">Larg. (mm)</th>
                   <th className="border border-slate-200 px-2 py-1 text-right">Comp. (mm)</th>
-                  <th className="border border-slate-200 px-2 py-1 text-right">Alt. (mm)</th>
-                  <th className="border border-slate-200 px-2 py-1 text-right">Área (cm²)</th>
-                  <th className="border border-slate-200 px-2 py-1 text-right">Massa (g)</th>
+                  {pavimento ? (
+                    <>
+                      <th className="border border-slate-200 px-2 py-1 text-right">Esp. Nom. (mm)</th>
+                      <th className="border border-slate-200 px-2 py-1 text-right">Esp. Med. (mm)</th>
+                      <th className="border border-slate-200 px-2 py-1 text-right">Área disp. (cm²)</th>
+                      <th className="border border-slate-200 px-2 py-1 text-right">p</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="border border-slate-200 px-2 py-1 text-right">Alt. (mm)</th>
+                      <th className="border border-slate-200 px-2 py-1 text-right">Área (cm²)</th>
+                      <th className="border border-slate-200 px-2 py-1 text-right">Massa (g)</th>
+                    </>
+                  )}
                   <th className="border border-slate-200 px-2 py-1 text-right">Carga (kN)</th>
                   <th className="border border-slate-200 px-2 py-1 text-right">Resist. (MPa)</th>
                 </tr>
@@ -507,9 +560,20 @@ function PrintLaudoBlock({ report, group }) {
                     <td className="border border-slate-200 px-2 py-1 font-medium">{s.id}</td>
                     <td className="border border-slate-200 px-2 py-1 text-right">{s.width_mm || '—'}</td>
                     <td className="border border-slate-200 px-2 py-1 text-right">{s.length_mm || '—'}</td>
-                    <td className="border border-slate-200 px-2 py-1 text-right">{s.height_mm || '—'}</td>
-                    <td className="border border-slate-200 px-2 py-1 text-right">{s.area_cm2}</td>
-                    <td className="border border-slate-200 px-2 py-1 text-right">{s.mass_g || '—'}</td>
+                    {pavimento ? (
+                      <>
+                        <td className="border border-slate-200 px-2 py-1 text-right">{s.nominal_thickness_mm || '—'}</td>
+                        <td className="border border-slate-200 px-2 py-1 text-right">{s.measured_thickness_mm || '—'}</td>
+                        <td className="border border-slate-200 px-2 py-1 text-right">{s.area_cm2}</td>
+                        <td className="border border-slate-200 px-2 py-1 text-right">{s.p_factor != null ? s.p_factor : '—'}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="border border-slate-200 px-2 py-1 text-right">{s.height_mm || '—'}</td>
+                        <td className="border border-slate-200 px-2 py-1 text-right">{s.area_cm2}</td>
+                        <td className="border border-slate-200 px-2 py-1 text-right">{s.mass_g || '—'}</td>
+                      </>
+                    )}
                     <td className="border border-slate-200 px-2 py-1 text-right">{s.rupture_load_kn}</td>
                     <td className="border border-slate-200 px-2 py-1 text-right font-semibold">{s.resistance_mpa}</td>
                   </tr>
