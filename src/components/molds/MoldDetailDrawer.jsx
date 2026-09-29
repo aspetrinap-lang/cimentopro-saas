@@ -77,7 +77,7 @@ export default function MoldDetailDrawer({ mold, onClose, onMoldUpdated }) {
         <div className="flex-1 overflow-y-auto">
           {/* Info do molde */}
           <div className="px-6 py-4 space-y-4 border-b border-border">
-            <MoldLifecycleBar cyclesUsed={moldData.cycles_used || 0} maxCycles={moldData.max_cycles} />
+            <MoldLifecycleBar cyclesUsed={moldData.cycles_used || 0} maxCycles={moldData.max_cycles} discarded={moldData.status === 'Descartado'} />
 
             <div className="grid grid-cols-2 gap-3 text-sm">
               {moldData.units_per_cycle && (

@@ -142,7 +142,7 @@ export default function Molds() {
             const cfg = STATUS_CONFIG[mold.status] || STATUS_CONFIG['Ativo'];
             const StatusIcon = cfg.icon;
             const pct = mold.max_cycles ? (mold.cycles_used || 0) / mold.max_cycles * 100 : null;
-            const isCritical = pct !== null && pct >= 90;
+            const isCritical = pct !== null && pct >= 90 && mold.status !== 'Descartado';
 
             return (
               <div key={mold.id}
@@ -194,7 +194,7 @@ export default function Molds() {
                 )}
 
                 {/* Lifecycle bar */}
-                <MoldLifecycleBar cyclesUsed={mold.cycles_used || 0} maxCycles={mold.max_cycles} />
+                <MoldLifecycleBar cyclesUsed={mold.cycles_used || 0} maxCycles={mold.max_cycles} discarded={mold.status === 'Descartado'} />
 
                 {/* Dates */}
                 {(mold.acquisition_date || mold.last_maintenance_date) && (
