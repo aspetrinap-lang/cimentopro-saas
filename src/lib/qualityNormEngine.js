@@ -178,6 +178,12 @@ export function ageStats(specs) {
   };
 }
 
+// Resistência mínima por tipo de tráfego (NBR 9781) — MPa (fallback sem classe)
+export const MIN_RESISTANCE_BY_TRAFFIC = {
+  'Pedestres/Leves': 35,
+  'Pesado': 35,
+};
+
 // Verifica conformidade dimensional da espessura (NBR 9781): variação ≤ 3 mm
 export const DIMENSIONAL_TOLERANCE_MM = 3;
 export function checkThickness(nominal, measured) {
@@ -197,8 +203,9 @@ export function buildAlerts({ norm_reference, average, min, target, traffic_type
     }
   }
   if (norm_reference === 'NBR 9781') {
-    if (average > 0 && average < 35) {
-      alerts.push(`Resistência média (${average.toFixed(2)} MPa) abaixo do mínimo da NBR 9781 (35 MPa).`);
+    const minResist = MIN_RESISTANCE_BY_TRAFFIC[traffic_type];
+    if (minResist && average > 0 && average < minResist) {
+      alerts.push(`Resistência média (${average.toFixed(2)} MPa) abaixo do mínimo da NBR 9781 para tráfego ${traffic_type} (${minResist} MPa).`);
     }
     if (thickness_ok === false) {
       alerts.push(`Espessura medida fora da tolerância de ±${DIMENSIONAL_TOLERANCE_MM} mm da nominal (NBR 9781).`);

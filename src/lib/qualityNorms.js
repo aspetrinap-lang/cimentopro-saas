@@ -5,8 +5,6 @@
 // compatibilidade com todos os consumidores existentes (Form, View, Quality,
 // curva de resistência, relatórios). Nenhuma tela pode ter fórmula própria.
 
-import { inferNormFamilyText } from './qualityFamilyText';
-
 export const NORM_OPTIONS = ['NBR 6136', 'NBR 9781'];
 
 export const AGE_PRESETS = [7, 14, 21, 28];
@@ -38,14 +36,6 @@ export function getClassFbk(normReference, normClass) {
   return found ? found.fbk : 0;
 }
 
-// Resistência mínima da NBR 9781 padronizada em 35 MPa (fallback por tráfego
-// quando não houver classe definida). Com classe informada, vale a classe:
-// 35 → 35 MPa; 50 → 50 MPa (getClassFbk).
-export const MIN_RESISTANCE_BY_TRAFFIC = {
-  'Pedestres/Leves': 35,
-  'Pesado': 35,
-};
-
 // Espessura mínima (mm) por tipo de tráfego (NBR 9781)
 // Para pavimentos, "altura" e "espessura" são a mesma dimensão da peça:
 // usa-se nominal_thickness_mm / measured_thickness_mm (nunca campos duplicados).
@@ -56,10 +46,14 @@ export const MIN_THICKNESS_BY_TRAFFIC = {
 
 export const NOMINAL_THICKNESS_PRESETS_MM = [60, 80, 100];
 
-// Fallback LEGADO de leitura: família a partir de texto livre da categoria.
+// Fallback LEGADO de leitura: norma a partir de texto livre da categoria.
 // Somente para registros antigos sem product_family — nunca gravado no banco.
 export function inferNorm(category) {
-  return inferNormFamilyText(category);
+if (!category) return 'NBR 6136';
+const cat = category.toLowerCase();
+if (cat.includes('pavimento')) return 'NBR 9781';
+if (cat.includes('meio fio') || cat.includes('meio-fio')) return 'NBR 9781';
+return 'NBR 6136';
 }
 
 // ---------- CÁLCULOS — reexportados do MOTOR CENTRAL (fonte única) ----------
@@ -80,6 +74,9 @@ export {
   characteristicLabelForFamily,
   characteristicLabelForNorm,
   characteristicLabelForReport,
+  // Constantes normativas do motor
+  MIN_RESISTANCE_BY_TRAFFIC,
+  DIMENSIONAL_TOLERANCE_MM,
   // Revisões normativas
   getAvailableRevisions,
   getRevisionState,

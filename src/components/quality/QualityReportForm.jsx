@@ -9,6 +9,9 @@ import {
   MIN_RESISTANCE_BY_TRAFFIC, MIN_THICKNESS_BY_TRAFFIC, DIMENSIONAL_TOLERANCE_MM,
   inferNorm, computeSpecimen, groupByAge, ageStats,
   checkThickness, buildAlerts, checkApproval, estimateFck, getClassFbk,
+  getAvailableRevisions, isRevisionValidated, resolveQualityProductFamily,
+  familyForNormReference, characteristicLabelForReport,
+  DEFAULT_REVISION_BY_NORM, CALCULATION_VERSION, REVISION_STATES,
 } from '@/lib/qualityNorms';
 
 // Resolve o fck de referência: usa o fck de projeto informado; na NBR 9781 sem
@@ -46,6 +49,13 @@ export default function QualityReportForm({ order, productType, report, onClose,
         specimen_count: report.specimens?.length || 6,
         final_age_days: report.final_age_days ?? 28,
         ...rest,
+        // Campos estruturais — laudos históricos sem os campos mantêm os
+        // valores ausentes (fallback somente de leitura, nunca gravado)
+        product_family: report.product_family || familyForNormReference(report.norm_reference) || null,
+        norm_revision: report.norm_revision || '',
+        report_version: report.report_version || 1,
+        characteristic_resistance: report.characteristic_resistance ?? report.estimated_fck ?? null,
+        characteristic_label: report.characteristic_label || '',
       };
     }
     return {
@@ -56,6 +66,12 @@ export default function QualityReportForm({ order, productType, report, onClose,
       product_type_name: productType?.name || order?.product_type_name || '',
       category: productType?.category || '',
       norm_reference: inferNorm(productType?.category),
+      product_family: resolveQualityProductFamily(productType) || familyForNormReference(inferNorm(productType?.category)) || 'CONCRETE_BLOCK',
+      norm_revision: DEFAULT_REVISION_BY_NORM[inferNorm(productType?.category)] || '',
+      report_version: 1,
+      characteristic_resistance: null,
+      characteristic_label: '',
+      calculation_version: CALCULATION_VERSION,
       laboratory_name: '',
       test_equipment: 'Prensa PAVITEST 100 toneladas, acionamento hidráulico',
       calibration_number: '0212/26',
@@ -127,6 +143,9 @@ export default function QualityReportForm({ order, productType, report, onClose,
     if (ages.includes(Number(form.final_age_days))) return Number(form.final_age_days);
     return ages.length ? Math.max(...ages) : 0;
   }, [groups, form.final_age_days]);
+
+  const charLabel = characteristicLabelForReport(form);
+  const revisionPending = form.norm_revision ? !isRevisionValidated(form.norm_reference, form.norm_revision) : false;
 
   const target = resolveTargetFck(form);
   const finalGroup = groups.find(g => g.age_days === finalAge) || { specimens: [] };
@@ -208,21 +227,33 @@ export default function QualityReportForm({ order, productType, report, onClose,
       thickness_ok: thicknessOk,
       alerts,
       final_age_days: finalAge,
+      product_family: form.product_family,
+      norm_revision: form.norm_revision || '',
+      characteristic_label: charLabel,
+      characteristic_resistance: +estimatedFck.toFixed(2),
+      calculation_version: CALCULATION_VERSION,
+      report_version: form.report_version || 1,
     };
+    // Revisão com parâmetros pendentes: apenas rascunho, sem conformidade definitiva
+    if (revisionPending) {
+      payload.status = 'Rascunho';
+      payload.is_compliant = null;
+    }
     if (!payload.test_date && payload.molding_date) {
       const d = new Date(payload.molding_date + 'T00:00:00');
       d.setDate(d.getDate() + (payload.final_age_days || 28));
       payload.test_date = d.toISOString().slice(0, 10);
     }
     const targetLabel = Number(form.target_resistance) > 0
-      ? `fck de ${target} MPa`
+      ? `${charLabel} de ${target} MPa`
       : `resistência mínima de ${target} MPa (${payload.norm_reference} — tráfego ${payload.traffic_type})`;
     if (!estimatedFck || estimatedFck === 0) {
       payload.conclusion = `Laudo em fase de preenchimento — aguardando resultados do ensaio de compressão para avaliação da conformidade à norma ${payload.norm_reference}.`;
     } else {
       payload.conclusion = compliant
-        ? `Lote CONFORME à norma ${payload.norm_reference}. fck estimado de ${estimatedFck.toFixed(2)} MPa na idade de ${finalAge} dias atende à ${targetLabel}.`
-        : `Lote NÃO CONFORME à norma ${payload.norm_reference}. fck estimado de ${estimatedFck.toFixed(2)} MPa na idade de ${finalAge} dias não atende à ${targetLabel}.`;
+        ? `Lote CONFORME à norma ${payload.norm_reference}. ${charLabel} estimado de ${estimatedFck.toFixed(2)} MPa na idade de ${finalAge} dias atende à ${targetLabel}.`
+        : `Lote NÃO CONFORME à norma ${payload.norm_reference}. ${charLabel} estimado de ${estimatedFck.toFixed(2)} MPa na idade de ${finalAge} dias não atende à ${targetLabel}.`;
+      if (revisionPending) payload.conclusion += ' Resultado preliminar — revisão normativa com parâmetros pendentes (rascunho).';
     }
     try {
       if (report) {
@@ -265,6 +296,15 @@ export default function QualityReportForm({ order, productType, report, onClose,
             </TabsList>
 
             <TabsContent value="laudo" className="space-y-6 mt-4">
+              {revisionPending && (
+                <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-3">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Esta revisão normativa está disponível para seleção, porém seus parâmetros de cálculo ainda não foram validados/configurados para emissão definitiva. O laudo será salvo como <strong>Rascunho</strong>, sem status de conformidade.
+                  </p>
+                </div>
+              )}
+
               {/* 1. Identificação */}
               <section>
                 <h3 className="text-sm font-semibold text-foreground mb-3">1. Identificação do Laboratório e Responsável</h3>
@@ -307,9 +347,25 @@ export default function QualityReportForm({ order, productType, report, onClose,
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Norma de Referência</label>
                     <select className="w-full px-3 py-2 border border-input rounded-lg text-sm bg-background"
-                      value={form.norm_reference} onChange={e => setField('norm_reference', e.target.value)}>
+                      value={form.norm_reference} onChange={e => {
+                        const nr = e.target.value;
+                        setForm(f => ({ ...f, norm_reference: nr, product_family: familyForNormReference(nr) || f.product_family, norm_revision: DEFAULT_REVISION_BY_NORM[nr] || '' }));
+                      }}>
                       {NORM_OPTIONS.map(n => <option key={n} value={n}>{n}{n === 'NBR 6136' ? ' (Blocos)' : ' (Pavimentos)'}</option>)}
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Revisão Normativa</label>
+                    <select className="w-full px-3 py-2 border border-input rounded-lg text-sm bg-background"
+                      value={form.norm_revision || ''} onChange={e => setField('norm_revision', e.target.value)}>
+                      {report && !report.norm_revision && <option value="">Revisão não registrada (laudo histórico)</option>}
+                      {getAvailableRevisions(form.norm_reference).map(r => (
+                        <option key={r.id} value={r.id}>{r.label}{r.state === REVISION_STATES.PENDING ? ' — parâmetros pendentes' : ''}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Família: <strong>{form.product_family === 'PAVER' ? 'Pavimento intertravado (PAVER)' : 'Bloco de alvenaria (CONCRETE_BLOCK)'}</strong>
+                    </p>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Fabricante</label>
@@ -334,7 +390,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
                       value={form.application_location} onChange={e => setField('application_location', e.target.value)} placeholder="Obra / local" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Resistência Característica — fck (MPa)</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Resistência Característica — {charLabel} (MPa)</label>
                     <input type="number" step="0.1" required className="w-full px-3 py-2 border border-input rounded-lg text-sm bg-background"
                       value={form.target_resistance} onChange={e => setField('target_resistance', parseFloat(e.target.value))} />
                   </div>
@@ -411,7 +467,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
                           {isLaudo && <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary">laudo</span>}
                         </p>
                         <p className="text-base font-bold text-foreground">{stats.average ? stats.average.toFixed(2) : '—'} <span className="text-xs font-normal text-muted-foreground">MPa</span></p>
-                        <p className="text-[11px] text-muted-foreground">fck est: <strong className="text-foreground">{fckEst ? fckEst.toFixed(2) : '—'}</strong> MPa</p>
+                        <p className="text-[11px] text-muted-foreground">{charLabel} est: <strong className="text-foreground">{fckEst ? fckEst.toFixed(2) : '—'}</strong> MPa</p>
                         <p className="text-[10px] text-muted-foreground">{g?.specimens.length || 0} CP{stats.min ? ` • mín ${stats.min.toFixed(2)}` : ''}</p>
                       </div>
                     );
@@ -477,12 +533,12 @@ export default function QualityReportForm({ order, productType, report, onClose,
                     <p className="text-xs text-muted-foreground">MPa</p>
                   </div>
                   <div className="bg-primary/5 rounded-lg p-3 border border-primary/30 text-center">
-                    <p className="text-xs text-muted-foreground">fck Estimado</p>
+                    <p className="text-xs text-muted-foreground">{charLabel} Estimado</p>
                     <p className="text-xl font-bold text-primary">{displayEstimatedFck ? displayEstimatedFck.toFixed(2) : '—'}</p>
                     <p className="text-xs text-muted-foreground">MPa</p>
                   </div>
                   <div className="bg-muted/40 rounded-lg p-3 border border-border text-center">
-                    <p className="text-xs text-muted-foreground">fck Projeto</p>
+                    <p className="text-xs text-muted-foreground">{charLabel} Projeto</p>
                     <p className="text-xl font-bold text-foreground">{target || '—'}</p>
                     <p className="text-xs text-muted-foreground">MPa</p>
                   </div>
@@ -504,7 +560,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
                       {displayApproval === 'REPROVADO' && <><XCircle className="w-5 h-5" /> REPROVADO</>}
                       {displayApproval === null && '—'}
                     </p>
-                    <p className="text-xs text-muted-foreground">fck,est {displayEstimatedFck ? displayEstimatedFck.toFixed(2) : '—'} / fck {target || '—'} MPa</p>
+                    <p className="text-xs text-muted-foreground">{charLabel},est {displayEstimatedFck ? displayEstimatedFck.toFixed(2) : '—'} / {charLabel} {target || '—'} MPa</p>
                   </div>
                 </div>
 
