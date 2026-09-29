@@ -276,7 +276,11 @@ function computePaverSpecimen(spec, opts = {}) {
     : (Number(opts.nominalThicknessMm) > 0 ? opts.nominalThicknessMm : spec.height_mm);
   const nominal = Number(nominalRaw) > 0 ? Number(nominalRaw) : null;
   const load = Number(spec.rupture_load_kn) || 0;
-  const fRes = getPaverThicknessFactor({ nominalThicknessMm: nominal, normRevision: opts.normRevision });
+  // Laudo SEM revisão registrada (histórico): leitura legada SEM correção de p —
+  // os valores armazenados são reproduzidos exatamente como foram gravados.
+  const fRes = opts.normRevision
+    ? getPaverThicknessFactor({ nominalThicknessMm: nominal, normRevision: opts.normRevision })
+    : { status: 'OK', p: null, warning: null };
   const raw = load > 0 ? (load / area) * 10 : 0; // kN/cm² → MPa (sem p)
   const resistance = fRes.p != null ? raw * fRes.p : raw;
   return {
