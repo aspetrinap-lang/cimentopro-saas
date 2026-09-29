@@ -8,7 +8,6 @@ import { fmtBRL, fmtNum } from '@/lib/statsUtils';
 import { buildCostModel, calculateSellingCost, unitLabel, FINANCIAL_PERIODS, historyRangeLabel } from '@/lib/industrialCostEngine';
 import FinancialBaseSection from '@/components/pricing/FinancialBaseSection';
 import CostCompositionPanel from '@/components/pricing/CostCompositionPanel';
-import PricingReport from '@/components/reports/PricingReport';
 import CostingV2Report from '@/components/reports/CostingV2Report';
 
 const DEFAULTS_KEY = 'pricing_simulator_defaults';
@@ -56,7 +55,6 @@ export default function PricingSimulator() {
   const [rows, setRows] = useState(loadRows); // productId -> { commission, freight, other, margin, taxRate }
   const [savingId, setSavingId] = useState(null);
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [showReport, setShowReport] = useState(false);
   const [showV2Report, setShowV2Report] = useState(false);
   const [composingId, setComposingId] = useState(null);
   const { costs: insumoCosts } = useInsumoCosts();
@@ -224,10 +222,6 @@ export default function PricingSimulator() {
           <button onClick={() => setShowV2Report(true)}
             className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
             <Printer className="w-4 h-4" /> Relatório de Custeio
-          </button>
-          <button onClick={() => setShowReport(true)}
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors">
-            <Printer className="w-4 h-4" /> Cálculo antigo
           </button>
         </div>
       </div>
@@ -446,18 +440,6 @@ export default function PricingSimulator() {
         />
       )}
 
-      {showReport && (
-        <PricingReport
-          orders={orders}
-          lines={lines}
-          dres={sortedDres}
-          productTypes={productTypes}
-          insumoCosts={insumoCosts}
-          defaults={{ ...defaults, regime: taxes.regime, taxRate: currentRate }}
-          rows={rows}
-          onClose={() => setShowReport(false)}
-        />
-      )}
     </div>
   );
 }
