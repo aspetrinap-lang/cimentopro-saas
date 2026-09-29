@@ -83,8 +83,9 @@ export function buildProblemsReportData({ orders, downtimes, machines, molds, co
     }
   });
 
-  // 4. Moldes: vida útil avançada ou em manutenção
+  // 4. Moldes: vida útil avançada ou em manutenção (descartados não alertam)
   (molds || []).forEach((m) => {
+    if (m.status === 'Descartado') return;
     if (m.max_cycles && m.cycles_used) {
       const pct = (m.cycles_used / m.max_cycles) * 100;
       if (pct >= 80) {

@@ -138,6 +138,7 @@ export default function ExecutiveSummary({ orders, downtimes, machines, period }
   // 8. Alertas Críticos
   const alerts = [];
   molds.forEach(m => {
+    if (m.status === 'Descartado') return;
     if (m.max_cycles && m.cycles_used) {
       const pct = (m.cycles_used / m.max_cycles) * 100;
       if (pct >= 80) alerts.push({ text: `Molde ${m.name}: ${Math.round(pct)}% da vida útil`, to: '/molds', priority: pct >= 95 ? 'critical' : 'high' });
