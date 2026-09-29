@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { format, subDays, differenceInCalendarDays } from 'date-fns';
 import { CalendarRange, Printer, X, FileText } from 'lucide-react';
 import CompanyBrand from '@/components/CompanyBrand';
+import PrintPortal from './PrintPortal';
 
 // Casca reutilizável das fichas técnicas A4: barra de ações com filtro de
 // datas (fora da área de impressão) + folha A4 com cabeçalho padrão.
@@ -25,6 +26,7 @@ export default function ReportSheet({ title, subtitle, icon: Icon, initialStart,
   const HeadIcon = Icon || FileText;
 
   return (
+    <PrintPortal>
     <div className="print-root fixed inset-0 z-50 bg-slate-900/60 overflow-y-auto p-4 md:p-8">
       {/* Barra de ações e filtro de período (fora da área de impressão) */}
       <div className="max-w-[800px] mx-auto mb-3">
@@ -112,5 +114,6 @@ export default function ReportSheet({ title, subtitle, icon: Icon, initialStart,
         </p>
       </div>
     </div>
+    </PrintPortal>
   );
 }

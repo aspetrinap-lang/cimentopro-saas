@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Printer, Pencil, X, CheckCircle2, AlertTriangle } from 'lucide-react';
 import CompanyBrand from '@/components/CompanyBrand';
+import PrintPortal from '@/components/reports/PrintPortal';
 import {
   MIN_RESISTANCE_BY_TRAFFIC, MIN_THICKNESS_BY_TRAFFIC, DIMENSIONAL_TOLERANCE_MM,
   groupByAge, ageStats, estimateFck, checkCompliance, buildAlerts,
@@ -55,6 +56,7 @@ export default function QualityReportView({ report, onClose, onEdit }) {
     : null;
 
   return (
+    <PrintPortal>
     <div className="print-root fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="bg-white text-slate-900 rounded-xl shadow-xl border border-slate-200 w-full max-w-4xl max-h-[92vh] overflow-y-auto print:max-w-none print:shadow-none print:border-none print:rounded-none print:max-h-none print:overflow-visible print:p-0 print-area">
         {/* Toolbar */}
@@ -333,6 +335,7 @@ export default function QualityReportView({ report, onClose, onEdit }) {
         </div>
       </div>
     </div>
+    </PrintPortal>
   );
 }
 

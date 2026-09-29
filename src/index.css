@@ -64,49 +64,21 @@
 }
 
 @media print {
-  html, body, #root {
-    width: auto !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    overflow: visible !important;
-  }
-
-  body {
-    margin: 0 !important;
+  html, body {
     background: #fff !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  /* Remove limites de altura/rolagem da árvore do app e deixa apenas o caminho
-     até o relatório no fluxo impresso. :has() é suportado pelos navegadores atuais. */
-  #root:has(.print-root),
-  #root :has(.print-root) {
-    display: block !important;
-    position: static !important;
-    inset: auto !important;
-    width: auto !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    overflow: visible !important;
-    transform: none !important;
-  }
-
-  #root:has(.print-root) > :not(:has(.print-root)),
-  #root :has(.print-root) > :not(:has(.print-root)) {
+  /* Com relatório aberto (classe print-mode no <body>): oculta o app inteiro e
+     imprime apenas o relatório, que renderiza em #print-overlay (portal no body).
+     Sem a classe, nenhuma regra de ocultação é aplicada — Ctrl+P imprime a tela. */
+  body.print-mode #root {
     display: none !important;
   }
 
-  body * {
-    visibility: hidden;
-  }
-
-  .print-root,
-  .print-area,
-  .print-area * {
-    visibility: visible;
+  #print-overlay {
+    display: block !important;
   }
 
   .print-root {
@@ -143,6 +115,7 @@
     box-shadow: none !important;
     border: 0 !important;
     border-radius: 0 !important;
+    background: #fff !important;
     break-inside: auto;
     page-break-inside: auto;
   }

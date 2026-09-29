@@ -6,6 +6,7 @@ import { buildProblemsReportData } from '@/lib/executiveProblems';
 import { useInsumoCosts } from '@/hooks/useInsumoCosts';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
 import CompanyBrand from '@/components/CompanyBrand';
+import PrintPortal from '@/components/reports/PrintPortal';
 
 const SEVERITY = {
   critical: { label: 'Crítico', badge: 'border-red-600 text-red-700 bg-red-50', bar: 'bg-red-600' },
@@ -58,6 +59,7 @@ export default function ProblemsReport({ orders, downtimes, machines, period, on
     }`;
 
   return (
+    <PrintPortal>
     <div className="print-root fixed inset-0 z-50 bg-slate-900/60 overflow-y-auto p-4 md:p-8">
       {/* Barra de ações e filtro de período (fora da área de impressão) */}
       <div className="max-w-[800px] mx-auto mb-3">
@@ -170,5 +172,6 @@ export default function ProblemsReport({ orders, downtimes, machines, period, on
         </p>
       </div>
     </div>
+    </PrintPortal>
   );
 }
