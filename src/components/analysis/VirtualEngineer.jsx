@@ -4,6 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
 import { analyzeConsumptionByArtifact, mergeAnalyses } from '@/lib/consumptionEngine';
+import { getCachedAnalysis } from '@/lib/ai/aiCache';
+import { computeFingerprint, runAnalysis } from '@/lib/ai/aiService';
+import AIStatusBadge from '@/components/ai/AIStatusBadge';
 import { Bot, RefreshCw, ChevronRight, AlertCircle, Sparkles } from 'lucide-react';
 
 const PRIORITY = {
@@ -20,6 +23,13 @@ const PAGE_ROUTES = {
 const PAGE_LABELS = {
   machines: 'Máquinas', maintenance: 'Manutenção', history: 'Histórico',
   analysis: 'Análise', orders: 'Ordens', molds: 'Moldes', settings: 'Configurações',
+};
+
+const EVIDENCE_LABELS = {
+  fact: 'Fato',
+  pattern: 'Padrão',
+  hypothesis: 'Hipótese',
+  recommendation: 'Recomendação',
 };
 
 function buildSummary(orders, downtimes, costs, names, productTypesById) {
@@ -138,6 +148,9 @@ function buildSummary(orders, downtimes, costs, names, productTypesById) {
   return s;
 }
 
+// Engenheiro Virtual: IA analisa os indicadores determinísticos calculados
+// pelo sistema. Abrir a tela NUNCA executa IA — exibe a análise armazenada;
+// a execução acontece apenas pelo botão, via fluxo central (aiService).
 export default function VirtualEngineer({ orders, costs, names, productTypesById }) {
   const navigate = useNavigate();
   const [recommendations, setRecommendations] = useState([]);
@@ -145,7 +158,8 @@ export default function VirtualEngineer({ orders, costs, names, productTypesById
   const [error, setError] = useState(null);
   const [downtimes, setDowntimes] = useState([]);
   const [machines, setMachines] = useState([]);
-  const [autoTriggered, setAutoTriggered] = useState(false);
+  const [cachedMeta, setCachedMeta] = useState(null);
+  const [staleData, setStaleData] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -154,8 +168,37 @@ export default function VirtualEngineer({ orders, costs, names, productTypesById
     ]).then(([d, m]) => { setDowntimes(d); setMachines(m); });
   }, []);
 
+  const fingerprintInputs = () => ({
+    orders: (orders || []).map(o => ({ id: o.id, u: o.updated_date })),
+    downtimes: downtimes.map(d => ({ id: d.id, u: d.updated_date })),
+    machines: machines.map(m => ({ id: m.id, u: m.updated_date })),
+    costs: costs || {},
+    names: names || {},
+  });
+
+  // Abertura da tela: exibe a análise armazenada mais recente (nunca executa IA).
+  useEffect(() => {
+    if (orders.length === 0 || machines.length === 0) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { analysis, fresh } = await getCachedAnalysis('virtual_engineer', fingerprintInputs);
+        if (cancelled) return;
+        if (analysis) {
+          setRecommendations(analysis.result?.recommendations || []);
+          setCachedMeta({ created_date: analysis.created_date, cached: true });
+          setStaleData(!fresh);
+        }
+      } catch (e) {
+        // Sem análise armazenada — o botão inicia a primeira análise.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [orders, machines]);
+
+  // Executa a análise somente por ação EXPLÍCITA (fluxo central aiService).
   async function analyze() {
-    if (orders.length === 0) return;
+    if (orders.length === 0 || analyzing) return;
     setAnalyzing(true);
     setError(null);
     try {
@@ -178,15 +221,14 @@ Analise continuamente:
 5. Tempo de parada (máquinas com mais paradas, categorias frequentes)
 6. Histórico (tendências entre períodos, com base no consumo específico)
 
-Exemplos do tom e estilo esperado:
-- "O consumo específico de cimento está 7% acima do esperado para a produção realizada."
-- "Os dados indicam possível associação entre a queda da relação cimento/agregados e o aumento de refugo — recomenda-se investigar a dosagem."
-
 Para cada recomendação, retorne:
 - priority: "critical", "high", "medium" ou "info"
 - category: categoria da análise (ex: "Consumo", "Traço", "Máquinas", "Custos", "Paradas", "Produção", "Histórico")
 - title: título curto (máx 5 palavras)
 - text: descrição em linguagem natural, 1-2 frases em português
+- evidence_type: "fact" (desvio medido, diretamente suportado pelos dados), "pattern" (observado nos dados) ou "hypothesis" (possível associação a investigar — nunca apresente hipótese como fato)
+- confidence: "alta", "média" ou "baixa"
+- evidence: o dado concreto que sustenta a recomendação
 - action_page: página recomendada para ação ("machines", "maintenance", "history", "analysis", "orders", "molds", "settings")
 
 Gere entre 4 e 8 recomendações, priorizando as mais urgentes.
@@ -194,9 +236,11 @@ Gere entre 4 e 8 recomendações, priorizando as mais urgentes.
 DADOS:
 ${summary}`;
 
-      const res = await base44.integrations.Core.InvokeLLM({
+      const res = await runAnalysis({
+        analysis_type: 'virtual_engineer',
+        fingerprint_inputs: fingerprintInputs(),
         prompt,
-        response_json_schema: {
+        schema: {
           type: 'object',
           properties: {
             recommendations: {
@@ -208,27 +252,30 @@ ${summary}`;
                   category: { type: 'string' },
                   title: { type: 'string' },
                   text: { type: 'string' },
+                  evidence_type: { type: 'string' },
+                  confidence: { type: 'string' },
+                  evidence: { type: 'string' },
                   action_page: { type: 'string' },
                 },
               },
             },
           },
         },
+        input_summary: prompt,
       });
-      setRecommendations(res.recommendations || []);
+
+      if (!res.ok) {
+        setError(res.error || 'Não foi possível gerar recomendações agora. Tente novamente.');
+      } else {
+        setRecommendations(res.analysis.result?.recommendations || []);
+        setCachedMeta({ created_date: res.analysis.created_date, cached: res.source === 'cache' });
+        setStaleData(false);
+      }
     } catch (e) {
       setError('Não foi possível gerar recomendações agora. Tente novamente.');
     }
     setAnalyzing(false);
   }
-
-  // Auto-analyze when data is ready
-  useEffect(() => {
-    if (orders.length > 0 && machines.length > 0 && !autoTriggered && !analyzing) {
-      setAutoTriggered(true);
-      analyze();
-    }
-  }, [orders, machines, autoTriggered, analyzing]);
 
   const sortedRecs = [...recommendations].sort((a, b) => {
     const order = { critical: 0, high: 1, medium: 2, info: 3 };
@@ -253,9 +300,11 @@ ${summary}`;
         <button onClick={analyze} disabled={analyzing || orders.length === 0}
           className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50">
           <RefreshCw className={`w-4 h-4 ${analyzing ? 'animate-spin' : ''}`} />
-          {analyzing ? 'Analisando...' : 'Analisar'}
+          {analyzing ? 'Analisando...' : recommendations.length > 0 ? 'Atualizar análise' : 'Analisar'}
         </button>
       </div>
+
+      {cachedMeta && <AIStatusBadge meta={cachedMeta} stale={staleData} />}
 
       {analyzing && recommendations.length === 0 && (
         <div className="flex items-center justify-center py-8">
@@ -273,6 +322,12 @@ ${summary}`;
         </div>
       )}
 
+      {!analyzing && !error && sortedRecs.length === 0 && (
+        <div className="bg-card border border-dashed border-indigo-200 rounded-xl p-6 text-center text-sm text-muted-foreground">
+          Nenhuma análise realizada ainda. Clique em <strong>Analisar</strong> para executar a primeira análise.
+        </div>
+      )}
+
       {sortedRecs.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {sortedRecs.map((rec, i) => {
@@ -287,6 +342,16 @@ ${summary}`;
                 </div>
                 <p className="text-sm font-medium text-foreground leading-snug">{rec.title}</p>
                 <p className="text-xs text-muted-foreground leading-relaxed flex-1">{rec.text}</p>
+                {(rec.evidence_type || rec.evidence) && (
+                  <p className="text-[10px] text-muted-foreground border-t border-border pt-2">
+                    {rec.evidence_type && (
+                      <span className="font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 mr-1.5">
+                        {EVIDENCE_LABELS[rec.evidence_type] || rec.evidence_type}{rec.confidence ? ` · ${rec.confidence}` : ''}
+                      </span>
+                    )}
+                    {rec.evidence ? `Evidência: ${rec.evidence}` : ''}
+                  </p>
+                )}
                 <button onClick={() => navigate(route)}
                   className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors self-end">
                   {label} <ChevronRight className="w-3 h-3" />

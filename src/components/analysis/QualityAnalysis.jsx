@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { useNavigate } from 'react-router-dom';
+import { getCachedAnalysis } from '@/lib/ai/aiCache';
+import { computeFingerprint, runAnalysis } from '@/lib/ai/aiService';
+import AIStatusBadge from '@/components/ai/AIStatusBadge';
 import { ShieldCheck, RefreshCw, ChevronRight, AlertCircle, Sparkles } from 'lucide-react';
 import ResistanceGrowthCard from './ResistanceGrowthCard';
 
@@ -21,6 +24,13 @@ const PAGE_LABELS = {
   machines: 'Máquinas', orders: 'Ordens', analysis: 'Análise',
 };
 
+const EVIDENCE_LABELS = {
+  fact: 'Fato',
+  pattern: 'Padrão',
+  hypothesis: 'Hipótese',
+  recommendation: 'Recomendação',
+};
+
 // Monta o sumário técnico determinístico que fundamenta a análise da IA:
 // laudos × produção da ordem × paradas × manutenções, tendência de fck por
 // artefato, média de fck por categoria e leitura da curva entre idades.
@@ -30,7 +40,7 @@ function buildQualitySummary(reports, orders, downtimes, maintenances, productTy
   const traceMap = {}; (traces || []).forEach(t => { traceMap[t.id] = t; });
   const today = new Date().toISOString().slice(0, 10);
 
-  let s = `LAUDOS DE QUALIDADE: ${reports.length} laudos.\n\nLAUDOS DETALHADOS:\n`;
+  let s = `LAUDOS DE QUALIDADE: ${reports.length} laudos.\n\nLAUDOS DETALHADOS (${Math.min(25, reports.length)} de ${reports.length}):\n`;
   reports.slice(0, 25).forEach(r => {
     const o = orderMap[r.order_id];
     const pt = ptMap[r.product_type_id];
@@ -96,7 +106,8 @@ function buildQualitySummary(reports, orders, downtimes, maintenances, productTy
 }
 
 // Análise de Qualidade assistida por IA: cruza laudos × produção × paradas ×
-// manutenções. Roda automaticamente ao abrir a página e pelo botão.
+// manutenções. Abrir a tela NUNCA executa IA — exibe a análise armazenada;
+// a execução acontece apenas pelo botão, via fluxo central (aiService).
 export default function QualityAnalysis({ orders }) {
   const navigate = useNavigate();
   const [reports, setReports] = useState(null);
@@ -105,9 +116,20 @@ export default function QualityAnalysis({ orders }) {
   const [productTypes, setProductTypes] = useState([]);
   const [traces, setTraces] = useState([]);
   const [findings, setFindings] = useState([]);
+  const [cachedMeta, setCachedMeta] = useState(null);
+  const [staleData, setStaleData] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState(null);
-  const [autoTriggered, setAutoTriggered] = useState(false);
+
+  // Inputs determinísticos do fingerprint (ids + versões dos registros).
+  const fingerprintInputs = () => ({
+    reports: (reports || []).map(r => ({ id: r.id, u: r.updated_date })),
+    orders: (orders || []).map(o => ({ id: o.id, u: o.updated_date })),
+    downtimes: downtimes.map(d => ({ id: d.id, u: d.updated_date })),
+    maintenances: maintenances.map(m => ({ id: m.id, u: m.updated_date })),
+    productTypes: productTypes.map(p => ({ id: p.id, u: p.updated_date })),
+    traces: traces.map(t => ({ id: t.id, u: t.updated_date })),
+  });
 
   useEffect(() => {
     Promise.all([
@@ -125,8 +147,29 @@ export default function QualityAnalysis({ orders }) {
     }).catch(() => setReports([]));
   }, []);
 
+  // Abertura da tela: exibe a análise armazenada mais recente (nunca executa IA).
+  useEffect(() => {
+    if (!reports) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { analysis, fresh } = await getCachedAnalysis('quality_analysis', fingerprintInputs);
+        if (cancelled) return;
+        if (analysis) {
+          setFindings(analysis.result?.findings || []);
+          setCachedMeta({ created_date: analysis.created_date, cached: true });
+          setStaleData(!fresh);
+        }
+      } catch (e) {
+        // Sem análise armazenada — o botão inicia a primeira análise.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [reports, orders, downtimes, maintenances, productTypes, traces]);
+
+  // Executa a análise somente por ação EXPLÍCITA (fluxo central aiService).
   async function analyze() {
-    if (!reports || reports.length === 0) return;
+    if (!reports || reports.length === 0 || analyzing) return;
     setAnalyzing(true);
     setError(null);
     try {
@@ -148,6 +191,9 @@ Para cada achado, retorne:
 - title: título curto (máx 6 palavras)
 - diagnosis: diagnóstico em português, 2-3 frases, citando valores concretos
 - parameters: lista de 2 a 4 parâmetros curtos que fundamentam o achado (ex: "fck est: 32,1 MPa vs alvo 35 MPa")
+- evidence_type: "fact" (diretamente suportado pelos dados), "pattern" (observado nos dados) ou "hypothesis" (possível causa a confirmar — NUNCA apresente hipótese como fato)
+- confidence: "alta", "média" ou "baixa"
+- evidence: o dado concreto que sustenta o achado
 - action_page: página recomendada para ação, uma de: "quality", "history", "maintenance", "machines", "orders", "analysis"
 
 Gere entre 3 e 8 achados, priorizando os mais urgentes.
@@ -155,9 +201,11 @@ Gere entre 3 e 8 achados, priorizando os mais urgentes.
 DADOS:
 ${summary}`;
 
-      const res = await base44.integrations.Core.InvokeLLM({
+      const res = await runAnalysis({
+        analysis_type: 'quality_analysis',
+        fingerprint_inputs: fingerprintInputs(),
         prompt,
-        response_json_schema: {
+        schema: {
           type: 'object',
           properties: {
             findings: {
@@ -170,27 +218,30 @@ ${summary}`;
                   title: { type: 'string' },
                   diagnosis: { type: 'string' },
                   parameters: { type: 'array', items: { type: 'string' } },
+                  evidence_type: { type: 'string' },
+                  confidence: { type: 'string' },
+                  evidence: { type: 'string' },
                   action_page: { type: 'string' },
                 },
               },
             },
           },
         },
+        input_summary: prompt,
       });
-      setFindings(res.findings || []);
+
+      if (!res.ok) {
+        setError(res.error || 'Não foi possível gerar a análise de qualidade agora. Tente novamente.');
+      } else {
+        setFindings(res.analysis.result?.findings || []);
+        setCachedMeta({ created_date: res.analysis.created_date, cached: res.source === 'cache' });
+        setStaleData(false);
+      }
     } catch (e) {
       setError('Não foi possível gerar a análise de qualidade agora. Tente novamente.');
     }
     setAnalyzing(false);
   }
-
-  // Roda automaticamente ao abrir a página (assim que os laudos carregarem)
-  useEffect(() => {
-    if (reports && reports.length > 0 && !autoTriggered && !analyzing) {
-      setAutoTriggered(true);
-      analyze();
-    }
-  }, [reports, autoTriggered, analyzing]);
 
   const sortedFindings = [...findings].sort((a, b) => {
     const order = { critical: 0, high: 1, medium: 2, info: 3 };
@@ -215,7 +266,7 @@ ${summary}`;
         <button onClick={analyze} disabled={analyzing || !reports || reports.length === 0}
           className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50">
           <RefreshCw className={`w-4 h-4 ${analyzing ? 'animate-spin' : ''}`} />
-          {analyzing ? 'Analisando...' : 'Analisar Qualidade'}
+          {analyzing ? 'Analisando...' : findings.length > 0 ? 'Atualizar análise' : 'Analisar Qualidade'}
         </button>
       </div>
 
@@ -232,6 +283,14 @@ ${summary}`;
         </div>
       ) : (
         <>
+          {cachedMeta && <AIStatusBadge meta={cachedMeta} stale={staleData} />}
+
+          {!analyzing && !error && sortedFindings.length === 0 && (
+            <div className="bg-card border border-dashed border-emerald-200 rounded-xl p-6 text-center text-sm text-muted-foreground">
+              Nenhuma análise realizada ainda. Clique em <strong>Analisar Qualidade</strong> para executar a primeira análise.
+            </div>
+          )}
+
           {analyzing && findings.length === 0 && (
             <div className="flex items-center justify-center py-8">
               <div className="flex items-center gap-3 text-muted-foreground text-sm">
@@ -262,6 +321,16 @@ ${summary}`;
                     </div>
                     <p className="text-sm font-medium text-foreground leading-snug">{f.title}</p>
                     <p className="text-xs text-muted-foreground leading-relaxed">{f.diagnosis}</p>
+                    {(f.evidence_type || f.evidence) && (
+                      <p className="text-[10px] text-muted-foreground border-t border-border pt-2">
+                        {f.evidence_type && (
+                          <span className="font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 mr-1.5">
+                            {EVIDENCE_LABELS[f.evidence_type] || f.evidence_type}{f.confidence ? ` · ${f.confidence}` : ''}
+                          </span>
+                        )}
+                        {f.evidence ? `Evidência: ${f.evidence}` : ''}
+                      </p>
+                    )}
                     {f.parameters?.length > 0 && (
                       <ul className="text-[11px] text-muted-foreground list-disc pl-4 space-y-0.5 border-t border-border pt-2">
                         {f.parameters.map((p2, j) => <li key={j}>{p2}</li>)}
