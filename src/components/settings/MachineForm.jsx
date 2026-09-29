@@ -185,12 +185,10 @@ export default function MachineForm({ item, onClose, onSaved }) {
                     disabled={!it.enabled}
                   />
                   <span className="text-xs text-muted-foreground whitespace-nowrap">dias</span>
-                  {it.custom && (
-                    <button type="button" onClick={() => removeItem(idx)}
-                      className="p-1 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button type="button" onClick={() => removeItem(idx)}
+                    className="p-1 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               ))}
               <button type="button" onClick={addItem}
