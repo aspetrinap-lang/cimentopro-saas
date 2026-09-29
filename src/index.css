@@ -58,9 +58,11 @@
   }
 }
 
+/* Margem zero: sem margem o navegador omite os cabeçalhos/rodapés automáticos
+   (URL, data, título). O espaçamento é repassado ao .print-area abaixo. */
 @page {
   size: A4 portrait;
-  margin: 12mm;
+  margin: 0;
 }
 
 @media print {
@@ -111,7 +113,8 @@
     max-height: none !important;
     overflow: visible !important;
     margin: 0 !important;
-    padding: 0 !important;
+    /* Espaço antes dado pela margem da página (@page margin: 0) */
+    padding: 10mm 12mm !important;
     box-shadow: none !important;
     border: 0 !important;
     border-radius: 0 !important;
