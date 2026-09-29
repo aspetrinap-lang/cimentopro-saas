@@ -52,13 +52,22 @@ async function loadAllOrders(start, end) {
   });
 }
 
-// Aplica os filtros de máquina/linha/produto sobre qualquer conjunto de ordens
-// (período atual ou período anterior).
-function applySelection(list, sel) {
-  const { machineId, lineId, productTypeId } = sel;
+// Aplica os filtros de linha/produto sobre qualquer conjunto de ordens
+// (período atual ou período anterior). A linha é resolvida pelas MÁQUINAS
+// PRINCIPAIS do cadastro da linha — somente as classificadas 'Produção'
+// (máquinas 'Movimentação' ficam fora do escopo).
+function applySelection(list, sel, machines, lines) {
+  const { lineId, productTypeId } = sel;
+  const machineTypeById = Object.fromEntries((machines || []).map((m) => [m.id, m.machine_type || 'Produção']));
+  let lineMachines = null;
+  if (lineId) {
+    const line = (lines || []).find((l) => l.id === lineId);
+    lineMachines = new Set((line?.machines || [])
+      .map((mm) => mm.machine_id)
+      .filter((id) => machineTypeById[id] !== 'Movimentação'));
+  }
   return list.filter((o) => {
-    if (machineId && o.machine_id !== machineId) return false;
-    if (lineId && o.production_line_id !== lineId) return false;
+    if (lineMachines && !lineMachines.has(o.machine_id)) return false;
     if (productTypeId && o.product_type_id !== productTypeId) return false;
     return true;
   });
@@ -79,7 +88,6 @@ export default function Dashboard() {
   const [filters, setFilters] = useState(() => ({
     startDate: fmtDate(subDays(new Date(), 30)),
     endDate: fmtDate(new Date()),
-    machineId: '',
     lineId: '',
     productTypeId: '',
   }));
@@ -120,8 +128,8 @@ export default function Dashboard() {
   const ptMap = useMemo(() => Object.fromEntries(products.map((p) => [p.id, p])), [products]);
   const traceMap = useMemo(() => Object.fromEntries(traces.map((t) => [t.id, t])), [traces]);
 
-  const filteredOrders = useMemo(() => applySelection(orders, appliedFilters), [orders, appliedFilters]);
-  const prevFilteredOrders = useMemo(() => applySelection(prevOrders, appliedFilters), [prevOrders, appliedFilters]);
+  const filteredOrders = useMemo(() => applySelection(orders, appliedFilters, machines, lines), [orders, appliedFilters, machines, lines]);
+  const prevFilteredOrders = useMemo(() => applySelection(prevOrders, appliedFilters, machines, lines), [prevOrders, appliedFilters, machines, lines]);
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-[1400px] mx-auto bg-slate-50 min-h-full">
@@ -149,13 +157,12 @@ export default function Dashboard() {
       {/* Filtros — faixa única em telas largas */}
       <DashboardFilters
         {...filters}
-        machines={machines}
         lines={lines}
         products={products}
         onChange={setFilters}
         onApply={() => setAppliedFilters(filters)}
         onClear={() => {
-          const cleared = { startDate: fmtDate(subDays(new Date(), 30)), endDate: fmtDate(new Date()), machineId: '', lineId: '', productTypeId: '' };
+          const cleared = { startDate: fmtDate(subDays(new Date(), 30)), endDate: fmtDate(new Date()), lineId: '', productTypeId: '' };
           setFilters(cleared);
           setAppliedFilters(cleared);
         }}
