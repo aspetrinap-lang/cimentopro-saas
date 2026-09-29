@@ -3,27 +3,14 @@ import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import QualityReportForm from '@/components/quality/QualityReportForm';
 import QualityReportView from '@/components/quality/QualityReportView';
-import { Plus, Search, FileText, Pencil, Trash2, Eye, AlertTriangle } from 'lucide-react';
-import { groupByAge, ageStats, estimateFck, checkCompliance } from '@/lib/qualityNorms';
+import { Plus, Search, FileText, Pencil, Trash2, Eye, AlertTriangle, RefreshCw, GitCompare } from 'lucide-react';
+import { versionBadge, isRecalculatedReport } from '@/lib/qualityNorms';
 import { usePermissions } from '@/lib/PermissionsContext';
+import RecalculationDialog from '@/components/quality/RecalculationDialog';
+import ReportVersionCompare from '@/components/quality/ReportVersionCompare';
 
-// Recalcula conformidade usando a idade mais recente com 3+ CPs válidos
-function recalcCompliance(r) {
-  if (!r.specimens || r.specimens.length === 0) return r;
-  const target = Number(r.target_resistance) || 0;
-  if (!target) return r;
-  const groups = groupByAge(r.specimens);
-  const valid = groups
-    .map(g => ({ g, count: g.specimens.filter(s => Number(s.resistance_mpa) > 0).length }))
-    .filter(x => x.count >= 3)
-    .sort((a, b) => b.g.age_days - a.g.age_days);
-  if (valid.length === 0) return r;
-  const { g } = valid[0];
-  const stats = ageStats(g.specimens);
-  const estFck = estimateFck(g.specimens);
-  const isCompliant = checkCompliance({ average: stats.average, min: stats.min, target });
-  return { ...r, is_compliant: isCompliant, average_resistance: stats.average, estimated_fck: estFck };
-}
+// LAUDOS HISTÓRICOS — NUNCA recalcular automaticamente: a listagem exibe
+// EXATAMENTE os valores armazenados em cada laudo.
 
 const STATUS_COLORS = {
   'Rascunho': 'bg-slate-100 text-slate-600',
@@ -41,6 +28,9 @@ export default function Quality() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
+  const [recalcTarget, setRecalcTarget] = useState(null);
+  const [compareTarget, setCompareTarget] = useState(null);
+  const [versionFilter, setVersionFilter] = useState('all');
   const [error, setError] = useState(null);
 
   // Rate limit da plataforma é transitório: tenta de novo com uma pausa antes de falhar
@@ -79,6 +69,12 @@ export default function Quality() {
   useEffect(() => { load(); }, []);
 
   async function handleDelete(rep) {
+    // Versões originais com recalculados não podem ser apagadas (cadeia preservada)
+    const hasVersions = reports.some(r => r.original_report_id === rep.id || r.recalculated_from_report_id === rep.id);
+    if (hasVersions) {
+      window.alert('Este laudo possui versões recalculadas e não pode ser excluído — a cadeia de versões é preservada.');
+      return;
+    }
     if (!window.confirm(`Excluir laudo ${rep.report_number}?`)) return;
     await base44.entities.QualityReport.delete(rep.id);
     load();
@@ -90,6 +86,8 @@ export default function Quality() {
   }
 
   const filtered = reports.filter(r => {
+    if (versionFilter === 'original' && isRecalculatedReport(r)) return false;
+    if (versionFilter === 'recalculated' && !isRecalculatedReport(r)) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return r.report_number?.toLowerCase().includes(q) ||
@@ -117,6 +115,16 @@ export default function Quality() {
         <input className="w-full pl-9 pr-3 py-2 border border-input rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
           placeholder="Buscar laudo, ordem ou artefato..."
           value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-xs font-medium text-muted-foreground mr-1">Versões:</span>
+        {[['all', 'Todas'], ['original', 'Originais'], ['recalculated', 'Recalculadas']].map(([v, label]) => (
+          <button key={v} onClick={() => setVersionFilter(v)}
+            className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${versionFilter === v ? 'bg-primary text-primary-foreground' : 'border border-border text-muted-foreground hover:bg-muted'}`}>
+            {label}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -147,7 +155,7 @@ export default function Quality() {
                   <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Artefato</th>
                   <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Norma</th>
                   <th className="px-4 py-3 text-right font-semibold whitespace-nowrap">Média (MPa)</th>
-                  <th className="px-4 py-3 text-right font-semibold whitespace-nowrap">fck</th>
+                  <th className="px-4 py-3 text-right font-semibold whitespace-nowrap">Res. Caract.</th>
                   <th className="px-4 py-3 text-center font-semibold whitespace-nowrap">Conformidade</th>
                   <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Data Ensaio</th>
                   <th className="px-4 py-3 text-center font-semibold whitespace-nowrap">Status</th>
@@ -156,16 +164,23 @@ export default function Quality() {
               </thead>
               <tbody>
                 {filtered.map(r => {
-                  const rc = recalcCompliance(r);
-                  const compliant = rc.is_compliant;
+                  const compliant = r.is_compliant;
+                  const charRes = r.characteristic_resistance ?? r.estimated_fck;
                   return (
                     <tr key={r.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-medium text-foreground">{r.report_number}</td>
+                      <td className="px-4 py-3 font-medium text-foreground">
+                        <div className="flex items-center gap-2">
+                          {r.report_number}
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${isRecalculatedReport(r) ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-muted text-muted-foreground border-border'}`}>
+                            {versionBadge(r.report_number)}
+                          </span>
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">{r.order_number || '—'}</td>
                       <td className="px-4 py-3">{r.product_type_name || '—'}</td>
                       <td className="px-4 py-3 text-xs">{r.norm_reference || '—'}</td>
-                      <td className="px-4 py-3 text-right font-semibold">{rc.average_resistance != null ? rc.average_resistance.toFixed(2) : '—'}</td>
-                      <td className="px-4 py-3 text-right">{r.target_resistance || '—'}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{r.average_resistance != null ? r.average_resistance.toFixed(2) : '—'}</td>
+                      <td className="px-4 py-3 text-right">{charRes != null ? charRes.toFixed(2) : '—'}</td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-1">
                           {compliant != null ? (
@@ -187,6 +202,10 @@ export default function Quality() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
                           <button onClick={() => setViewing(r)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"><Eye className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => setCompareTarget(r)} title="Comparar versões" className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"><GitCompare className="w-3.5 h-3.5" /></button>
+                          {can('QUALITY_EDIT') && (
+                            <button onClick={() => setRecalcTarget(r)} title="Recalcular conforme revisão normativa" className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"><RefreshCw className="w-3.5 h-3.5" /></button>
+                          )}
                           {can('QUALITY_EDIT') && (
                             <button onClick={() => { setEditing(r); setShowForm(true); }} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"><Pencil className="w-3.5 h-3.5" /></button>
                           )}
@@ -232,7 +251,27 @@ export default function Quality() {
       )}
 
       {viewing && (
-        <QualityReportView report={viewing} onClose={() => setViewing(null)} onEdit={() => { setEditing(viewing); setShowForm(true); setViewing(null); }} />
+        <QualityReportView
+          report={viewing}
+          onClose={() => setViewing(null)}
+          onEdit={() => { setEditing(viewing); setShowForm(true); setViewing(null); }}
+          onRecalculate={can('QUALITY_EDIT') ? () => { setRecalcTarget(viewing); setViewing(null); } : null}
+          onCompare={() => { setCompareTarget(viewing); setViewing(null); }}
+        />
+      )}
+
+      {recalcTarget && (
+        <RecalculationDialog
+          report={recalcTarget}
+          reports={reports}
+          onClose={() => setRecalcTarget(null)}
+          onSaved={load}
+          onCompare={() => { setCompareTarget(recalcTarget); setRecalcTarget(null); }}
+        />
+      )}
+
+      {compareTarget && (
+        <ReportVersionCompare report={compareTarget} reports={reports} onClose={() => setCompareTarget(null)} />
       )}
     </div>
   );

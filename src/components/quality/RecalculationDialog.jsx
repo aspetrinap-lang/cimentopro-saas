@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { scopedFilter, withCompany } from '@/lib/companyScope';
+import { withCompany } from '@/lib/companyScope';
 import {
   getAvailableRevisions, isRevisionValidated, REVISION_STATES,
   characteristicLabelForReport, calculateQualityResult, buildAlerts,

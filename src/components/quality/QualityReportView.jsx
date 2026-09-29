@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Printer, Pencil, X, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Printer, Pencil, X, CheckCircle2, AlertTriangle, RefreshCw, GitCompare } from 'lucide-react';
 import CompanyBrand from '@/components/CompanyBrand';
 import PrintPortal from '@/components/reports/PrintPortal';
 import {
   MIN_RESISTANCE_BY_TRAFFIC, MIN_THICKNESS_BY_TRAFFIC, DIMENSIONAL_TOLERANCE_MM,
   groupByAge, ageStats, estimateFck, checkCompliance, buildAlerts,
+  characteristicLabelForReport, versionBadge,
 } from '@/lib/qualityNorms';
 
 function fmtDate(d) {
@@ -37,8 +38,10 @@ function ageRowData(report, group) {
   };
 }
 
-export default function QualityReportView({ report, onClose, onEdit }) {
+export default function QualityReportView({ report, onClose, onEdit, onRecalculate, onCompare }) {
   const pavimento = report.norm_reference === 'NBR 9781';
+  const charLabel = characteristicLabelForReport(report);
+  const versionBadgeLabel = versionBadge(report.report_number);
   const groups = groupByAge(report.specimens || []);
   const rows = groups.map(g => ageRowData(report, g));
   const finalAge = report.final_age_days || (groups.length ? Math.max(...groups.map(g => g.age_days)) : 0);
@@ -61,7 +64,12 @@ export default function QualityReportView({ report, onClose, onEdit }) {
       <div className="bg-white text-slate-900 rounded-xl shadow-xl border border-slate-200 w-full max-w-4xl max-h-[92vh] overflow-y-auto print:max-w-none print:shadow-none print:border-none print:rounded-none print:max-h-none print:overflow-visible print:p-0 print-area">
         {/* Toolbar */}
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between print:hidden">
-          <h2 className="text-sm font-semibold">Laudo {report.report_number}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold">Laudo {report.report_number}</h2>
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${versionBadgeLabel === 'ORIGINAL' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+              {versionBadgeLabel}
+            </span>
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
             {groups.length > 0 && (
               <div className="flex items-center gap-1 mr-2">
@@ -80,6 +88,16 @@ export default function QualityReportView({ report, onClose, onEdit }) {
             <button onClick={onEdit} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100">
               <Pencil className="w-3.5 h-3.5" /> Editar
             </button>
+            {onCompare && (
+              <button onClick={onCompare} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100">
+                <GitCompare className="w-3.5 h-3.5" /> Comparar versões
+              </button>
+            )}
+            {onRecalculate && (
+              <button onClick={onRecalculate} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100">
+                <RefreshCw className="w-3.5 h-3.5" /> Recalcular
+              </button>
+            )}
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-4 h-4" /></button>
           </div>
         </div>
@@ -130,12 +148,12 @@ export default function QualityReportView({ report, onClose, onEdit }) {
               <Info label="Ordem de Produção" value={report.order_number} />
               <Info label="Artefato" value={report.product_type_name} />
               <Info label="Categoria" value={report.category} />
-              <Info label="Norma" value={report.norm_reference} />
+              <Info label="Norma" value={report.norm_revision ? `${report.norm_reference} — ${report.norm_revision}` : report.norm_reference} />
               <Info label="Fabricante" value={report.manufacturer} />
               <Info label="Local de Aplicação" value={report.application_location} />
               <Info label="Data de Moldagem" value={fmtDate(report.molding_date)} />
               <Info label="Idade de Referência" value={`${finalAge} dias`} />
-              <Info label="fck de Projeto" value={report.target_resistance ? `${report.target_resistance} MPa` : '—'} />
+              <Info label={`${charLabel} de Projeto`} value={report.target_resistance ? `${report.target_resistance} MPa` : '—'} />
             </div>
           </section>
 
@@ -184,8 +202,8 @@ export default function QualityReportView({ report, onClose, onEdit }) {
                     <th className="border border-slate-200 px-3 py-2 text-left">Data de Rompimento</th>
                     <th className="border border-slate-200 px-3 py-2 text-center">Nº de CPs</th>
                     <th className="border border-slate-200 px-3 py-2 text-right">Resistência Média (MPa)</th>
-                    <th className="border border-slate-200 px-3 py-2 text-right">fck Estimado (MPa)</th>
-                    <th className="border border-slate-200 px-3 py-2 text-right">fck Projeto (MPa)</th>
+                    <th className="border border-slate-200 px-3 py-2 text-right">{charLabel} Estimado (MPa)</th>
+                    <th className="border border-slate-200 px-3 py-2 text-right">{charLabel} Projeto (MPa)</th>
                     <th className="border border-slate-200 px-3 py-2 text-center">Conformidade</th>
                   </tr>
                 </thead>
@@ -287,8 +305,8 @@ export default function QualityReportView({ report, onClose, onEdit }) {
           <section className="grid grid-cols-5 gap-3 text-sm">
             <Box label={`Resistência Média (${finalAge}d)`} value={`${(report.average_resistance || 0).toFixed(2)} MPa`} />
             <Box label="Menor Individual" value={`${(report.min_resistance || 0).toFixed(2)} MPa`} />
-            <Box label="fck Estimado" value={report.estimated_fck ? `${report.estimated_fck.toFixed(2)} MPa` : '—'} />
-            <Box label="fck Projeto" value={report.target_resistance ? `${report.target_resistance} MPa` : '—'} />
+            <Box label={`${charLabel} Estimado`} value={(report.characteristic_resistance ?? report.estimated_fck) ? `${(report.characteristic_resistance ?? report.estimated_fck).toFixed(2)} MPa` : '—'} />
+            <Box label={`${charLabel} Projeto`} value={report.target_resistance ? `${report.target_resistance} MPa` : '—'} />
             <Box label="Conformidade" value={compliant ? 'CONFORME' : 'NÃO CONFORME'} highlight={compliant ? 'green' : 'red'} />
           </section>
 
@@ -305,6 +323,19 @@ export default function QualityReportView({ report, onClose, onEdit }) {
                   </li>
                 ))}
               </ul>
+            </section>
+          )}
+
+          {/* Recálculo — auditoria da versão (apenas na tela; impressão inalterada) */}
+          {(report.original_report_id || versionBadgeLabel !== 'ORIGINAL') && (
+            <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h2 className="text-sm font-bold uppercase text-slate-700 border-b border-slate-200 pb-1 mb-3">Recálculo — Versão {versionBadgeLabel}</h2>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                <Info label="Recalculado em" value={report.recalculated_at ? new Date(report.recalculated_at).toLocaleString('pt-BR') : '—'} />
+                <Info label="Responsável" value={report.recalculated_by} />
+                <Info label="Revisão Normativa aplicada" value={report.norm_revision || '—'} />
+                <Info label="Motivo" value={report.recalculation_reason} />
+              </div>
             </section>
           )}
 

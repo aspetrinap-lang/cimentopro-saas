@@ -14,10 +14,6 @@ function fmtDateTime(iso) {
   return new Date(iso).toLocaleString('pt-BR');
 }
 
-function fmtNum(v) {
-  return v == null ? '—' : Number(v).toFixed(2);
-}
-
 // Comparação lado a lado entre versões de laudo (ORIGINAL × RECALCULADO),
 // com DIFERENÇA dos valores numéricos relevantes.
 export default function ReportVersionCompare({ report, reports, onClose }) {
