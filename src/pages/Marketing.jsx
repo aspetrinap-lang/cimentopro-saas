@@ -16,7 +16,23 @@ import { useSubscription, SubscriptionContext } from '@/lib/SubscriptionContext'
 import { usePermissions, PermissionsContext } from '@/lib/PermissionsContext';
 
 const GROUPS = ['Produção', 'Qualidade e IA', 'Gestão financeira'];
-const CAPTURE_WAIT_MS = 4000; // tempo para a aba real montar e carregar os dados
+const CAPTURE_MIN_MS = 3500;  // montagem mínima da aba antes de avaliar os dados
+const CAPTURE_MAX_MS = 20000; // teto de segurança da espera
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Espera adaptável: aguarda os indicadores de carregamento da aba sumirem
+// (spinners/skeletons), garantindo que o print mostre os dados — em vez de
+// um tempo fixo curto que captura a tela ainda vazia.
+async function waitForStageData(el) {
+  const start = Date.now();
+  while (Date.now() - start < CAPTURE_MAX_MS) {
+    if (!el.querySelector('.animate-spin, .animate-pulse')) {
+      await sleep(800); // folga para o último paint antes da captura
+      return;
+    }
+    await sleep(500);
+  }
+}
 
 async function fetchAsDataUrl(url) {
   const res = await fetch(url);
@@ -88,9 +104,15 @@ export default function Marketing() {
       const tab = tabs.find((t) => t.key === key);
       if (!tab) throw new Error('Aba desconhecida.');
 
-      await new Promise((r) => setTimeout(r, CAPTURE_WAIT_MS));
-      const el = document.getElementById('capture-stage');
+      // Aguarda a aba montar no palco e os dados terminarem de carregar.
+      let el = null;
+      for (let i = 0; i < 40 && !el; i += 1) {
+        await sleep(250);
+        el = document.getElementById('capture-stage');
+      }
       if (!el) throw new Error('Falha ao montar a tela da aba.');
+      await sleep(CAPTURE_MIN_MS);
+      await waitForStageData(el);
 
       const screenshot = await html2canvas(el, {
         scale: 1.5,
