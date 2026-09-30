@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, ClipboardList, Timer, Gauge, Wrench, Settings,
   BarChart2, Activity, Calculator, Tags, FileText, Bot, Layers,
-  ShieldCheck, Package, SquareStack, History, Database, LifeBuoy,
+  ShieldCheck, Package, SquareStack, History, Database, LifeBuoy, Store,
 } from 'lucide-react';
 
 // Mesmos itens do menu lateral — a barra filtra pelas abas permitidas
@@ -28,6 +28,7 @@ const TABS = [
   { to: '/configuracoes', label: 'Ajustes', icon: Settings },
   { to: '/backup', label: 'Backup', icon: Database },
   { to: '/suporte', label: 'Suporte', icon: LifeBuoy },
+  { to: '/marketplace', label: 'Marketplace', icon: Store },
 ];
 
 export default function BottomTabs({ allowed }) {

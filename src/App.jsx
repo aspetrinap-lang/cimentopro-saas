@@ -24,6 +24,7 @@ import Molds from '@/pages/Molds';
 import ProductionLines from '@/pages/ProductionLines';
 import Maintenance from '@/pages/Maintenance';
 import Backup from '@/pages/Backup';
+import Marketplace from '@/pages/Marketplace';
 import MyTickets from '@/pages/support/MyTickets';
 import NewTicket from '@/pages/support/NewTicket';
 import TicketDetail from '@/pages/support/TicketDetail';
@@ -98,6 +99,7 @@ const AuthenticatedApp = () => {
         <Route path="/maintenance" element={<Maintenance />} />
         <Route path="/quality" element={<Quality />} />
         <Route path="/backup" element={<Backup />} />
+        <Route path="/marketplace" element={<Marketplace />} />
         <Route path="/suporte" element={<MyTickets />} />
         <Route path="/suporte/novo" element={<NewTicket />} />
         <Route path="/suporte/chamado/:id" element={<TicketDetail />} />

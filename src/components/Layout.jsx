@@ -1,5 +1,5 @@
 import { Outlet, NavLink, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, History, Settings, Factory, Menu, X, BarChart2, Gauge, SquareStack, Wrench, Database, FileText, Bot, Package, LogOut, UserCircle, KeyRound, ShieldCheck, Activity, Layers, Calculator, Tags, Timer, LifeBuoy, Bug } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, History, Settings, Factory, Menu, X, BarChart2, Gauge, SquareStack, Wrench, Database, FileText, Bot, Package, LogOut, UserCircle, KeyRound, ShieldCheck, Activity, Layers, Calculator, Tags, Timer, LifeBuoy, Store } from 'lucide-react';
 import SupportBell from '@/components/support/SupportBell';
 import { useState } from 'react';
 import BottomTabs from '@/components/layout/BottomTabs';
@@ -152,11 +152,11 @@ export default function Layout() {
         </>
       ) : (
         <>
-          <SupportBell mode="customer" />
-          <Link to={`/suporte/novo?relatar=1&page=${encodeURIComponent(location.pathname)}`} onClick={() => setMobileOpen(false)}
+          <Link to="/marketplace" onClick={() => setMobileOpen(false)}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white/70 hover:text-white hover:bg-white/8 transition-colors">
-            <Bug className="w-3.5 h-3.5" /> Relatar problema
+            <Store className="w-3.5 h-3.5" /> Marketplace
           </Link>
+          <SupportBell mode="customer" />
           {canManageOperators && (
             <Link to="/pin-login" onClick={() => setMobileOpen(false)} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white/70 hover:text-white hover:bg-white/8 transition-colors">
               <KeyRound className="w-3.5 h-3.5" /> Modo Operador (PIN)
@@ -266,7 +266,7 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      <BottomTabs allowed={visibleNav.map((i) => i.to)} />
+      <BottomTabs allowed={[...visibleNav.map((i) => i.to), ...(!activeOperator ? ['/marketplace'] : [])]} />
     </div>
   );
 }
