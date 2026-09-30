@@ -33,7 +33,6 @@ export const MODULES = [
   { key: 'cadastro', path: '/cadastro', label: 'Cadastro de Produção' },
   { key: 'configuracoes', path: '/configuracoes', label: 'Configurações' },
   { key: 'backup', path: '/backup', label: 'Backup' },
-  { key: 'marketing', path: '/marketing', label: 'Marketing' },
 ];
 
 // Catálogo granular de permissões por módulo.
@@ -78,7 +77,6 @@ export const ROUTE_PERMISSIONS = {
   '/pricing': 'COSTS_VIEW',
   '/configuracoes': 'SETTINGS_VIEW',
   '/backup': 'SETTINGS_VIEW',
-  '/marketing': 'PLATFORM_ADMIN',
 };
 
 // Conjuntos fixos de permissões por papel.
