@@ -7,6 +7,7 @@ import { useCompanyTaxes, DEFAULT_REGIME_TAXES } from '@/hooks/useCompanyTaxes';
 import { fmtBRL, fmtNum } from '@/lib/statsUtils';
 import { buildCostModel, calculateSellingCost, unitLabel, FINANCIAL_PERIODS, historyRangeLabel } from '@/lib/industrialCostEngine';
 import FinancialBaseSection from '@/components/pricing/FinancialBaseSection';
+import ProductCompareFilter from '@/components/pricing/ProductCompareFilter';
 import CostCompositionPanel from '@/components/pricing/CostCompositionPanel';
 import CostingV2Report from '@/components/reports/CostingV2Report';
 
@@ -56,6 +57,7 @@ export default function PricingSimulator() {
   const [savingId, setSavingId] = useState(null);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showV2Report, setShowV2Report] = useState(false);
+  const [compareIds, setCompareIds] = useState([]); // comparativo: produtos selecionados ([] = todos)
   const [composingId, setComposingId] = useState(null);
   const { costs: insumoCosts } = useInsumoCosts();
   const { taxes, setTaxes, currentRate } = useCompanyTaxes();
@@ -136,6 +138,30 @@ export default function PricingSimulator() {
     () => productTypes.filter((p) => p.active !== false && (categoryFilter === 'all' || p.category === categoryFilter)),
     [productTypes, categoryFilter]
   );
+
+  // Comparativo: com seleção, a tabela mostra apenas os produtos escolhidos.
+  const shownProducts = useMemo(
+    () => (compareIds.length > 0 ? visibleProducts.filter((p) => compareIds.includes(p.id)) : visibleProducts),
+    [visibleProducts, compareIds]
+  );
+
+  // Produto mais viável entre os comparados: maior margem % (preço atual vs custo p/ venda);
+  // empate ou sem preço atual → menor custo industrial por unidade.
+  const bestId = useMemo(() => {
+    if (compareIds.length < 2) return null;
+    let best = null;
+    shownProducts.forEach((pt) => {
+      const p = modelByProduct[pt.id];
+      if (!p) return;
+      const sell = calculateSellingCost(p.industrialPerUnit, rowFor(pt));
+      const current = Number(pt.selling_price) || 0;
+      const marginPct = current > 0 ? ((current - sell.sellingCost) / current) * 100 : -Infinity;
+      if (!best || marginPct > best.marginPct || (marginPct === best.marginPct && p.industrialPerUnit < best.cost)) {
+        best = { id: pt.id, marginPct, cost: p.industrialPerUnit };
+      }
+    });
+    return best?.id || null;
+  }, [shownProducts, modelByProduct, compareIds, defaults, rows, taxes, insumoCosts]);
 
   // Parâmetros de venda do produto: exceção por produto (tax_rate_percent do
   // cadastro) > valor editado na linha > alíquota da empresa por regime (banco).
@@ -328,11 +354,14 @@ export default function PricingSimulator() {
         <span className="text-xs text-muted-foreground">Categoria:</span>
         {categories.map((c) => (
           <button key={c} onClick={() => setCategoryFilter(c)}
-            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${categoryFilter === c ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-foreground hover:bg-muted'}`}>
+              className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${categoryFilter === c ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-foreground hover:bg-muted'}`}>
             {c === 'all' ? 'Todas' : c}
           </button>
-        ))}
-      </div>
+          ))}
+          </div>
+
+          {/* Filtro de comparativo entre produtos */}
+          <ProductCompareFilter products={visibleProducts} selected={compareIds} onChange={setCompareIds} />
 
       {loading ? (
         <div className="flex items-center justify-center py-16"><div className="w-8 h-8 border-4 border-slate-200 border-t-primary rounded-full animate-spin" /></div>
@@ -356,7 +385,7 @@ export default function PricingSimulator() {
                 </tr>
               </thead>
               <tbody>
-                {visibleProducts.map((pt) => {
+                {shownProducts.map((pt) => {
                   const p = modelByProduct[pt.id];
                   if (!p) return null;
                   const row = rowFor(pt);
@@ -364,14 +393,16 @@ export default function PricingSimulator() {
                   const current = Number(pt.selling_price) || 0;
                   const diff = sell.price - current;
                   const suggestedColor = current > 0 && diff > 0 ? 'text-red-600 font-bold' : current > 0 && diff < 0 ? 'text-green-600' : 'text-foreground';
+                  const isBest = pt.id === bestId;
                   return (
-                    <tr key={pt.id} className="border-b border-border/50">
+                    <tr key={pt.id} className={`border-b border-border/50 ${isBest ? 'bg-green-50 dark:bg-green-950/20' : ''}`}>
                       <td className="py-1.5">
                         <button onClick={() => setComposingId(pt.id)} title="Ver composição de custos e origem de cada valor"
                           className="text-foreground hover:text-primary underline decoration-dotted underline-offset-2 text-left transition-colors">
                           {pt.name}
                         </button>
                         {p.weightEstimated && <span className="text-[10px] text-amber-600 ml-1" title="Peso estimado — atualize o cadastro">⚠</span>}
+                        {isBest && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 font-semibold ml-1">Mais viável</span>}
                       </td>
                       <td className="py-1.5 text-center text-muted-foreground">{unitLabel(pt)}</td>
                       <td className="py-1.5 text-right text-muted-foreground" title="Clique em Composição para ver a origem de cada componente">{fmtBRL(p.industrialPerUnit)}</td>
