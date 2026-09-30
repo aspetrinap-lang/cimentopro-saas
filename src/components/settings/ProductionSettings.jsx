@@ -89,6 +89,7 @@ export default function ProductionSettings({ canEditCost, canManageTraceMode }) 
       {tab === 'categorias' && (
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
           {loading ? <Spinner /> : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted/50 text-xs text-muted-foreground uppercase tracking-wide">
@@ -116,6 +117,7 @@ export default function ProductionSettings({ canEditCost, canManageTraceMode }) 
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}
@@ -127,6 +129,7 @@ export default function ProductionSettings({ canEditCost, canManageTraceMode }) 
       {tab === 'tracos' && (
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
           {loading ? <Spinner /> : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted/50 text-xs text-muted-foreground uppercase tracking-wide">
@@ -171,6 +174,7 @@ export default function ProductionSettings({ canEditCost, canManageTraceMode }) 
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}
@@ -178,6 +182,7 @@ export default function ProductionSettings({ canEditCost, canManageTraceMode }) 
       {tab === 'maquinas' && (
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
           {loading ? <Spinner /> : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted/50 text-xs text-muted-foreground uppercase tracking-wide">
@@ -223,6 +228,7 @@ export default function ProductionSettings({ canEditCost, canManageTraceMode }) 
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}

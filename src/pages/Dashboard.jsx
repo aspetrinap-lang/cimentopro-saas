@@ -146,7 +146,7 @@ export default function Dashboard() {
   const prevFilteredOrders = useMemo(() => applySelection(prevOrders, sel, machines, lines, products), [prevOrders, sel, machines, lines, products]);
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-[1400px] mx-auto bg-slate-50 min-h-full">
+    <div className="p-4 md:p-6 space-y-4 bg-slate-50 min-h-full">
       {/* Cabeçalho compacto */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">

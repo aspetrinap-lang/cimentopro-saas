@@ -156,6 +156,7 @@ export default function ArtifactTab({ types, traces, loading, categories, onChan
               <h2 className="text-sm font-semibold text-muted-foreground">Sem categoria</h2>
               <span className="ml-auto text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{uncategorized.length}</span>
             </div>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <tbody>
                 {uncategorized.map(t => (
@@ -171,6 +172,7 @@ export default function ArtifactTab({ types, traces, loading, categories, onChan
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

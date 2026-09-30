@@ -157,7 +157,7 @@ export default function Maintenance() {
   const moldMaint = maintenances.filter(m => m.mold_id);
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Manutenção Preventiva</h1>
