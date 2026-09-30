@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// MOTOR ÚNICO DE CUSTEIO INDUSTRIAL — CimentoPro v2.2
+// MOTOR ÚNICO DE CUSTEIO INDUSTRIAL — CimentoPro v2.3
 //
 // Fonte única de verdade do custo: este módulo é usado pelo Simulador de
 // Preços e (transição) pelas demais telas de custo — NENHUMA fórmula de custo
@@ -21,6 +21,10 @@
 //   • Sem dupla contabilização: contas marcadas como já representadas no
 //     cálculo operacional (traço/molde/energia das linhas) NÃO são somadas.
 //   • Refugo: o custo é absorvido pela PRODUÇÃO BOA (divisores usam good).
+//   • Matéria-prima direta: consumo real das ordens sobre TODO o histórico
+//     concluído (base produtiva) — nunca influenciada pelo período financeiro
+//     nem por DREs excluídas; estimativa do cadastro apenas onde não há
+//     lançamento real de consumo na ordem.
 //   • Sem divisão por zero, sem invenção: base ausente → 0 + alerta.
 //   • Sem arredondamento intermediário: arredonda somente na apresentação.
 //   • Rastreável: cada componente carrega origem (source) e o modelo é
@@ -30,7 +34,7 @@ import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
 import { calculateSuggestedPrice, saleFactor as productSaleFactor } from '@/lib/costUtils';
 import { calculateHistoricalProductivity, historyRangeLabel } from '@/lib/pricingProductivity';
 
-export const CALCULATION_VERSION = '2.2';
+export const CALCULATION_VERSION = '2.3';
 
 export const COST_COMPONENT_TYPES = [
   { value: 'material_direct', label: 'Matéria-prima direta', industrial: true, default_basis: 'kg' },
@@ -202,6 +206,36 @@ function basisOf(rates, comp) {
   return null;
 }
 
+// ── Matéria-prima: agregação por produto sobre um conjunto de ordens ────────
+// Consumo real quando lançado na ordem (× custo do insumo); senão estimativa
+// do cadastro para a produção boa. Base = produção BOA (refugo descontado).
+function aggregateMaterialByProduct(orders, productTypes, insumoCosts) {
+  const ptMap = new Map((productTypes || []).map((p) => [p.id, p]));
+  const agg = new Map();
+  for (const o of orders || []) {
+    const pt = ptMap.get(o.product_type_id);
+    if (!pt) continue;
+    let m = agg.get(pt.id);
+    if (!m) {
+      m = { pt, good: 0, materialReal: 0, materialEstimate: 0, realOrders: 0, orders: 0 };
+      agg.set(pt.id, m);
+    }
+    const gross = num(o.actual_quantity);
+    const good = Math.max(gross - num(o.loss_second_line) - num(o.loss_discarded), 0);
+    m.orders += 1;
+    m.good += good;
+    let orderReal = 0;
+    let hasReal = false;
+    for (const key of ENGINE_KEYS) {
+      const v = num(o[INSUMO_FIELDS[key].actual]);
+      if (v > 0) { hasReal = true; orderReal += v * num(insumoCosts?.[key]); }
+    }
+    if (hasReal) { m.materialReal += orderReal; m.realOrders += 1; }
+    else m.materialEstimate += good * calculateDirectMaterialCost(pt, insumoCosts);
+  }
+  return agg;
+}
+
 // ── Análise de UM mês (uma DRE) ─────────────────────────────────────────────
 export function analyzeDreMonth({ dre, orders, productTypes, lines, accountLookup, insumoCosts, ordersPreFiltered = false }) {
   const ptMap = new Map((productTypes || []).map((p) => [p.id, p]));
@@ -242,16 +276,17 @@ export function analyzeDreMonth({ dre, orders, productTypes, lines, accountLooku
     if (line) agg.lineEnergy += hours * num(line.used_power_kw) * num(line.energy_cost_per_kwh);
     else if (hours > 0) agg.missingLine = true;
 
-    // Matéria-prima: consumo real quando lançado; senão estimativa do cadastro
-    let orderReal = 0;
-    let hasReal = false;
-    for (const key of ENGINE_KEYS) {
-      const v = num(o[INSUMO_FIELDS[key].actual]);
-      if (v > 0) { hasReal = true; orderReal += v * num(insumoCosts?.[key]); }
-    }
-    if (hasReal) { agg.materialReal += orderReal; agg.realOrders += 1; }
-    else agg.materialEstimate += good * calculateDirectMaterialCost(pt, insumoCosts);
   }
+
+  // Matéria-prima: consumo real quando lançado; senão estimativa do cadastro
+  const monthMaterial = aggregateMaterialByProduct(monthOrders, productTypes, insumoCosts);
+  monthMaterial.forEach((m, ptId) => {
+    const agg = perProduct.get(ptId);
+    if (!agg) return;
+    agg.materialReal = m.materialReal;
+    agg.materialEstimate = m.materialEstimate;
+    agg.realOrders = m.realOrders;
+  });
 
   // Classificação dos itens da DRE → buckets por base de rateio
   const buckets = { kg: {}, hours: {}, unit: {}, pct: {} };
@@ -509,8 +544,9 @@ export { calculateSuggestedPrice };
 //   (Σ custos ÷ Σ base produtiva do período — R$/kg, R$/hora, R$/un).
 // BASE PRODUTIVA: produtividade histórica de TODO o histórico de ordens
 //   concluídas (calculateHistoricalProductivity) — alimenta TODOS os
-//   componentes por hora e a energia operacional, nunca limitada pelo
-//   período financeiro. Período financeiro ≠ período de produtividade.
+//   componentes por hora, a energia operacional e a matéria-prima direta,
+//   nunca limitada pelo período financeiro. Período financeiro ≠ período
+//   de produtividade/consumo.
 export function buildCostModel({
   dres = [],
   orders = [],
@@ -535,6 +571,9 @@ export function buildCostModel({
 
   // ── BASE PRODUTIVA: histórico completo — independe do período financeiro ──
   const productivity = calculateHistoricalProductivity(orders, productTypes, lines);
+  // Matéria-prima na base produtiva: consumo das ordens de TODO o histórico
+  // concluído — independente do período financeiro e de DREs excluídas
+  const materialByProduct = aggregateMaterialByProduct(orders, productTypes, insumoCosts);
   const lineById = new Map((lines || []).map((l) => [l.id, l]));
 
   const insufficient = [];
@@ -570,7 +609,6 @@ export function buildCostModel({
     const hoursPerGoodPiece = pr.hoursPerGoodPiece;
     const hoursPerUnit = hoursPerGoodPiece * sf;
     const ctx = { weightKg: wu.kg, hoursPerUnit, sf };
-    const periodAgg = mergedAnalysis.products[pt.id] || null;
     const prodLabel = pr.insufficient
       ? 'sem histórico produtivo'
       : `${pr.sourceLabel}${pr.from ? ` (${historyRangeLabel(pr.from, pr.to)})` : ''}`;
@@ -580,14 +618,21 @@ export function buildCostModel({
     const estimated = {};
     INDUSTRIAL_COMPONENTS.forEach((k) => { comps[k] = 0; });
 
-    // Matéria-prima direta: cadastro + consumo real do período (lógica inalterada)
-    if (periodAgg) {
-      comps.material_direct = periodAgg.components.material_direct;
-      sources.material_direct = periodAgg.sources.material_direct;
-      estimated.material_direct = periodAgg.componentEstimated?.material_direct;
+    // Matéria-prima direta: consumo real das ordens sobre TODO o histórico
+    // concluído (base produtiva) — nunca influenciada pelo período financeiro
+    // ou por DREs excluídas; estimativa do cadastro apenas onde não há lançamento
+    const matAgg = materialByProduct.get(pt.id);
+    if (matAgg && matAgg.good > 0) {
+      comps.material_direct = ((matAgg.materialReal + matAgg.materialEstimate) / matAgg.good) * sf;
+      sources.material_direct = matAgg.realOrders === 0
+        ? 'Cadastro do artefato (estimativa — sem lançamento real de consumo)'
+        : matAgg.realOrders === matAgg.orders
+          ? 'Consumo real das ordens de produção (histórico completo)'
+          : 'Consumo real das ordens + estimativa do cadastro (ordens sem lançamento)';
+      estimated.material_direct = matAgg.realOrders === 0;
     } else {
       comps.material_direct = calculateDirectMaterialCost(pt, insumoCosts) * sf;
-      sources.material_direct = 'Cadastro do artefato (estimativa — sem produção no período financeiro)';
+      sources.material_direct = 'Cadastro do artefato (estimativa — sem produção no histórico)';
       estimated.material_direct = true;
     }
 
