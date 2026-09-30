@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Outlet, NavLink, Link } from 'react-router-dom';
 import {
   Building2, Users, Home, LayoutDashboard, CreditCard, ReceiptText, Activity,
-  ScrollText, FileSpreadsheet, ArrowLeft, Menu, X, ShieldCheck
+  ScrollText, FileSpreadsheet, ArrowLeft, Menu, X, ShieldCheck, LifeBuoy
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
+import SupportBell from '@/components/support/SupportBell';
 
 const mainNav = [
   { to: '/admin', label: 'Início', icon: Home, end: true },
@@ -16,6 +17,7 @@ const mainNav = [
   { to: '/admin/dre-template', label: 'DRE Padrão', icon: FileSpreadsheet },
   { to: '/admin/plans', label: 'Planos', icon: CreditCard },
   { to: '/admin/subscriptions', label: 'Assinaturas', icon: ReceiptText },
+  { to: '/admin/suporte', label: 'Suporte', icon: LifeBuoy },
 ];
 
 export default function AdminLayout() {
@@ -42,6 +44,7 @@ export default function AdminLayout() {
 
   const renderFooter = () => (
     <div className="px-4 py-3 border-t border-slate-100 space-y-2">
+      <SupportBell mode="admin" light />
       <div className="flex items-center gap-2.5 px-2">
         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shrink-0">
           <ShieldCheck className="w-4 h-4 text-white" />

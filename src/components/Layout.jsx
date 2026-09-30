@@ -1,5 +1,6 @@
 import { Outlet, NavLink, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, History, Settings, Factory, Menu, X, BarChart2, Gauge, SquareStack, Wrench, Database, FileText, Bot, Package, LogOut, UserCircle, KeyRound, ShieldCheck, Activity, Layers, Calculator, Tags, Timer } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, History, Settings, Factory, Menu, X, BarChart2, Gauge, SquareStack, Wrench, Database, FileText, Bot, Package, LogOut, UserCircle, KeyRound, ShieldCheck, Activity, Layers, Calculator, Tags, Timer, LifeBuoy, Bug } from 'lucide-react';
+import SupportBell from '@/components/support/SupportBell';
 import { useState } from 'react';
 import BottomTabs from '@/components/layout/BottomTabs';
 import { useDailyBackup } from '@/hooks/useDailyBackup';
@@ -37,6 +38,7 @@ const navItems = [
   { to: '/history', label: 'Histórico', icon: History },
   { to: '/configuracoes', label: 'Configurações', icon: Settings },
   { to: '/backup', label: 'Backup', icon: Database },
+  { to: '/suporte', label: 'Suporte', icon: LifeBuoy },
 ];
 
 export default function Layout() {
@@ -60,7 +62,9 @@ export default function Layout() {
     blocked, blockReason, plan: currentPlan, subscription,
     moduleAllowed, loading: loadingSubscription,
   } = useSubscription();
-  const visibleNav = navItems.filter((i) => allowed.includes(i.to) && (isPlatform || moduleAllowed(i.to)));
+  const visibleNav = navItems.filter(
+    (i) => allowed.includes(i.to) && (isPlatform || moduleAllowed(i.to)) && !(i.to === '/suporte' && activeOperator)
+  );
   const fallbackPath = visibleNav[0]?.to || '/';
 
   // Isolamento multi-tenant: nenhuma página operacional monta (nem consulta
@@ -99,7 +103,9 @@ export default function Layout() {
 
   // Guarda de rotas: esconder o menu é apenas experiência — a decisão
   // real de acesso acontece aqui, antes de renderizar qualquer página.
-  if (!allowed.includes(location.pathname)) {
+  // Subrotas (ex.: /suporte/novo, /suporte/chamado/:id) herdam o acesso do
+  // módulo pai quando presente na lista permitida.
+  if (!allowed.includes(location.pathname) && !allowed.some((p) => location.pathname.startsWith(`${p}/`))) {
     toast({ title: 'Acesso restrito', description: 'Você não tem permissão para acessar este módulo.' });
     return <Navigate to={fallbackPath || '/pin-login'} replace />;
   }
@@ -146,6 +152,11 @@ export default function Layout() {
         </>
       ) : (
         <>
+          <SupportBell mode="customer" />
+          <Link to={`/suporte/novo?relatar=1&page=${encodeURIComponent(location.pathname)}`} onClick={() => setMobileOpen(false)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white/70 hover:text-white hover:bg-white/8 transition-colors">
+            <Bug className="w-3.5 h-3.5" /> Relatar problema
+          </Link>
           {canManageOperators && (
             <Link to="/pin-login" onClick={() => setMobileOpen(false)} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white/70 hover:text-white hover:bg-white/8 transition-colors">
               <KeyRound className="w-3.5 h-3.5" /> Modo Operador (PIN)

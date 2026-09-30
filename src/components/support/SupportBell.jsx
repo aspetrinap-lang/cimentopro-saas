@@ -9,7 +9,7 @@ import { fmtDateTime } from '@/lib/supportConstants';
 // Sino de notificações do suporte — badge com não lidas + lista recente.
 // Notificações são criadas apenas pelo backend, sempre direcionadas ao
 // usuário destinatário (cliente ou SUPER_ADMIN, conforme o evento).
-export default function SupportBell({ mode = 'customer' }) {
+export default function SupportBell({ mode = 'customer', light = false }) {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
@@ -48,7 +48,9 @@ export default function SupportBell({ mode = 'customer' }) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="relative w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/70 hover:text-white hover:bg-white/8 transition-colors">
+        <button className={`relative w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+          light ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-white/70 hover:text-white hover:bg-white/8'
+        }`}>
           <Bell className="w-4 h-4" /> Notificações
           {unread > 0 && (
             <span className="absolute left-[30px] top-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">

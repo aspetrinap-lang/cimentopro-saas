@@ -24,6 +24,10 @@ import Molds from '@/pages/Molds';
 import ProductionLines from '@/pages/ProductionLines';
 import Maintenance from '@/pages/Maintenance';
 import Backup from '@/pages/Backup';
+import MyTickets from '@/pages/support/MyTickets';
+import NewTicket from '@/pages/support/NewTicket';
+import TicketDetail from '@/pages/support/TicketDetail';
+import AdminSupport from '@/pages/admin/AdminSupport';
 import Quality from '@/pages/Quality';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
@@ -94,6 +98,9 @@ const AuthenticatedApp = () => {
         <Route path="/maintenance" element={<Maintenance />} />
         <Route path="/quality" element={<Quality />} />
         <Route path="/backup" element={<Backup />} />
+        <Route path="/suporte" element={<MyTickets />} />
+        <Route path="/suporte/novo" element={<NewTicket />} />
+        <Route path="/suporte/chamado/:id" element={<TicketDetail />} />
       </Route>
       <Route path="/admin" element={<AdminGuard />}>
         <Route index element={<AdminHome />} />
@@ -105,6 +112,7 @@ const AuthenticatedApp = () => {
         <Route path="subscriptions" element={<AdminSubscriptions />} />
         <Route path="dashboard" element={<AdminPlatformDashboard />} />
         <Route path="status" element={<AdminCompanyStatus />} />
+        <Route path="suporte" element={<AdminSupport />} />
       </Route>
       <Route path="/pin-login" element={<PinLogin />} />
       <Route path="*" element={<PageNotFound />} />
