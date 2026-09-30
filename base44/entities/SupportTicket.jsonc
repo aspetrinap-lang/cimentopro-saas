@@ -1,0 +1,166 @@
+{
+  "name": "SupportTicket",
+  "type": "object",
+  "properties": {
+    "company_id": {
+      "type": "string",
+      "description": "ID da empresa (Company) \u2014 resolvido e validado SEMPRE no backend via UserCompany; nunca aceito arbitrariamente do frontend"
+    },
+    "company_name": {
+      "type": "string",
+      "description": "Nome da empresa (cache, exibi\u00e7\u00e3o)"
+    },
+    "created_by": {
+      "type": "string",
+      "description": "ID do usu\u00e1rio (User) que abriu o chamado"
+    },
+    "created_by_name": {
+      "type": "string",
+      "description": "Nome do usu\u00e1rio que abriu (cache, exibi\u00e7\u00e3o)"
+    },
+    "created_by_email": {
+      "type": "string",
+      "description": "E-mail do usu\u00e1rio que abriu (cache, exibi\u00e7\u00e3o)"
+    },
+    "assigned_to": {
+      "type": "string",
+      "description": "ID do usu\u00e1rio (User) do suporte respons\u00e1vel pelo chamado"
+    },
+    "assigned_to_name": {
+      "type": "string",
+      "description": "Nome do respons\u00e1vel (cache, exibi\u00e7\u00e3o)"
+    },
+    "assigned_to_email": {
+      "type": "string",
+      "description": "E-mail do respons\u00e1vel (cache, exibi\u00e7\u00e3o)"
+    },
+    "ticket_number": {
+      "type": "number",
+      "description": "N\u00famero sequencial do chamado por empresa (ex: 124 \u2192 exibido #000124)"
+    },
+    "subject": {
+      "type": "string",
+      "description": "Assunto do chamado"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o inicial do problema/pedido"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "DUVIDA",
+        "ERRO_SISTEMA",
+        "PRODUCAO",
+        "QUALIDADE",
+        "MANUTENCAO",
+        "CUSTOS",
+        "DRE",
+        "SIMULADOR_PRECOS",
+        "PONTO_EQUILIBRIO",
+        "LAUDOS",
+        "IA",
+        "USUARIOS_PERMISSOES",
+        "ASSINATURA",
+        "SUGESTAO",
+        "OUTROS"
+      ],
+      "description": "Categoria do chamado"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "LOW",
+        "NORMAL",
+        "HIGH",
+        "URGENT"
+      ],
+      "default": "NORMAL",
+      "description": "Prioridade do chamado"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "OPEN",
+        "IN_PROGRESS",
+        "WAITING_CUSTOMER",
+        "WAITING_INTERNAL",
+        "RESOLVED",
+        "CLOSED"
+      ],
+      "default": "OPEN",
+      "description": "Situa\u00e7\u00e3o do chamado"
+    },
+    "module": {
+      "type": "string",
+      "description": "M\u00f3dulo do CimentoPro onde o chamado foi aberto (ex: Simulador de Pre\u00e7os)"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "IN_APP",
+        "HELP_CENTER",
+        "ERROR_REPORT",
+        "EMAIL",
+        "WHATSAPP",
+        "SYSTEM"
+      ],
+      "default": "IN_APP",
+      "description": "Canal de origem do chamado (EMAIL e WHATSAPP reservados para integra\u00e7\u00e3o futura)"
+    },
+    "page_context": {
+      "type": "string",
+      "description": "Rota da aplica\u00e7\u00e3o onde o chamado foi aberto (contexto autom\u00e1tico)"
+    },
+    "browser_context": {
+      "type": "string",
+      "description": "Navegador e sistema operacional detectados (sem dados sens\u00edveis)"
+    },
+    "app_version": {
+      "type": "string",
+      "description": "Vers\u00e3o do aplicativo no momento da abertura"
+    },
+    "first_response_at": {
+      "type": "string",
+      "description": "Data/hora da primeira resposta do suporte (ISO 8601) \u2014 base de m\u00e9tricas"
+    },
+    "resolved_at": {
+      "type": "string",
+      "description": "Data/hora da resolu\u00e7\u00e3o (ISO 8601)"
+    },
+    "closed_at": {
+      "type": "string",
+      "description": "Data/hora do fechamento (ISO 8601)"
+    },
+    "last_message_at": {
+      "type": "string",
+      "description": "Data/hora da \u00faltima mensagem na conversa (ISO 8601)"
+    }
+  },
+  "required": [
+    "subject",
+    "category"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    }
+  }
+}

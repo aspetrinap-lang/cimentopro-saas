@@ -1,0 +1,60 @@
+{
+  "name": "SupportSatisfaction",
+  "type": "object",
+  "properties": {
+    "ticket_id": {
+      "type": "string",
+      "description": "ID do chamado avaliado (SupportTicket) \u2014 uma \u00fanica avalia\u00e7\u00e3o por chamado"
+    },
+    "company_id": {
+      "type": "string",
+      "description": "ID da empresa (Company) \u2014 espelhado do chamado para isolamento multi-tenant"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "ID do usu\u00e1rio (User) que avaliou"
+    },
+    "user_email": {
+      "type": "string",
+      "description": "E-mail de quem avaliou (cache, exibi\u00e7\u00e3o)"
+    },
+    "rating": {
+      "type": "number",
+      "description": "Nota de 1 a 5"
+    },
+    "resolved": {
+      "type": "boolean",
+      "description": "Indica se o cliente considera o problema resolvido"
+    },
+    "comment": {
+      "type": "string",
+      "description": "Coment\u00e1rio opcional sobre o atendimento"
+    }
+  },
+  "required": [
+    "ticket_id",
+    "rating"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    }
+  }
+}
