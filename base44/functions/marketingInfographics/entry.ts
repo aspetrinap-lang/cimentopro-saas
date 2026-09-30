@@ -1,12 +1,15 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
-import OpenAI from 'npm:openai@6.45.0';
-import { CAMPAIGN_TABS, buildPrompt } from './tabs.ts';
+import { CAMPAIGN_TABS } from './tabs.ts';
 import { isPlatformAdminVerified } from '../../shared/platformAdmin.ts';
 
-// Campanha de marketing: gera infográficos explicativos 4:5 (Instagram) por
-// aba do CimentoPro, com IA, e persiste as imagens em MarketingInfographic.
-// Autorização: SUPER_ADMIN da plataforma OU dono/admin de alguma empresa
-// ativa (a campanha pertence ao dono do sistema).
+// Campanha de marketing: o FRONTEND captura o print real de cada aba
+// (html2canvas), compõe o infográfico 4:5 e envia o PNG público — esta
+// função apenas lista a campanha e persiste o asset enviado em
+// MarketingInfographic. Autorização: SUPER_ADMIN da plataforma OU
+// dono/admin de alguma empresa ativa.
+
+const isValidImageUrl = (url) =>
+  typeof url === 'string' && url.startsWith('https://') && url.includes('base44');
 
 export default async function(req) {
   try {
@@ -39,31 +42,22 @@ export default async function(req) {
       });
     }
 
-    if (action === 'generate') {
+    if (action === 'save') {
       const tab = CAMPAIGN_TABS.find((t) => t.key === body.key);
       if (!tab) return Response.json({ error: 'Aba desconhecida' }, { status: 400 });
-
-      const { baseURL, token, headers } = svc.aiGateway.connection();
-      const client = new OpenAI({ baseURL, apiKey: token, defaultHeaders: headers, maxRetries: 0 });
-      const { data } = await client.images.generate({
-        model: 'automatic',
-        prompt: buildPrompt(tab),
-        n: 1,
-        aspect_ratio: '4:5',
-        response_format: 'url',
-      });
-      const url = data && data[0] && data[0].url;
-      if (!url) return Response.json({ error: 'A geração de imagem não retornou resultado' }, { status: 502 });
+      if (!isValidImageUrl(body.image_url)) {
+        return Response.json({ error: 'URL da imagem inválida — envie um arquivo do armazenamento do app' }, { status: 400 });
+      }
 
       const existing = await svc.entities.MarketingInfographic.filter({ key: tab.key });
       let item;
       if (existing.length) {
         item = await svc.entities.MarketingInfographic.update(existing[0].id, {
-          group: tab.group, title: tab.title, image_url: url,
+          group: tab.group, title: tab.title, image_url: body.image_url,
         });
       } else {
         item = await svc.entities.MarketingInfographic.create({
-          key: tab.key, group: tab.group, title: tab.title, image_url: url,
+          key: tab.key, group: tab.group, title: tab.title, image_url: body.image_url,
         });
       }
       return Response.json({ item: { key: item.key, group: item.group, title: item.title, image_url: item.image_url } });

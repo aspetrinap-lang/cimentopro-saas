@@ -3,10 +3,15 @@ import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { jsPDF } from 'jspdf';
-import { Sparkles, FileDown, Loader2, Megaphone } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { Sparkles, FileDown, Loader2, Megaphone, Camera } from 'lucide-react';
 import InfographicCard from '@/components/marketing/InfographicCard';
+import CaptureStage from '@/components/marketing/CaptureStage';
+import { composeInfographic, canvasToPngBlob } from '@/components/marketing/infographicComposer';
+import { useCompany } from '@/lib/CompanyContext';
 
 const GROUPS = ['Produção', 'Qualidade e IA', 'Gestão financeira'];
+const CAPTURE_WAIT_MS = 4000; // tempo para a aba real montar e carregar os dados
 
 async function fetchAsDataUrl(url) {
   const res = await fetch(url);
@@ -36,12 +41,14 @@ const IMG_FORMAT = (type) => (type && type.includes('png') ? 'PNG' : 'JPEG');
 
 export default function Marketing() {
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
   const [tabs, setTabs] = useState([]);
   const [items, setItems] = useState({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState({});
   const [bulkBusy, setBulkBusy] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [captureKey, setCaptureKey] = useState(null);
 
   const load = async () => {
     try {
@@ -58,10 +65,34 @@ export default function Marketing() {
   };
   useEffect(() => { load(); }, []);
 
+  // Fluxo do infográfico: monta a aba real fora da tela → captura o print
+  // com html2canvas → compõe o 4:5 (print + título + bullets) → envia o PNG
+  // para o armazenamento público → persiste via backend.
   const generate = async (key) => {
     setBusy((b) => ({ ...b, [key]: true }));
+    setCaptureKey(key);
     try {
-      const res = await base44.functions.invoke('marketingInfographics', { action: 'generate', key });
+      const tab = tabs.find((t) => t.key === key);
+      if (!tab) throw new Error('Aba desconhecida.');
+
+      await new Promise((r) => setTimeout(r, CAPTURE_WAIT_MS));
+      const el = document.getElementById('capture-stage');
+      if (!el) throw new Error('Falha ao montar a tela da aba.');
+
+      const screenshot = await html2canvas(el, {
+        scale: 1.5,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#F8FAFC',
+      });
+
+      const final = composeInfographic({ screenshot, tab, companyName: currentCompany?.name || '' });
+      const blob = await canvasToPngBlob(final);
+      const { file_url } = await base44.integrations.Core.UploadPublicFile({
+        file: new File([blob], `cimentopro-${key}-infografico.png`, { type: 'image/png' }),
+      });
+
+      const res = await base44.functions.invoke('marketingInfographics', { action: 'save', key, image_url: file_url });
       const item = res.data?.item;
       if (item) setItems((prev) => ({ ...prev, [key]: item }));
     } catch (error) {
@@ -72,6 +103,7 @@ export default function Marketing() {
       });
     } finally {
       setBusy((b) => ({ ...b, [key]: false }));
+      setCaptureKey(null);
     }
   };
 
@@ -137,7 +169,7 @@ export default function Marketing() {
             <Megaphone className="w-5 h-5 text-primary" /> Marketing — Infográficos Instagram
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Um infográfico 4:5 por aba do CimentoPro, pronto para a campanha. {readyCount} de {tabs.length} gerados.
+            Print real de cada aba do CimentoPro em formato 4:5, com os dados da empresa. {readyCount} de {tabs.length} gerados.
           </p>
         </div>
         <div className="flex gap-2">
@@ -173,6 +205,8 @@ export default function Marketing() {
           </section>
         );
       })}
+
+      <CaptureStage tabKey={captureKey} />
     </div>
   );
 }

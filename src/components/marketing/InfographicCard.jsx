@@ -22,7 +22,7 @@ export default function InfographicCard({ tab, item, busy, onGenerate, onDownloa
             ) : (
               <ImageIcon className="w-6 h-6" />
             )}
-            <span className="text-xs">{busy ? 'Gerando com IA...' : 'Ainda não gerado'}</span>
+            <span className="text-xs">{busy ? 'Capturando tela...' : 'Ainda não gerado'}</span>
           </div>
         )}
         {busy && ready && (
