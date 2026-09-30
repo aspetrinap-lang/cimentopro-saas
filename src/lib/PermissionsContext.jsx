@@ -5,7 +5,7 @@ import { useCompany } from '@/lib/CompanyContext';
 import { useOperator } from '@/lib/OperatorContext';
 import { ROLE_GRANTS, PLATFORM_GRANTS, resolvePermissions, permissionsToPaths } from '@/lib/permissions';
 
-const PermissionsContext = createContext();
+export const PermissionsContext = createContext();
 
 // Papel na empresa ativa → papel do sistema de permissões.
 const COMPANY_ROLE_TO_GRANTS = {

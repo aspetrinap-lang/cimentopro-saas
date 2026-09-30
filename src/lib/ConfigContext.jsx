@@ -16,7 +16,7 @@ export const DEFAULT_MAINTENANCE_INTERVALS = {
   'Outros': 30,
 };
 
-const ConfigContext = createContext(null);
+export const ConfigContext = createContext(null);
 
 export function ConfigProvider({ children }) {
   const [rawMaterials, setRawMaterials] = useState(DEFAULT_RAW_MATERIALS);

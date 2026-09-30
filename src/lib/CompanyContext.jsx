@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { getAllowedPaths } from '@/lib/permissions';
 import { setPlatformAdminScope } from '@/lib/companyScope';
 
-const CompanyContext = createContext();
+export const CompanyContext = createContext();
 
 // company_id ativo disponível globalmente, inclusive fora da árvore React
 let activeCompanyIdGlobal = null;

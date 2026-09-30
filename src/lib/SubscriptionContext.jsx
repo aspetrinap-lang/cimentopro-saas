@@ -8,7 +8,7 @@ import { moduleForPath } from '@/lib/planModules';
 // acesso de serviço (independente do cache da sessão) sempre que a empresa
 // ativa muda. Empresa SEM assinatura registrada mantém acesso integral
 // (compatibilidade) até o SUPER_ADMIN atribuir um plano.
-const SubscriptionContext = createContext(null);
+export const SubscriptionContext = createContext(null);
 
 const EMPTY = {
   loading: false,

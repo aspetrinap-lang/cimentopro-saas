@@ -8,7 +8,12 @@ import { Sparkles, FileDown, Loader2, Megaphone, Camera } from 'lucide-react';
 import InfographicCard from '@/components/marketing/InfographicCard';
 import CaptureStage from '@/components/marketing/CaptureStage';
 import { composeInfographic, canvasToPngBlob } from '@/components/marketing/infographicComposer';
-import { useCompany } from '@/lib/CompanyContext';
+import { useCompany, CompanyContext } from '@/lib/CompanyContext';
+import { useConfig, ConfigContext } from '@/lib/ConfigContext';
+import { useAuth, AuthContext } from '@/lib/AuthContext';
+import { useOperator, OperatorContext } from '@/lib/OperatorContext';
+import { useSubscription, SubscriptionContext } from '@/lib/SubscriptionContext';
+import { usePermissions, PermissionsContext } from '@/lib/PermissionsContext';
 
 const GROUPS = ['Produção', 'Qualidade e IA', 'Gestão financeira'];
 const CAPTURE_WAIT_MS = 4000; // tempo para a aba real montar e carregar os dados
@@ -42,6 +47,14 @@ const IMG_FORMAT = (type) => (type && type.includes('png') ? 'PNG' : 'JPEG');
 export default function Marketing() {
   const { toast } = useToast();
   const { currentCompany } = useCompany();
+  // Valores dos contextos do app, repassados ao palco de captura (raiz React
+  // separada) para que as abas reais encontrem os mesmos dados.
+  const auth = useAuth();
+  const operator = useOperator();
+  const company = useCompany();
+  const subscription = useSubscription();
+  const permissions = usePermissions();
+  const config = useConfig();
   const [tabs, setTabs] = useState([]);
   const [items, setItems] = useState({});
   const [loading, setLoading] = useState(true);
@@ -206,7 +219,17 @@ export default function Marketing() {
         );
       })}
 
-      <CaptureStage tabKey={captureKey} />
+      <CaptureStage
+        tabKey={captureKey}
+        providers={[
+          [AuthContext, auth],
+          [OperatorContext, operator],
+          [CompanyContext, company],
+          [SubscriptionContext, subscription],
+          [PermissionsContext, permissions],
+          [ConfigContext, config],
+        ]}
+      />
     </div>
   );
 }

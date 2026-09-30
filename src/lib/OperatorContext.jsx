@@ -1,6 +1,6 @@
 import { createContext, useState, useContext } from 'react';
 
-const OperatorContext = createContext();
+export const OperatorContext = createContext();
 const STORAGE_KEY = 'cimentopro_active_operator';
 
 function loadOperator() {
