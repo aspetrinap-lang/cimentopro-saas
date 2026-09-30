@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useCompany } from '@/lib/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
-import { UserPlus, Trash2, Loader2 } from 'lucide-react';
+import { UserPlus, Trash2, Loader2, Pencil } from 'lucide-react';
 
 const ROLE_OPTIONS = [
   { value: 'owner', label: 'Dono' },
@@ -21,6 +21,41 @@ export default function CompanyUsersTab() {
   const [role, setRole] = useState('supervisor');
   const [profileId, setProfileId] = useState('');
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [editRole, setEditRole] = useState('supervisor');
+  const [editProfileId, setEditProfileId] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  function openEdit(m) {
+    setEditing(m);
+    setEditRole(m.role || 'supervisor');
+    setEditProfileId(m.profile_id || '');
+  }
+
+  async function handleEditSave(e) {
+    e.preventDefault();
+    if (!editing) return;
+    const email = (editing.user_email || '').trim();
+    if (!email) return;
+    if (editRole === editing.role && (editProfileId || '') === (editing.profile_id || '')) {
+      toast({ title: 'Nenhuma alteração', description: 'Papel e perfil já estão como exibidos.' });
+      setEditing(null);
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await base44.functions.invoke('companyMembers', {
+        action: 'link', company_id: currentCompanyId, email, role: editRole, profile_id: editProfileId || null,
+      });
+      toast({ title: 'Vínculo atualizado', description: `${email} agora tem o papel ${ROLE_LABELS[editRole] || editRole}${editProfileId ? ' com perfil de acesso' : ' sem restrição de perfil'}.` });
+      setEditing(null);
+      load();
+    } catch (err) {
+      toast({ title: 'Não foi possível atualizar', description: err.response?.data?.error || err.message, variant: 'destructive' });
+    } finally {
+      setSavingEdit(false);
+    }
+  }
 
   const load = useCallback(async () => {
     if (!currentCompanyId) return;
@@ -163,17 +198,68 @@ export default function CompanyUsersTab() {
                     {m.status === 'active' ? 'Ativo' : m.status === 'invited' ? 'Convite pendente' : m.status}
                   </td>
                   <td className="px-4 py-2.5 text-right">
-                    <button
-                      onClick={() => handleUnlink(m)}
-                      className="inline-flex items-center gap-1.5 text-destructive hover:text-destructive/80 text-xs font-medium"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" /> Remover
-                    </button>
+                    <div className="inline-flex items-center gap-3">
+                      <button
+                        onClick={() => openEdit(m)}
+                        className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground text-xs font-medium"
+                      >
+                        <Pencil className="w-3.5 h-3.5" /> Editar
+                      </button>
+                      <button
+                        onClick={() => handleUnlink(m)}
+                        className="inline-flex items-center gap-1.5 text-destructive hover:text-destructive/80 text-xs font-medium"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Remover
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-card w-full max-w-sm rounded-2xl shadow-2xl border border-border">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <h2 className="font-semibold text-foreground">Editar Vínculo</h2>
+              <button onClick={() => setEditing(null)} className="text-muted-foreground hover:text-foreground transition-colors">×</button>
+            </div>
+            <form onSubmit={handleEditSave} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Usuário</label>
+                <p className="text-sm text-foreground">{editing.user_name || '—'} <span className="text-muted-foreground">({editing.user_email})</span></p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Papel</label>
+                <select value={editRole} onChange={(e) => setEditRole(e.target.value)} className={inputCls}>
+                  {ROLE_OPTIONS.map((r) => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Perfil de Acesso</label>
+                <select value={editProfileId} onChange={(e) => setEditProfileId(e.target.value)} className={inputCls}>
+                  <option value="">Sem restrição</option>
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground/70 mt-1">O perfil só reduz as permissões do papel, nunca as amplia.</p>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setEditing(null)} className="flex-1 border border-border rounded-lg py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={savingEdit} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2.5 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60">
+                  {savingEdit ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

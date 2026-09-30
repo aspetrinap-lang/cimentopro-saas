@@ -219,8 +219,16 @@ export default async function(req) {
         if (link.status === 'active' && link.role === role && (link.profile_id || '') === profileId) {
           return Response.json({ error: 'Usuário já está vinculado a esta empresa com este papel e perfil' }, { status: 400 });
         }
+        // Proteção de último dono ativo: a alteração não pode deixar a
+        // empresa sem nenhum dono ativo (ex.: único Dono viraria Supervisor).
+        if (link.status === 'active' && link.role === 'owner' && role !== 'owner') {
+          const owners = await svc.entities.UserCompany.filter({ company_id: companyId, role: 'owner', status: 'active' }, '-created_date', 500);
+          if (owners.filter((o) => o.id !== link.id).length === 0) {
+            return Response.json({ error: 'Este é o único dono ativo da empresa. Promova outro usuário a dono antes de alterar este papel.' }, { status: 400 });
+          }
+        }
         const updated = await svc.entities.UserCompany.update(link.id, {
-          role, profile_id: profileId, profile_name: profileName,
+          role, profile_id: profileId, profile_name: profileName, is_owner: role === 'owner',
           status: 'active', user_email: target.email, user_name: target.full_name, company_name: company.name,
         });
         await syncUserCompanies(target.id);
