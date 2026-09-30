@@ -278,9 +278,7 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  {inferNorm(form.category) === 'NBR 9781' ? 'fpk' : 'fbk'} de Projeto (MPa)
-                </label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">MPa</label>
                 <input type="number" step="0.1" min="0"
                   className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                   value={form.target_resistance || ''} onChange={e => set('target_resistance', e.target.value)}
@@ -331,7 +329,7 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Peso por Unidade (kg) — base do custeio</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Peso por Unidade (kg)</label>
                 <input type="number" min="0" step="0.001"
                   className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                   value={form.weight_kg_per_unit ?? form.volume_per_unit_m3 ?? ''} onChange={e => set('weight_kg_per_unit', e.target.value)} placeholder="ex: 8.5" />
@@ -358,12 +356,15 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
               Preço de Venda (R$ / {form.unit === 'm2' ? 'm²' : form.unit === 'm3' ? 'm³' : form.unit === 'm' ? 'm' : 'un'})
             </p>
             <div className="grid grid-cols-2 gap-3">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-emerald-700 pointer-events-none">R$</span>
-                <input type="number" min="0" step="0.01"
-                  className="w-full border border-emerald-300 rounded-lg pl-9 pr-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  value={form.selling_price ?? ''} onChange={e => set('selling_price', e.target.value)}
-                  placeholder="0,00" />
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Preço (R$)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-emerald-700 pointer-events-none">R$</span>
+                  <input type="number" min="0" step="0.01"
+                    className="w-full border border-emerald-300 rounded-lg pl-9 pr-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={form.selling_price ?? ''} onChange={e => set('selling_price', e.target.value)}
+                    placeholder="0,00" />
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-emerald-800 mb-1">Unidade de Venda</label>
