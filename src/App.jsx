@@ -29,6 +29,7 @@ import NewTicket from '@/pages/support/NewTicket';
 import TicketDetail from '@/pages/support/TicketDetail';
 import AdminSupport from '@/pages/admin/AdminSupport';
 import Quality from '@/pages/Quality';
+import Marketing from '@/pages/Marketing';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
@@ -97,6 +98,7 @@ const AuthenticatedApp = () => {
         <Route path="/molds" element={<Molds />} />
         <Route path="/maintenance" element={<Maintenance />} />
         <Route path="/quality" element={<Quality />} />
+        <Route path="/marketing" element={<Marketing />} />
         <Route path="/backup" element={<Backup />} />
         <Route path="/suporte" element={<MyTickets />} />
         <Route path="/suporte/novo" element={<NewTicket />} />

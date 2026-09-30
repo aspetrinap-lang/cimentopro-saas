@@ -1,0 +1,25 @@
+{
+  "name": "MarketingInfographic",
+  "type": "object",
+  "properties": {
+    "key": {
+      "type": "string",
+      "description": "Chave \u00fanica da aba do aplicativo (ex: dashboard, pricing, break-even)"
+    },
+    "group": {
+      "type": "string",
+      "description": "Grupo da campanha (Produ\u00e7\u00e3o, Qualidade e IA, Gest\u00e3o financeira)"
+    },
+    "title": {
+      "type": "string",
+      "description": "T\u00edtulo da aba exibido no infogr\u00e1fico (cache)"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "URL p\u00fablica da imagem 4:5 gerada por IA (armazenamento permanente)"
+    }
+  },
+  "required": [
+    "key"
+  ]
+}

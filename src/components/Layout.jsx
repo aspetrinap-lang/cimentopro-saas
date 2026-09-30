@@ -1,5 +1,5 @@
 import { Outlet, NavLink, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, History, Settings, Factory, Menu, X, BarChart2, Gauge, SquareStack, Wrench, Database, FileText, Bot, Package, LogOut, UserCircle, KeyRound, ShieldCheck, Activity, Layers, Calculator, Tags, Timer, LifeBuoy, Bug } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, History, Settings, Factory, Menu, X, BarChart2, Gauge, SquareStack, Wrench, Database, FileText, Bot, Package, LogOut, UserCircle, KeyRound, ShieldCheck, Activity, Layers, Calculator, Tags, Timer, LifeBuoy, Bug, Megaphone } from 'lucide-react';
 import SupportBell from '@/components/support/SupportBell';
 import { useState } from 'react';
 import BottomTabs from '@/components/layout/BottomTabs';
@@ -38,6 +38,7 @@ const navItems = [
   { to: '/history', label: 'Histórico', icon: History },
   { to: '/configuracoes', label: 'Configurações', icon: Settings },
   { to: '/backup', label: 'Backup', icon: Database },
+  { to: '/marketing', label: 'Marketing', icon: Megaphone },
   { to: '/suporte', label: 'Suporte', icon: LifeBuoy },
 ];
 
