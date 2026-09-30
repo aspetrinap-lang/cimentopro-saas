@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { analyzeConsumption } from '@/lib/consumptionEngine';
+import { formatDateBR } from '@/lib/dateFormat';
 import ConsumptionPanel from './ConsumptionPanel';
 import SpecificConsumptionPanel from './SpecificConsumptionPanel';
 import TraceProportionsPanel from './TraceProportionsPanel';
 
-const brDate = (d) => (d ? String(d).split('-').reverse().join('/') : '—');
+const brDate = (d) => formatDateBR(d);
 
 export default function OrderConsumptionTab({ orders, productTypesById, names }) {
   const [selectedId, setSelectedId] = useState(null);

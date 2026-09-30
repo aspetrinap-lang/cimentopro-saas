@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { AlertTriangle, Bell, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
 import { differenceInDays, parseISO, format } from 'date-fns';
 import { getActiveIntervals } from '@/lib/machineIntervals';
+import { formatDateBR } from '@/lib/dateFormat';
 
 function maxDate(a, b) {
   if (!a) return b;
@@ -163,7 +164,7 @@ export default function MaintenanceAlerts() {
                 {alert.lastDate ? (
                   <>
                     <p className="text-xs text-muted-foreground">
-                      Última: {new Date(alert.lastDate + 'T12:00:00').toLocaleDateString('pt-BR')}
+                      Última: {formatDateBR(alert.lastDate)}
                     </p>
                     <p className={`text-xs font-semibold mt-0.5 ${
                       alert.status === 'overdue' ? 'text-red-600' : 'text-amber-600'

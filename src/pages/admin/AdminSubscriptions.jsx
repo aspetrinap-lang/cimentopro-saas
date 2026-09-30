@@ -4,6 +4,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Search, ReceiptText, Pencil, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { formatDateBR } from '@/lib/dateFormat';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -27,7 +28,7 @@ const COMPANY_STATUS = {
 const COMPANY_STATUS_LABELS = { active: 'Ativo', suspended: 'Suspenso', inactive: 'Inativo', trial: 'Trial' };
 
 function fmtDate(d) {
-  return d ? new Date(`${d}T00:00:00`).toLocaleDateString('pt-BR') : '—';
+  return formatDateBR(d);
 }
 
 // Gestão de assinaturas por empresa (SUPER_ADMIN). A cobrança é manual —

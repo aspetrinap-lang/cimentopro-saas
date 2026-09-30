@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Search, ScrollText, ChevronDown, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { formatDateTimeBR } from '@/lib/dateFormat';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const ACTION_STYLES = {
@@ -33,10 +34,7 @@ function ActionBadge({ action }) {
 }
 
 function fmtDate(d) {
-  if (!d) return '—';
-  return new Date(d).toLocaleString('pt-BR', {
-    day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit',
-  });
+  return formatDateTimeBR(d);
 }
 
 function ValueBlock({ label, value }) {

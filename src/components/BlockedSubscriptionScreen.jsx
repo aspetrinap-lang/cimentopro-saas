@@ -1,5 +1,6 @@
 import { AlertTriangle, LogOut } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
+import { formatDateBR } from '@/lib/dateFormat';
 
 // Tela de bloqueio integral: assinatura da empresa vencida, suspensa ou
 // cancelada. Nenhum dado operacional é apagado — o acesso volta assim que a
@@ -35,7 +36,7 @@ export default function BlockedSubscriptionScreen({ reason, plan, subscription }
   const { logout } = useAuth();
   const info = REASONS[reason] || REASONS.expired;
   const endDate = subscription?.end_date
-    ? new Date(`${subscription.end_date}T00:00:00`).toLocaleDateString('pt-BR')
+    ? formatDateBR(subscription.end_date)
     : null;
 
   return (

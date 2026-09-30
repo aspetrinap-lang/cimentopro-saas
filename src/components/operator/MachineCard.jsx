@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, CircleOff, Layers, Gauge } from 'lucide-react';
+import { formatDateBR } from '@/lib/dateFormat';
 
 const fmt0 = (v) => (Number(v) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 const fmt1 = (v) =>
@@ -171,7 +172,7 @@ export default function MachineCard({ card }) {
                     <tbody>
                       {card.orders.map((o) => (
                         <tr key={o.id} className="border-b border-border/50">
-                          <td className="py-1.5 text-muted-foreground">{o.production_date ? o.production_date.split('-').reverse().join('/') : '—'}</td>
+                          <td className="py-1.5 text-muted-foreground">{formatDateBR(o.production_date)}</td>
                           <td className="py-1.5 font-medium text-foreground">{o.order_number}</td>
                           <td className="py-1.5 text-muted-foreground">{o.product_type_name || '—'}</td>
                           <td className="py-1.5 text-right">{fmt0(o.actual_quantity)}</td>

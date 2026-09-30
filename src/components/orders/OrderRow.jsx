@@ -1,5 +1,6 @@
 import { Pencil, Trash2, ChevronRight } from 'lucide-react';
 import ProductionStatusPill from './ProductionStatusPill';
+import { formatDateBR } from '@/lib/dateFormat';
 
 const STATUS_COLORS = {
   'Em Andamento': 'bg-amber-100 text-amber-700',
@@ -26,7 +27,7 @@ export default function OrderRow({ order, onEdit, onDelete, onSelect, canEdit = 
           {order.order_number}
         </div>
       </td>
-      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{order.production_date}</td>
+      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{formatDateBR(order.production_date)}</td>
       <td className="px-4 py-3 text-sm text-foreground">{order.product_type_name || '—'}</td>
       <td className="px-4 py-3 text-sm text-right">{fmtInt(order.planned_quantity)}</td>
       <td className="px-4 py-3 text-sm text-right">{hasProduced ? fmtInt(order.actual_quantity) : '—'}</td>

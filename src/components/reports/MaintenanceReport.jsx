@@ -4,9 +4,10 @@ import { base44 } from '@/api/base44Client';
 import { Wrench } from 'lucide-react';
 import ReportSheet from './ReportSheet';
 import Section from './Section';
+import { formatDateBR } from '@/lib/dateFormat';
 import { inRange, fmtDur } from '@/lib/reportUtils';
 
-const fmtDate = (d) => (d ? d.split('-').reverse().join('/') : '—');
+const fmtDate = (d) => formatDateBR(d);
 
 // Ficha técnica da Manutenção Preventiva: manutenções de máquinas e moldes
 // registradas no período selecionado.

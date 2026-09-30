@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import QualityReportForm from '@/components/quality/QualityReportForm';
 import QualityReportView from '@/components/quality/QualityReportView';
 import { Plus, Search, FileText, Pencil, Trash2, Eye, AlertTriangle } from 'lucide-react';
+import { formatDateBR } from '@/lib/dateFormat';
 import { groupByAge, ageStats, estimateFck, checkCompliance } from '@/lib/qualityNorms';
 import { usePermissions } from '@/lib/PermissionsContext';
 
@@ -268,7 +269,7 @@ function OrderPicker({ orders, reports, productTypes, onPick, onClose }) {
                 <FileText className="w-4 h-4 text-muted-foreground" />
                 <div>
                   <p className="text-sm font-medium text-foreground">{o.order_number} — {o.product_type_name}</p>
-                  <p className="text-xs text-muted-foreground">{o.production_date} • {o.actual_quantity || 0} un.</p>
+                  <p className="text-xs text-muted-foreground">{formatDateBR(o.production_date)} • {o.actual_quantity || 0} un.</p>
                 </div>
               </div>
               <span className="text-xs text-primary">Gerar Laudo →</span>

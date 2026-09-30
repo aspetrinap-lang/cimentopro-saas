@@ -3,6 +3,7 @@ import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { ClipboardList } from 'lucide-react';
 import ReportSheet from './ReportSheet';
+import { formatDateBR } from '@/lib/dateFormat';
 import Section from './Section';
 import InsumoDeviationTable from './InsumoDeviationTable';
 import { inRange, pctBR } from '@/lib/reportUtils';
@@ -86,7 +87,7 @@ function Content({ data, start, end }) {
                 {inOrders.slice(0, 60).map((o) => (
                   <tr key={o.id} className="border-b border-slate-200">
                     <td className="py-1 font-medium text-slate-900 whitespace-nowrap">{o.order_number}</td>
-                    <td className="py-1 text-slate-600 whitespace-nowrap">{o.production_date}</td>
+                    <td className="py-1 text-slate-600 whitespace-nowrap">{formatDateBR(o.production_date)}</td>
                     <td className="py-1 text-slate-600">{o.product_type_name || '—'}</td>
                     <td className="py-1 text-slate-600">{o.machine_name || '—'}</td>
                     <td className="py-1 text-right">{fmtInt(o.planned_quantity)}</td>

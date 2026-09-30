@@ -1,6 +1,7 @@
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
 import { consumptionDeviation } from '@/lib/productionMetrics';
+import { formatDateBR } from '@/lib/dateFormat';
 
 // Tabela de desvio de consumo por insumo, uma linha por ordem — mesmo critério
 // da ficha técnica da ordem (teórico = produzido × consumo por unidade do artefato).
@@ -41,7 +42,7 @@ export default function InsumoDeviationTable({ orders, ptMap, maxRows = 40 }) {
             return (
               <tr key={o.id} className="border-b border-slate-200">
                 <td className="py-1 font-medium text-slate-900 whitespace-nowrap">{o.order_number}</td>
-                <td className="py-1 text-slate-600 whitespace-nowrap">{o.production_date}</td>
+                <td className="py-1 text-slate-600 whitespace-nowrap">{formatDateBR(o.production_date)}</td>
                 <td className="py-1 text-slate-600">{o.product_type_name || '—'}</td>
                 <td className="py-1 text-right">{(Number(o.actual_quantity) || 0).toLocaleString('pt-BR')}</td>
                 {devs.map(({ key, dev }) => (

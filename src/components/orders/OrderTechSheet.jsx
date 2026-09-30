@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { X, ArrowUpRight, ArrowDownRight, ClipboardList, Gauge, ShieldCheck, Package } from 'lucide-react';
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
 import { productionMetrics, scrapMetrics, consumptionDeviation } from '@/lib/productionMetrics';
+import { formatDateBR } from '@/lib/dateFormat';
 import ProductionStatusPill from './ProductionStatusPill';
 
 const STATUS_COLORS = {
@@ -55,7 +56,7 @@ export default function OrderTechSheet({ order, productType, names, onClose }) {
               <p className="text-base font-bold text-foreground truncate">Ordem {order.order_number}</p>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {order.production_date?.split('-').reverse().join('/')} · {order.product_type_name || '—'}
+              {formatDateBR(order.production_date)} · {order.product_type_name || '—'}
             </p>
             <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full mt-1.5 ${STATUS_COLORS[order.status] || 'bg-muted text-muted-foreground'}`}>
               {order.status}

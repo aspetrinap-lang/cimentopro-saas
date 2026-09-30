@@ -4,6 +4,7 @@ import { scopedFilter } from '@/lib/companyScope';
 import { Boxes } from 'lucide-react';
 import ReportSheet from './ReportSheet';
 import Section from './Section';
+import { formatDateBR } from '@/lib/dateFormat';
 import { inRange, fmtDur } from '@/lib/reportUtils';
 
 const fmtInt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
@@ -157,7 +158,7 @@ function Content({ molds, maintenances, start, end }) {
             <tbody>
               {maintRows.map((p, i) => (
                 <tr key={p.id || i} className="border-b border-slate-200">
-                  <td className="py-1.5 whitespace-nowrap">{p.date?.split('-').reverse().join('/')}</td>
+                  <td className="py-1.5 whitespace-nowrap">{formatDateBR(p.date)}</td>
                   <td className="py-1.5 font-medium text-slate-900">{p.mold.name}</td>
                   <td className="py-1.5">{p.maintenance_type}</td>
                   <td className="py-1.5 text-slate-600">{p.replaced_part || '—'}</td>

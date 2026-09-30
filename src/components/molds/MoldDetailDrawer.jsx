@@ -3,6 +3,7 @@ import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { X, Plus, Pencil, Trash2, Wrench, Zap, Droplets, Wind, Settings, CheckSquare, RefreshCw, HelpCircle, Calendar, Clock, User, Package, AlertTriangle } from 'lucide-react';
 import MoldLifecycleBar from './MoldLifecycleBar';
+import { formatDateBR } from '@/lib/dateFormat';
 import MoldMaintenanceForm from './MoldMaintenanceForm';
 import { useBackButtonClose } from '@/hooks/useBackButtonClose';
 import { resolveMoldLinks, cleanMoldOrphans } from '@/lib/moldLinks';
@@ -162,7 +163,7 @@ export default function MoldDetailDrawer({ mold, onClose, onMoldUpdated }) {
                             <Icon className="w-3 h-3" /> {m.maintenance_type}
                           </span>
                           <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Calendar className="w-3 h-3" /> {m.date}
+                            <Calendar className="w-3 h-3" /> {formatDateBR(m.date)}
                           </span>
                         </div>
                         <div className="flex items-center gap-1">

@@ -1,5 +1,6 @@
 import { useState, Fragment } from 'react';
 import { stdDev } from '@/lib/utils';
+import { formatDateBR } from '@/lib/dateFormat';
 import { TrendingDown, TrendingUp, ChevronDown, ChevronUp, AlertTriangle, Wrench } from 'lucide-react';
 
 function stabilityColor(cv) {
@@ -163,7 +164,7 @@ export default function DailyStability({ orders, downtimes, maintenances }) {
                               if (lowOutlier && day.downtimeMin === 0 && day.maintMin === 0) cause.push({ icon: AlertTriangle, text: 'Sem paradas/manutenção registradas — verificar setup ou matéria-prima', color: 'text-muted-foreground' });
                               return (
                                 <tr key={day.date} className={`border-b border-border/40 ${outlier ? (lowOutlier ? 'bg-red-50/50' : 'bg-green-50/40') : ''}`}>
-                                  <td className="py-2 pr-3 text-muted-foreground whitespace-nowrap">{day.date}</td>
+                                  <td className="py-2 pr-3 text-muted-foreground whitespace-nowrap">{formatDateBR(day.date)}</td>
                                   <td className="py-2 pr-3 text-right font-medium text-foreground">{day.productivity.toFixed(0)}</td>
                                   <td className={`py-2 pr-3 text-right font-semibold ${dev > 0 ? 'text-green-600' : 'text-red-600'}`}>{dev > 0 ? '+' : ''}{dev.toFixed(1)}%</td>
                                   <td className="py-2 pr-3 text-right text-red-600">{day.downtimeMin > 0 ? `${day.downtimeMin}min` : '—'}</td>

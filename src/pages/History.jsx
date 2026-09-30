@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { Printer, TrendingDown, TrendingUp } from 'lucide-react';
+import { formatDateBR } from '@/lib/dateFormat';
 import HistoryReport from '@/components/reports/HistoryReport';
 import { useInsumoNames } from '@/hooks/useInsumoNames';
 import { INSUMO_KEYS, INSUMO_FIELDS } from '@/lib/insumos';
@@ -124,7 +125,7 @@ export default function History() {
                 ) : filtered.map(o => (
                   <tr key={o.id} className="border-b border-border hover:bg-muted/30 transition-colors">
                     <td className="px-3 py-3 font-medium whitespace-nowrap">{o.order_number}</td>
-                    <td className="px-3 py-3 text-muted-foreground whitespace-nowrap">{o.production_date}</td>
+                    <td className="px-3 py-3 text-muted-foreground whitespace-nowrap">{formatDateBR(o.production_date)}</td>
                     <td className="px-3 py-3 whitespace-nowrap">{o.product_type_name || '—'}</td>
                     <td className="px-3 py-3 text-right">{(o.planned_quantity || 0).toLocaleString('pt-BR')}</td>
                     <td className="px-3 py-3 text-right">{o.actual_quantity != null ? o.actual_quantity.toLocaleString('pt-BR') : '—'}</td>

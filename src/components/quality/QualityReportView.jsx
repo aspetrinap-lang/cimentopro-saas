@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Printer, Pencil, X, CheckCircle2, AlertTriangle } from 'lucide-react';
 import CompanyBrand from '@/components/CompanyBrand';
 import PrintPortal from '@/components/reports/PrintPortal';
+import { formatDateBR } from '@/lib/dateFormat';
 import {
   MIN_RESISTANCE_BY_TRAFFIC, MIN_THICKNESS_BY_TRAFFIC, DIMENSIONAL_TOLERANCE_MM,
   groupByAge, ageStats, estimateFck, checkCompliance, buildAlerts,
@@ -9,7 +10,7 @@ import {
 
 function fmtDate(d) {
   if (!d) return '—';
-  return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR');
+  return formatDateBR(d);
 }
 
 function ruptureDate(moldingDate, ageDays) {

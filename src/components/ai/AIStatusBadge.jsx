@@ -2,11 +2,11 @@
 // ("Do cache") e a data/hora da última execução. `stale` indica que os dados
 // atuais têm fingerprint diferente da análise armazenada.
 import { Clock, CheckCircle2, RefreshCw } from 'lucide-react';
+import { formatDateTimeBR } from '@/lib/dateFormat';
 
 export default function AIStatusBadge({ meta, stale }) {
   if (!meta?.created_date) return null;
-  const d = new Date(meta.created_date);
-  const when = `${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  const when = formatDateTimeBR(meta.created_date);
   return (
     <div className="flex items-center gap-2 flex-wrap text-[11px] text-muted-foreground">
       <Clock className="w-3 h-3" />

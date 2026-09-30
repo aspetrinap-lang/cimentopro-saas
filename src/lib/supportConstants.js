@@ -1,5 +1,6 @@
 // Rótulos e cores do módulo de Suporte — espelham os enums do backend
 // (base44/shared/supportCore.ts). Fonte de exibição do cliente.
+import { formatDateTimeBR } from '@/lib/dateFormat';
 
 export const STATUS_LABELS = {
   OPEN: 'Aberto',
@@ -80,5 +81,4 @@ export const APP_VERSION = 'web 0.0.0';
 
 export const padTicketNumber = (n) => `#${String(Number(n) || 0).padStart(6, '0')}`;
 
-export const fmtDateTime = (iso) =>
-  iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+export const fmtDateTime = (iso) => formatDateTimeBR(iso);

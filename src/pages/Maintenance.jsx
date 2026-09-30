@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Plus, Pencil, Trash2, RefreshCw, Wrench, Shapes, Printer } from 'lucide-react';
 import PreventiveMaintenanceForm from '@/components/settings/PreventiveMaintenanceForm';
 import MaintenanceReport from '@/components/reports/MaintenanceReport';
+import { formatDateBR } from '@/lib/dateFormat';
 import { usePermissions } from '@/lib/PermissionsContext';
 
 function TypeBadge({ type }) {
@@ -60,7 +61,7 @@ function MachineTable({ items, onEdit, onDelete, canEdit, canDelete }) {
               </tr>
             ) : items.map(p => (
               <tr key={p.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                <td className="px-5 py-3 text-muted-foreground whitespace-nowrap">{p.date}</td>
+                <td className="px-5 py-3 text-muted-foreground whitespace-nowrap">{formatDateBR(p.date)}</td>
                 <td className="px-5 py-3 font-medium text-foreground whitespace-nowrap">{p.machine_name || '—'}</td>
                 <td className="px-5 py-3"><TypeBadge type={p.maintenance_type} /></td>
                 <td className="px-5 py-3 text-muted-foreground text-xs max-w-[140px] truncate">{p.replaced_part || '—'}</td>
@@ -108,7 +109,7 @@ function MoldTable({ items, onEdit, onDelete, canEdit, canDelete }) {
               </tr>
             ) : items.map(p => (
               <tr key={p.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                <td className="px-5 py-3 text-muted-foreground whitespace-nowrap">{p.date}</td>
+                <td className="px-5 py-3 text-muted-foreground whitespace-nowrap">{formatDateBR(p.date)}</td>
                 <td className="px-5 py-3 font-medium text-foreground whitespace-nowrap">{p.mold_name || '—'}</td>
                 <td className="px-5 py-3"><TypeBadge type={p.maintenance_type} /></td>
                 <td className="px-5 py-3 text-muted-foreground text-xs max-w-[140px] truncate">{p.replaced_part || '—'}</td>

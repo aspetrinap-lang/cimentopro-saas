@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { AlertTriangle, Clock, CheckCircle2, Wrench, Plus, Printer, RefreshCw, Pencil, Trash2 } from 'lucide-react';
 import MachineDowntimeForm from '@/components/orders/MachineDowntimeForm';
+import { formatDateBR } from '@/lib/dateFormat';
 import { usePermissions } from '@/lib/PermissionsContext';
 import MaintenanceAlerts from '@/components/dashboard/MaintenanceAlerts';
 import MachinesReport from '@/components/reports/MachinesReport';
@@ -358,7 +359,7 @@ export default function MachineDashboard() {
                       {historyFiltered.map(d => (
                         <tr key={d.id} className="border-b border-border hover:bg-muted/30 transition-colors">
                           <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                            {d.date}{d.start_time ? ` ${d.start_time}` : ''}
+                            {formatDateBR(d.date)}{d.start_time ? ` ${d.start_time}` : ''}
                           </td>
                           <td className="px-4 py-3 font-medium whitespace-nowrap">{d.machine_name || '—'}</td>
                           <td className="px-4 py-3">

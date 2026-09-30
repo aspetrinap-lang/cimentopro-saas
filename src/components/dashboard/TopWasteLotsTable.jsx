@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { fmtBRL, orderLostCost, orderExcessCost } from '@/lib/statsUtils';
+import { formatDateBR } from '@/lib/dateFormat';
 
 // Top 5 lotes (ordens) com maior desperdício: peças perdidas (2ª linha + descarte)
 // valorizadas ao custo unitário de produção da ordem — mesma fórmula do KPI e do
@@ -50,7 +51,7 @@ export default function TopWasteLotsTable({ orders, ptMap, traceMap, costs, limi
           {rows.map((r, i) => (
             <tr key={r.id} className="border-b border-slate-100">
               <td className="py-2 pr-2 text-slate-400">{i + 1}</td>
-              <td className="py-2 px-2 text-slate-700">{r.date ? new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</td>
+              <td className="py-2 px-2 text-slate-700">{formatDateBR(r.date)}</td>
               <td className="py-2 px-2 font-medium text-slate-700">{r.order}</td>
               <td className="py-2 px-2 text-slate-700">{r.product}</td>
               <td className="py-2 px-2 text-right text-slate-700">{r.lost.toLocaleString('pt-BR')}</td>

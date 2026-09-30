@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { formatDateBR } from '@/lib/dateFormat';
 import {
   exportAllData, downloadBackup, importAllData,
   runDailyBackup, getLocalBackupInfo, clearLocalBackup,
@@ -228,7 +229,7 @@ export default function BackupPanel() {
               <div className="mt-4 space-y-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Calendar className="w-3.5 h-3.5" />
-                  Último backup: <span className="font-medium text-foreground">{localInfo.date}</span>
+                  Último backup: <span className="font-medium text-foreground">{formatDateBR(localInfo.date)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Database className="w-3.5 h-3.5" />
