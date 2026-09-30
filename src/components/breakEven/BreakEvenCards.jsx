@@ -27,40 +27,41 @@ function BreakEvenCard({ title, description, value, units, rows }) {
   );
 }
 
-// Três cards lado a lado — conceitos DIFERENTES: industrial (custo de fábrica),
-// caixa (desembolso — sem depreciação) e financeiro (caixa + compromissos).
+// Três indicadores do motor v1.1 — PEC (contábil), PEF (financeiro de caixa)
+// e PEE (econômico, com lucro mínimo desejado).
 export default function BreakEvenCards({ analysis }) {
   const mc = fmtPct(analysis.contributionMargin.percent);
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
       <BreakEvenCard
-        title="Ponto de Equilíbrio Industrial"
-        description="Faturamento para cobrir os custos industriais fixos. Não inclui custos variáveis nem despesas financeiras."
-        value={analysis.industrial.breakEvenRevenue}
-        units={analysis.industrial.breakEvenUnits}
+        title="PEC — Ponto de Equilíbrio Contábil"
+        description="Faturamento para cobrir os Gastos Fixos Operacionais (fábrica, pessoal e estrutura). Não inclui juros, IOF, amortizações ou investimentos."
+        value={analysis.pec.breakEvenRevenue}
+        units={analysis.pec.breakEvenUnits}
         rows={[
-          ['Custos fixos industriais', fmtBRL(analysis.fixedIndustrialCosts)],
+          ['Gastos Fixos Operacionais', fmtBRL(analysis.fixedOperationalCosts)],
           ['Margem de contribuição', mc],
         ]}
       />
       <BreakEvenCard
-        title="Ponto de Equilíbrio de Caixa"
-        description="Faturamento para cobrir os desembolsos fixos de caixa. Depreciação e amortização (não caixa) ficam de fora."
-        value={analysis.cash.breakEvenRevenue}
-        units={analysis.cash.breakEvenUnits}
+        title="PEF — Ponto de Equilíbrio Financeiro"
+        description="PEC + Obrigações Não Operacionais de Caixa (juros, IOF e amortizações). Investimentos ficam fora do PEF operacional."
+        value={analysis.pef.breakEvenRevenue}
+        units={analysis.pef.breakEvenUnits}
         rows={[
-          ['Custos fixos de caixa', fmtBRL(analysis.fixedCashCosts)],
+          ['Gastos Fixos Operacionais', fmtBRL(analysis.fixedOperationalCosts)],
+          ['Obrigações financeiras de caixa', fmtBRL(analysis.financialCashCosts)],
           ['Margem de contribuição', mc],
         ]}
       />
       <BreakEvenCard
-        title="Ponto de Equilíbrio Financeiro"
-        description="Caixa + compromissos financeiros pagos (juros, tarifas, parcelas classificados como financeiro caixa)."
-        value={analysis.financial.breakEvenRevenue}
-        units={analysis.financial.breakEvenUnits}
+        title="PEE — Ponto de Equilíbrio Econômico"
+        description="Gastos Fixos Operacionais + Lucro Mínimo Desejado configurado nesta tela. Com lucro desejado 0, PEE = PEC."
+        value={analysis.pee.breakEvenRevenue}
+        units={analysis.pee.breakEvenUnits}
         rows={[
-          ['Custos fixos de caixa', fmtBRL(analysis.financial.fixedCosts)],
-          ['Compromissos financeiros', fmtBRL(analysis.financial.financialCashCosts)],
+          ['Gastos Fixos Operacionais', fmtBRL(analysis.fixedOperationalCosts)],
+          ['Lucro mínimo desejado', fmtBRL(analysis.pee.desiredProfit || 0)],
           ['Margem de contribuição', mc],
         ]}
       />

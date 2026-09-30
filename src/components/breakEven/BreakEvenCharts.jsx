@@ -5,9 +5,9 @@ import { fmtBRL, fmtNum } from '@/lib/statsUtils';
 
 const COLORS = {
   revenue: '#10b981',
-  industrial: '#6366f1',
-  cash: '#f59e0b',
-  financial: '#ef4444',
+  pec: '#6366f1',
+  pef: '#f59e0b',
+  pee: '#ef4444',
 };
 
 const moneyTick = (v) => (Math.abs(v) >= 1000 ? `R$ ${fmtNum(v / 1000, 0)}k` : `R$ ${fmtNum(v, 0)}`);
@@ -22,39 +22,41 @@ function ChartBox({ title, children }) {
   );
 }
 
-// Gráficos do Ponto de Equilíbrio — somente valores reais calculados pelo
+// Gráficos do Ponto de Equilíbrio v1.1 — somente valores reais calculados pelo
 // breakEvenEngine (PE null não é plotado como zero).
 export default function BreakEvenCharts({ analysis }) {
   // 1. Faturamento × Pontos de Equilíbrio (comparativo)
   const beData = [
-    { name: 'Faturamento atual', valor: analysis.revenue.current, color: COLORS.revenue },
-    { name: 'PE Industrial', valor: analysis.industrial.breakEvenRevenue, color: COLORS.industrial },
-    { name: 'PE Caixa', valor: analysis.cash.breakEvenRevenue, color: COLORS.cash },
-    { name: 'PE Financeiro', valor: analysis.financial.breakEvenRevenue, color: COLORS.financial },
+    { name: 'Faturamento atual', valor: analysis.revenue.gross, color: COLORS.revenue },
+    { name: 'PEC', valor: analysis.pec.breakEvenRevenue, color: COLORS.pec },
+    { name: 'PEF', valor: analysis.pef.breakEvenRevenue, color: COLORS.pef },
+    { name: 'PEE', valor: analysis.pee.breakEvenRevenue, color: COLORS.pee },
   ].filter((d) => d.valor != null);
 
-  // 2. Composição dos custos do período por natureza
+  // 2. Composição dos valores do período por natureza
   const compData = [
+    { name: 'Deduções', valor: analysis.revenue.deductions },
     { name: 'Variáveis', valor: analysis.variableCosts.total },
-    { name: 'Fixos Industriais', valor: analysis.fixedIndustrialCosts },
-    { name: 'Fixos Caixa', valor: analysis.fixedCashCosts },
-    { name: 'Financeiros Caixa', valor: analysis.financialCashCosts },
+    { name: 'Fixos Operacionais', valor: analysis.fixedOperationalCosts },
+    { name: 'Financeiro (PEF)', valor: analysis.financialCashCosts },
+    { name: 'Investimentos', valor: analysis.investments },
     { name: 'Não Caixa', valor: analysis.fixedNonCashCosts + analysis.financialNonCashCosts },
   ].filter((d) => d.valor > 0);
 
-  // 3. Evolução mensal — cada mês calculado individualmente (≥ 2 DREs)
+  // 3. Evolução mensal — cada mês calculado individualmente (≥ 2 DREs);
+  //    o resultado do período NUNCA é média destes valores (consolidação por soma).
   const showEvolution = analysis.monthlySeries.length >= 2;
   const evolutionData = analysis.monthlySeries.map((m) => ({
     mes: m.month,
     Faturamento: m.revenue,
-    'PE Industrial': m.industrial,
-    'PE Caixa': m.cash,
-    'PE Financeiro': m.financial,
+    PEC: m.pec,
+    PEF: m.pef,
+    PEE: m.pee,
   }));
 
   return (
     <div className="space-y-3">
-      <ChartBox title="Faturamento × Pontos de Equilíbrio">
+      <ChartBox title="Faturamento × Pontos de Equilíbrio (PEC / PEF / PEE)">
         {beData.length ? (
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -75,7 +77,7 @@ export default function BreakEvenCharts({ analysis }) {
       </ChartBox>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <ChartBox title="Composição dos Custos para o Equilíbrio">
+        <ChartBox title="Composição dos Valores do Período">
           {compData.length ? (
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
@@ -93,7 +95,7 @@ export default function BreakEvenCharts({ analysis }) {
           )}
         </ChartBox>
 
-        <ChartBox title="Evolução do Ponto de Equilíbrio">
+        <ChartBox title="Evolução do Ponto de Equilíbrio (por mês)">
           {showEvolution ? (
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
@@ -104,9 +106,9 @@ export default function BreakEvenCharts({ analysis }) {
                   <Tooltip formatter={tooltipMoney} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Line type="monotone" dataKey="Faturamento" stroke={COLORS.revenue} dot={false} connectNulls strokeWidth={2} />
-                  <Line type="monotone" dataKey="PE Industrial" stroke={COLORS.industrial} dot={false} connectNulls strokeWidth={2} />
-                  <Line type="monotone" dataKey="PE Caixa" stroke={COLORS.cash} dot={false} connectNulls strokeWidth={2} />
-                  <Line type="monotone" dataKey="PE Financeiro" stroke={COLORS.financial} dot={false} connectNulls strokeWidth={2} />
+                  <Line type="monotone" dataKey="PEC" stroke={COLORS.pec} dot={false} connectNulls strokeWidth={2} />
+                  <Line type="monotone" dataKey="PEF" stroke={COLORS.pef} dot={false} connectNulls strokeWidth={2} />
+                  <Line type="monotone" dataKey="PEE" stroke={COLORS.pee} dot={false} connectNulls strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
             </div>

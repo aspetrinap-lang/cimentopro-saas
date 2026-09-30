@@ -1,33 +1,35 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// MOTOR DE PONTO DE EQUILÍBRIO — CimentoPro v1.0
+// MOTOR DE PONTO DE EQUILÍBRO — CimentoPro v1.1
 //
-// Camada FINANCEIRA sobre o industrialCostEngine v2.2: NÃO recria nenhuma
-// fórmula de custeio. Consome o modelo do motor (componentes variáveis por
-// produto, rateios, produção boa, horas históricas) e soma as contas da DRE
-// classificadas pelo gestor na Estrutura da DRE (campos break_even_classification
-// e cash_effect da DreAccount).
+// Camada GERENCIAL sobre a DRE (somente leitura — nunca grava/altera valores)
+// e sobre o industrialCostEngine v2.2 (usado apenas para o mix de produtos).
+// A classificação oficial é FIXA — aplicada às contas da Estrutura da DRE pela
+// rotina apply_break_even_classification — e o motor NUNCA reclassifica contas
+// automaticamente nem usa a categoria contábil original para substituí-la.
 //
-// Três indicadores INDEPENDENTES (não são sinônimos):
-//   PE INDUSTRIAL = Custos Fixos Industriais ÷ MC%          (visão de custo de fábrica)
-//   PE CAIXA      = Custos Fixos de Caixa ÷ MC%             (visão de desembolso —
-//                                                            depreciação/amortização NUNCA entram)
-//   PE FINANCEIRO = (Custos Fixos de Caixa + Financeiro de Caixa) ÷ MC%
+// Cadeia: DRE → Classificação Gerencial de PE → este motor → PEC/PEF/PEE.
+//   Faturamento Bruto = Σ contas de receita (receita de venda + outras receitas)
+//   Receita Líquida   = Faturamento Bruto − Deduções da Receita (ISS, PIS…)
+//   MC                = Receita Líquida − Custos Variáveis Puros
+//   MC%               = MC ÷ Faturamento Bruto (denominador SEMPRE o bruto)
+//
+// Indicadores (substituem os três PEs da v1.0 — industrial/caixa/financeiro):
+//   PEC = Gastos Fixos Operacionais ÷ MC%
+//         (não inclui juros, IOF, amortizações, investimentos, lucros)
+//   PEF = (Gastos Fixos Operacionais + Obrigações Não Operacionais de Caixa)
+//         ÷ MC% — juros, IOF e amortizações; INVESTIMENTOS (máquinas,
+//         caminhões/veículos) NUNCA entram automaticamente (papel investment)
+//   PEE = (Gastos Fixos Operacionais + Lucro Mínimo Desejado) ÷ MC%
+//         — lucro desejado = 0 → PEE = PEC
 //
 // Regras:
-//   • Período: mesmo seletor do motor v2.2 (all_history | selected_month |
-//     last_3 | last_6 | last_12) — várias DREs são CONSOLIDADAS (Σ/Σ ponderado),
-//     nunca média aritmética de percentuais.
-//   • MC oficial = Receita consolidada − Σ contas classificadas como variáveis.
-//     O industrialPerUnit NUNCA é usado como custo variável inteiro: por produto
-//     extraem-se apenas matéria-prima + molde + energia (operacionais) e as
-//     contas variáveis da DRE rateadas pelas MESMAS bases do v2.2.
-//   • Anti-dupla-contagem: contas marcadas already_included_in_direct_material /
-//     already_included_in_energy NÃO são rateadas novamente por unidade.
-//   • Sem divisão por zero: Receita ≤ 0 ou MC% ≤ 0 → breakEven = null
-//     (nunca Infinity/NaN/0 como resultado válido).
-//   • Sem invenção: mix usa vendas reais quando existem; senão produção boa
-//     (com warning explícito).
-//   • Rastreável: composição por conta com classificação, efeito caixa e valor.
+//   • Períodos múltiplos: CONSOLIDAÇÃO POR SOMA (Σ) e depois os indicadores —
+//     média aritmética dos pontos de equilíbrio é PROIBIDA.
+//   • Subtotais da DRE (Lucro Bruto, EBITDA, Margem de Contribuição…) nunca
+//     entram como contas individuais — anti-dupla-contagem.
+//   • MC ≤ 0 → PE = null e status "invalid_margin" (nunca Infinity/NaN/0).
+//   • Margem de Segurança = (Faturamento − PEC), negativa preservada.
+//   • O Simulador de Preços permanece isolado (nenhum dado é gravado).
 // ─────────────────────────────────────────────────────────────────────────────
 import {
   FINANCIAL_PERIODS,
@@ -47,17 +49,21 @@ const normName = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' '
 const PERIOD_MONTHS = { last_3: 3, last_6: 6, last_12: 12 };
 
 // ── Classificações do Ponto de Equilíbrio (Estrutura da DRE) ────────────────
+// fixed_operational é a classificação oficial v1.1; os valores legados
+// (fixed_industrial/fixed_cash) continuam válidos e são mapeados pelo motor.
 export const BREAK_EVEN_CLASSIFICATIONS = [
-  { value: 'revenue', label: 'Receita', description: 'Receitas utilizadas para determinar o faturamento — não entram como custo.' },
-  { value: 'variable', label: 'Variável', description: 'Custa/despesa que varia com a venda ou produção (matéria-prima variável, impostos sobre vendas, comissão, frete, embalagem). Reduz a Margem de Contribuição.' },
-  { value: 'fixed_industrial', label: 'Fixo industrial', description: 'Custos industriais fixos: estrutura, mão de obra fixa industrial, manutenção fixa, custos fixos de fábrica. Base do Ponto de Equilíbrio Industrial.' },
-  { value: 'fixed_cash', label: 'Fixo caixa', description: 'Custos/despesas fixos com desembolso de caixa: salários, encargos, aluguel, administração, contratos, seguros. Base do Ponto de Equilíbrio de Caixa.' },
-  { value: 'fixed_non_cash', label: 'Fixo não caixa', description: 'Custos fixos sem desembolso imediato: depreciação, amortização, provisões. NÃO entram no Ponto de Equilíbrio de Caixa.' },
-  { value: 'financial_cash', label: 'Financeiro caixa', description: 'Despesas/compromissos financeiros com desembolso: juros pagos, tarifas bancárias, parcelas. Somam-se ao Ponto de Equilíbrio Financeiro.' },
-  { value: 'financial_non_cash', label: 'Financeiro não caixa', description: 'Itens financeiros sem desembolso imediato — não entram no Ponto de Equilíbrio de Caixa nem no Financeiro.' },
+  { value: 'revenue', label: 'Receita', description: 'Faturamento Bruto: receita de venda de produtos e outras receitas. Nunca entram como custo ou despesa.' },
+  { value: 'variable', label: 'Variável', description: 'Reduz a Margem de Contribuição. O bloco (Deduções da Receita × Custos Variáveis) distingue deduções de impostos/devoluções dos custos variáveis puros.' },
+  { value: 'fixed_operational', label: 'Fixo operacional', description: 'Gastos Fixos Operacionais (Fábrica, Pessoal, Estrutura) — base do PEC, PEF e PEE. Classificação oficial do Ponto de Equilíbrio v1.1.' },
+  { value: 'fixed_industrial', label: 'Fixo industrial (legado)', description: 'Valor antigo — tratado como Fixo operacional pelo motor v1.1.' },
+  { value: 'fixed_cash', label: 'Fixo caixa (legado)', description: 'Valor antigo — tratado como Fixo operacional pelo motor v1.1.' },
+  { value: 'fixed_non_cash', label: 'Fixo não caixa', description: 'Custos fixos sem desembolso imediato: depreciação, amortização, provisões. Não entram no PEC/PEF/PEE.' },
+  { value: 'financial_cash', label: 'Financeiro caixa', description: 'Obrigações Não Operacionais de Caixa: juros, IOF e amortizações entram no PEF. Investimentos (papel "investment") NUNCA entram automaticamente.' },
+  { value: 'financial_non_cash', label: 'Financeiro não caixa', description: 'Itens financeiros sem desembolso imediato — fora do PEC, PEF e PEE.' },
   { value: 'excluded', label: 'Excluir do PE', description: 'Não participa do cálculo do Ponto de Equilíbrio.' },
 ];
 export const BREAK_EVEN_LABELS = Object.fromEntries(BREAK_EVEN_CLASSIFICATIONS.map((c) => [c.value, c.label]));
+BREAK_EVEN_LABELS.subtotal = 'Subtotal da DRE';
 
 export const CASH_EFFECTS = [
   { value: 'cash_in', label: 'Entrada', description: 'Entrada de caixa (recebimento).' },
@@ -67,27 +73,54 @@ export const CASH_EFFECTS = [
 ];
 export const CASH_EFFECT_LABELS = Object.fromEntries(CASH_EFFECTS.map((c) => [c.value, c.label]));
 
+// Blocos gerenciais da composição auditável (v1.1)
+export const BLOCK_LABELS = {
+  revenue: 'Faturamento Bruto (Receita)',
+  revenue_deduction: 'Deduções da Receita',
+  variable_costs: 'Custos Variáveis Puros',
+  factory: 'Fixos — Fábrica',
+  personnel: 'Fixos — Pessoal / RH',
+  structure: 'Fixos — Estrutura e Administração',
+  financial_obligations: 'Obrigações Não Operacionais de Caixa',
+  investment: 'Investimentos — não incorporados ao PEF operacional',
+  other: 'Sem bloco definido',
+};
+export const BLOCK_ORDER = [
+  'revenue', 'revenue_deduction', 'variable_costs', 'factory',
+  'personnel', 'structure', 'financial_obligations', 'investment', 'other',
+];
+
+export const ROLE_LABELS = {
+  interest: 'Juros',
+  iof: 'IOF',
+  amortization: 'Amortizações',
+  investment: 'Investimento',
+  financial_other: 'Financeiro',
+};
+
 // Como a conta participa do cálculo (coluna de auditoria)
 export const PARTICIPATES_LABELS = {
   revenue: '—',
   variable: 'MC',
-  fixed_industrial: 'Sim',
-  fixed_cash: 'Sim',
-  financial_cash: 'Sim',
+  fixed_operational: 'Sim (PEC/PEE)',
+  fixed_industrial: 'Sim (PEC/PEE)',
+  fixed_cash: 'Sim (PEC/PEE)',
+  financial_cash: 'Sim (PEF)',
   fixed_non_cash: 'Não',
   financial_non_cash: 'Não',
   excluded: 'Não',
+  subtotal: 'Subtotal',
 };
 
 // ── Sugestão automática (default EDITÁVEL — não é verdade contábil) ──────────
 const CLASSIFICATION_SUGGESTION = {
   material_direct: 'variable',
   mold: 'variable',
-  energy: 'variable',
-  direct_labor: 'variable',
-  maintenance: 'fixed_industrial',
+  energy: 'fixed_operational',
+  direct_labor: 'fixed_operational',
+  maintenance: 'fixed_operational',
   depreciation: 'fixed_non_cash',
-  factory_overhead: 'fixed_industrial',
+  factory_overhead: 'fixed_operational',
   loss: 'variable',
   selling_expense: 'variable',
   tax: 'variable',
@@ -103,6 +136,7 @@ export function suggestBreakEvenClassification(costComponentType) {
 const CASH_EFFECT_SUGGESTION = {
   revenue: 'cash_in',
   variable: 'cash_out',
+  fixed_operational: 'cash_out',
   fixed_industrial: 'cash_out',
   fixed_cash: 'cash_out',
   fixed_non_cash: 'non_cash',
@@ -114,23 +148,46 @@ export function cashEffectSuggestion(classification) {
   return CASH_EFFECT_SUGGESTION[classification] || 'none';
 }
 
+// ── Taxonomia v1.1: valores legados → buckets novos ──────────────────────────
+export const EFFECTIVE_V11 = {
+  revenue: 'revenue',
+  variable: 'variable',
+  fixed_operational: 'fixed_operational',
+  fixed_industrial: 'fixed_operational',
+  fixed_cash: 'fixed_operational',
+  fixed_non_cash: 'fixed_non_cash',
+  financial_cash: 'financial_cash',
+  financial_non_cash: 'financial_non_cash',
+  excluded: 'excluded',
+};
+
 // Classificação efetiva de uma conta: contas antigas sem configuração →
 // excluded/none (compatibilidade) e marcadas como não configuradas (alerta).
 export function resolveBreakEvenAccount(account) {
   const configured = BREAK_EVEN_CLASSIFICATIONS.some((c) => c.value === account?.break_even_classification);
   const cashConfigured = CASH_EFFECTS.some((c) => c.value === account?.cash_effect);
+  const classification = configured ? account.break_even_classification : 'excluded';
+  const effective = EFFECTIVE_V11[classification] || 'excluded';
+  const financialRole = account?.financial_role || (effective === 'financial_cash' ? 'financial_other' : null);
+  const block = account?.break_even_block
+    || (classification === 'revenue' ? 'revenue'
+      : effective === 'variable' ? 'variable_costs'
+      : effective === 'financial_cash' ? 'financial_obligations'
+      : null);
   return {
-    classification: configured ? account.break_even_classification : 'excluded',
+    classification,
+    effective,
     cashEffect: cashConfigured ? account.cash_effect : 'none',
     configured,
+    block,
+    financialRole,
   };
 }
 
 // ── Fórmulas fundamentais (fonte única do Ponto de Equilíbrio) ──────────────
-export function calculateContributionMargin(revenue, variableCosts) {
-  const r = num(revenue);
-  const value = r - num(variableCosts);
-  return { value, percent: r > 0 ? value / r : null };
+export function calculateContributionMargin(netRevenue, variableCosts) {
+  const value = num(netRevenue) - num(variableCosts);
+  return { value, percent: num(netRevenue) > 0 ? value / num(netRevenue) : null };
 }
 
 export function calculateBreakEven(fixedCosts, contributionMarginPercent) {
@@ -142,12 +199,12 @@ export function calculateBreakEven(fixedCosts, contributionMarginPercent) {
 export function calculateSafetyMargin(revenue, breakEvenRevenue) {
   const r = num(revenue);
   if (!(r > 0) || breakEvenRevenue == null) return { value: null, percent: null };
-  const value = r - breakEvenRevenue;
+  const value = r - breakEvenRevenue; // negativo é preservado (nunca vira zero)
   return { value, percent: (value / r) * 100 };
 }
 
-export function calculateOperationalResult(revenue, variableCosts, ...fixedCosts) {
-  return num(revenue) - num(variableCosts) - fixedCosts.reduce((s, f) => s + num(f), 0);
+export function calculateOperationalResult(netRevenue, variableCosts, ...fixedCosts) {
+  return num(netRevenue) - num(variableCosts) - fixedCosts.reduce((s, f) => s + num(f), 0);
 }
 
 // ── Seleção de período (mesma regra do motor v2.2) ───────────────────────────
@@ -163,11 +220,11 @@ function selectPeriodDres(dres, financialPeriod, selectedMonth, excludedMonths) 
   return { used, periodLabel: def.label };
 }
 
-// ── Soma das contas da DRE do período por classificação ──────────────────────
+// ── Soma das contas da DRE do período por classificação v1.1 ─────────────────
 function classifyPeriodItems(usedDres, lookup) {
   const buckets = {
-    revenue: 0, variable: 0, fixed_industrial: 0, fixed_cash: 0,
-    fixed_non_cash: 0, financial_cash: 0, financial_non_cash: 0, excluded: 0,
+    revenue: 0, deductions: 0, variable: 0, fixed_operational: 0, financial_cash: 0,
+    investments: 0, fixed_non_cash: 0, financial_non_cash: 0, excluded: 0,
   };
   const byAccount = new Map();
   const variableAccountsDetail = [];
@@ -175,14 +232,41 @@ function classifyPeriodItems(usedDres, lookup) {
   for (const dre of usedDres) {
     for (const it of dre.items || []) {
       if (!it || !it.account_name) continue;
+      // Subtotais da DRE nunca entram como contas individuais
+      if (isSubtotal(it.account_name)) continue;
       const value = num(it.actual_value);
       const account = (it.account_id && lookup.byId[it.account_id]) || lookup.byName[normName(it.account_name)] || null;
       const cls = account
         ? resolveBreakEvenAccount(account)
-        : { classification: 'excluded', cashEffect: 'none', configured: false };
+        : { classification: 'excluded', effective: 'excluded', cashEffect: 'none', configured: false, block: null, financialRole: null };
       if (!cls.configured) unclassifiedCount += 1;
-      buckets[cls.classification] += value;
-      if (cls.classification === 'variable' && account) variableAccountsDetail.push({ account, value });
+
+      if (cls.effective === 'revenue') {
+        buckets.revenue += value;
+      } else if (cls.effective === 'variable') {
+        if (cls.block === 'revenue_deduction') buckets.deductions += value;
+        else buckets.variable += value;
+      } else if (cls.effective === 'fixed_operational') {
+        buckets.fixed_operational += value;
+      } else if (cls.effective === 'financial_cash') {
+        // Investimentos (papel investment) ficam FORA do PEF operacional —
+        // só entram com configuração explícita (enabled_for_pef = true).
+        if (cls.financialRole === 'investment' && !(account && account.enabled_for_pef === true)) {
+          buckets.investments += value;
+        } else {
+          buckets.financial_cash += value;
+        }
+      } else if (cls.effective === 'fixed_non_cash') {
+        buckets.fixed_non_cash += value;
+      } else if (cls.effective === 'financial_non_cash') {
+        buckets.financial_non_cash += value;
+      } else {
+        buckets.excluded += value;
+      }
+      // Custos variáveis puros alimentam o mix por produto (deduções não)
+      if (cls.effective === 'variable' && cls.block !== 'revenue_deduction' && account) {
+        variableAccountsDetail.push({ account, value });
+      }
 
       const key = account?.id || `n:${normName(it.account_name)}`;
       let row = byAccount.get(key);
@@ -191,6 +275,9 @@ function classifyPeriodItems(usedDres, lookup) {
           account_name: it.account_name,
           account_id: account?.id || null,
           classification: cls.classification,
+          effective: cls.effective,
+          block: cls.block || 'other',
+          financialRole: cls.financialRole,
           cashEffect: cls.cashEffect,
           configured: cls.configured,
           value: 0,
@@ -334,23 +421,29 @@ export function calculateSalesMix({ periodOrders, productTypes, salesByProduct, 
 }
 
 // ── Ponto de Equilíbrio de UM mês individual (gráfico de evolução) ───────────
-function monthlyBreakEven(dre, lookup) {
+// Cada mês é calculado individualmente para a evolução — o resultado do PERÍODO
+// nunca é média destes valores (consolidação é sempre por soma).
+function monthlyBreakEven(dre, lookup, desiredProfit = 0) {
   const { buckets } = classifyPeriodItems([dre], lookup);
-  const revenue = num(dre.faturamento_actual) > 0 ? num(dre.faturamento_actual) : buckets.revenue;
-  const cm = calculateContributionMargin(revenue, buckets.variable);
-  const mcPercent = revenue > 0 ? cm.percent : null;
+  const gross = buckets.revenue > 0 ? buckets.revenue : num(dre.faturamento_actual);
+  const net = gross - buckets.deductions;
+  const cm = calculateContributionMargin(net, buckets.variable);
+  const mcPercent = gross > 0 ? cm.percent : null;
   return {
     month: dre.month_label,
-    revenue,
-    industrial: calculateBreakEven(buckets.fixed_industrial, mcPercent),
-    cash: calculateBreakEven(buckets.fixed_cash, mcPercent),
-    financial: calculateBreakEven(buckets.fixed_cash + buckets.financial_cash, mcPercent),
+    revenue: gross,
+    deductions: buckets.deductions,
+    netRevenue: net,
+    variable: buckets.variable,
+    fixedOperational: buckets.fixed_operational,
+    financial: buckets.financial_cash,
+    pec: calculateBreakEven(buckets.fixed_operational, mcPercent),
+    pef: calculateBreakEven(buckets.fixed_operational + buckets.financial_cash, mcPercent),
+    pee: calculateBreakEven(buckets.fixed_operational + num(desiredProfit), mcPercent),
   };
 }
 
-// ── ANÁLISE COMPLETA ─────────────────────────────────────────────────────────
-// Camada financeira sobre o modelo v2.2: consome buildCostModel (fonte única do
-// custeio) e classifica as contas da DRE do período por Ponto de Equilíbrio.
+// ── ANÁLISE COMPLETA (v1.1) ──────────────────────────────────────────────────
 export function buildBreakEvenAnalysis({
   dres = [],
   orders = [],
@@ -362,6 +455,7 @@ export function buildBreakEvenAnalysis({
   selectedMonth = null,
   excludedMonths = [],
   salesByProduct = null,
+  desiredProfit = 0,
 }) {
   const lookup = buildAccountLookup(accounts);
   const { used, periodLabel } = selectPeriodDres(dres, financialPeriod, selectedMonth, excludedMonths);
@@ -374,39 +468,51 @@ export function buildBreakEvenAnalysis({
     warnings.push('Existem contas da DRE sem classificação para o Ponto de Equilíbrio. Revise a Estrutura da DRE.');
   }
 
-  // Receita consolidada: linha de faturamento das DREs; fallback contas de receita
+  // Faturamento Bruto: Σ contas de receita (receita de venda + outras receitas);
+  // fallback: linha de faturamento das DREs do período.
+  const revenueFromAccounts = buckets.revenue;
   const revenueFromDre = used.reduce((s, d) => s + num(d.faturamento_actual), 0);
-  const revenue = revenueFromDre > 0 ? revenueFromDre : buckets.revenue;
-  const revenueSource = revenueFromDre > 0 ? 'faturamento' : 'contas de receita';
+  const grossRevenue = revenueFromAccounts > 0 ? revenueFromAccounts : revenueFromDre;
+  const revenueSource = revenueFromAccounts > 0 ? 'contas de receita (Faturamento Bruto)' : 'linha de faturamento';
 
+  const deductions = buckets.deductions;
+  const netRevenue = grossRevenue - deductions; // Receita Líquida
   const variableCosts = buckets.variable;
-  if (revenue > 0 && variableCosts <= 0) {
+
+  if (grossRevenue > 0 && deductions <= 0) {
+    warnings.push('Nenhuma Dedução da Receita classificada — a Receita Líquida equivale ao Faturamento Bruto.');
+  }
+  if (grossRevenue > 0 && variableCosts <= 0) {
     warnings.push('Nenhuma conta da DRE classificada como custo variável — a Margem de Contribuição assume praticamente 100% da receita. Revise a Estrutura da DRE.');
   }
-  if (!(revenue > 0)) warnings.push('Não existe faturamento válido no período selecionado.');
+  if (!(grossRevenue > 0)) warnings.push('Não existe faturamento válido no período selecionado.');
 
-  const cm = calculateContributionMargin(revenue, variableCosts);
-  const mcPercent = revenue > 0 ? cm.percent : null;
-  if (revenue > 0 && !(mcPercent > 0)) {
-    warnings.push('Margem de Contribuição zero ou negativa. Ponto de Equilíbrio não calculável.');
-  }
+  const cm = calculateContributionMargin(netRevenue, variableCosts);
+  const mcValue = cm.value;
+  const mcPercent = grossRevenue > 0 ? mcValue / grossRevenue : null;
 
-  const fixedIndustrialCosts = buckets.fixed_industrial;
-  const fixedCashCosts = buckets.fixed_cash;
-  const fixedNonCashCosts = buckets.fixed_non_cash;
+  const fixedOperationalCosts = buckets.fixed_operational;
   const financialCashCosts = buckets.financial_cash;
+  const investments = buckets.investments;
+  const fixedNonCashCosts = buckets.fixed_non_cash;
   const financialNonCashCosts = buckets.financial_non_cash;
 
-  const industrialBreakEvenRevenue = calculateBreakEven(fixedIndustrialCosts, mcPercent);
-  const cashBreakEvenRevenue = calculateBreakEven(fixedCashCosts, mcPercent);
-  const financialBreakEvenRevenue = calculateBreakEven(fixedCashCosts + financialCashCosts, mcPercent);
+  // MC zero/negativa: nunca Infinity/NaN/0 como PE válido
+  const profit = num(desiredProfit);
+  const pecValue = calculateBreakEven(fixedOperationalCosts, mcPercent);
+  const pefValue = calculateBreakEven(fixedOperationalCosts + financialCashCosts, mcPercent);
+  const peeValue = calculateBreakEven(fixedOperationalCosts + profit, mcPercent);
+
+  if (grossRevenue > 0 && !(mcPercent > 0)) {
+    warnings.push('Não é possível calcular um Ponto de Equilíbrio válido enquanto a Margem de Contribuição for zero ou negativa.');
+  }
 
   // Ordens do período financeiro (mesma regra do motor) e bases produtivas
   const usedRefs = new Set(used.map((d) => d.reference_month));
   const periodOrders = (orders || []).filter((o) => usedRefs.has(String(o.production_date || '').slice(0, 7)));
   const bases = periodBases(periodOrders, productTypes);
 
-  // Modelo v2.2 — fonte única do custeio (componentes por produto)
+  // Modelo v2.2 — fonte única do custeio (componentes por produto) — só leitura
   const model = buildCostModel({
     dres, orders, productTypes, lines, accounts, insumoCosts,
     financialPeriod, excludedMonths, selectedMonth,
@@ -417,60 +523,58 @@ export function buildBreakEvenAnalysis({
 
   const unitsFor = (be) => (be != null && mix.weightedPrice > 0 ? be / mix.weightedPrice : null);
 
-  const operatingResults = {
-    industrial: calculateOperationalResult(revenue, variableCosts, fixedIndustrialCosts),
-    cash: calculateOperationalResult(revenue, variableCosts, fixedCashCosts),
-    financial: calculateOperationalResult(revenue, variableCosts, fixedCashCosts, financialCashCosts),
-  };
+  const safety = calculateSafetyMargin(grossRevenue, pecValue); // base: PEC
 
-  const safety = calculateSafetyMargin(revenue, financialBreakEvenRevenue);
-
-  const monthlySeries = used.map((dre) => monthlyBreakEven(dre, lookup));
+  const monthlySeries = used.map((dre) => monthlyBreakEven(dre, lookup, profit));
 
   const calculationStatus = !used.length
     ? 'insufficient'
-    : !(revenue > 0)
+    : !(grossRevenue > 0)
       ? 'no_revenue'
       : !(mcPercent > 0)
-        ? 'no_margin'
+        ? 'invalid_margin'
         : 'ok';
 
   return {
-    calculationVersion: '1.0',
+    calculationVersion: '1.1',
     costingEngineVersion: model.calculation_version,
     period: {
       label: periodLabel,
       dreCount: used.length,
       months: used.map((d) => d.month_label),
     },
-    revenue: { current: revenue, source: revenueSource },
-    variableCosts: { total: variableCosts, percent: revenue > 0 ? variableCosts / revenue : null },
-    contributionMargin: { value: cm.value, percent: mcPercent },
-    fixedIndustrialCosts,
-    fixedCashCosts,
-    fixedNonCashCosts,
+    revenue: { gross: grossRevenue, deductions, net: netRevenue, source: revenueSource },
+    variableCosts: { total: variableCosts, percent: grossRevenue > 0 ? variableCosts / grossRevenue : null },
+    contributionMargin: { value: mcValue, percent: mcPercent },
+    fixedOperationalCosts,
     financialCashCosts,
+    investments,
+    fixedNonCashCosts,
     financialNonCashCosts,
-    industrial: {
-      fixedCosts: fixedIndustrialCosts,
-      breakEvenRevenue: industrialBreakEvenRevenue,
-      breakEvenUnits: unitsFor(industrialBreakEvenRevenue),
+    pec: {
+      fixedCosts: fixedOperationalCosts,
+      breakEvenRevenue: pecValue,
+      breakEvenUnits: unitsFor(pecValue),
     },
-    cash: {
-      fixedCosts: fixedCashCosts,
-      breakEvenRevenue: cashBreakEvenRevenue,
-      breakEvenUnits: unitsFor(cashBreakEvenRevenue),
-    },
-    financial: {
-      fixedCosts: fixedCashCosts,
+    pef: {
+      fixedCosts: fixedOperationalCosts,
       financialCashCosts,
-      breakEvenRevenue: financialBreakEvenRevenue,
-      breakEvenUnits: unitsFor(financialBreakEvenRevenue),
+      breakEvenRevenue: pefValue,
+      breakEvenUnits: unitsFor(pefValue),
     },
-    operatingResults,
+    pee: {
+      fixedCosts: fixedOperationalCosts,
+      desiredProfit: profit,
+      breakEvenRevenue: peeValue,
+      breakEvenUnits: unitsFor(peeValue),
+    },
+    results: {
+      operational: netRevenue - variableCosts - fixedOperationalCosts,
+      financial: netRevenue - variableCosts - fixedOperationalCosts - financialCashCosts,
+    },
     safetyMargin: {
-      revenue,
-      breakEven: financialBreakEvenRevenue,
+      revenue: grossRevenue,
+      breakEven: pecValue,
       value: safety.value,
       percent: safety.percent,
     },

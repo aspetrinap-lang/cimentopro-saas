@@ -241,8 +241,8 @@ export default function DreAccountEditor({ account, accounts = [], allowSource =
             </div>
             <p className="text-[11px] text-muted-foreground">
               A sugestão inicial é derivada do componente de custo e é apenas um ponto de partida — ajuste conforme a realidade da
-              empresa. Variáveis reduzem a Margem de Contribuição; fixos industriais/base caixa/financeiro caixa alimentam os três
-              pontos de equilíbrio da Análise de Custos; não caixa (depreciação, amortização) nunca entra no Ponto de Equilíbrio de Caixa.
+              empresa. Variáveis reduzem a Margem de Contribuição; fixos operacionais alimentam o PEC; financeiro caixa (juros, IOF,
+              amortizações) entra no PEF — investimentos ficam fora; não caixa (depreciação, amortização) nunca entra no PEC.
             </p>
           </div>
         )}
