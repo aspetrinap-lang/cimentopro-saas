@@ -153,8 +153,8 @@ export default function Layout() {
       ) : (
         <>
           <Link to="/marketplace" onClick={() => setMobileOpen(false)}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white/70 hover:text-white hover:bg-white/8 transition-colors">
-            <Store className="w-3.5 h-3.5" /> Marketplace
+            className="w-full flex items-center gap-2 px-3 py-3 rounded-lg text-sm font-semibold text-white hover:bg-white/8 transition-colors">
+            <Store className="w-4 h-4" /> Marketplace
           </Link>
           <SupportBell mode="customer" />
           {canManageOperators && (
