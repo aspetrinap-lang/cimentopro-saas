@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Scale, AlertTriangle, Table2, Target } from 'lucide-react';
 import { FINANCIAL_PERIODS } from '@/lib/industrialCostEngine';
-import { fmtBRL } from '@/lib/statsUtils';
-import { buildBreakEvenAnalysis } from '@/lib/breakEvenEngine';
+import { buildBreakEvenAnalysis, toMonthlyBase } from '@/lib/breakEvenEngine';
 import { base44 } from '@/api/base44Client';
 import { scopedFilter, withCompany } from '@/lib/companyScope';
 import BreakEvenCards from './BreakEvenCards';
@@ -18,6 +17,7 @@ import BreakEvenCompositionModal from './BreakEvenCompositionModal';
 // especificação; a evolução mensal continua no gráfico).
 export default function BreakEvenSection({ dres, orders, productTypes, lines, accounts, insumoCosts, selectedMonth }) {
   const [financialPeriod, setFinancialPeriod] = useState('selected_month');
+  const [monthlyBase, setMonthlyBase] = useState(false);
   const [showComposition, setShowComposition] = useState(false);
   const [desiredProfit, setDesiredProfit] = useState(0);
   const [profitInput, setProfitInput] = useState('0');
@@ -46,6 +46,14 @@ export default function BreakEvenSection({ dres, orders, productTypes, lines, ac
     dres, orders, productTypes, lines, accounts, insumoCosts,
     financialPeriod, selectedMonth, desiredProfit,
   }), [dres, orders, productTypes, lines, accounts, insumoCosts, financialPeriod, selectedMonth, desiredProfit]);
+
+  // Base de exibição: consolidado (soma — oficial) ou média mensal (÷ meses).
+  // A média é derivada apenas para exibição; o cálculo consolidado não muda.
+  const displayAnalysis = useMemo(
+    () => (monthlyBase ? toMonthlyBase(analysis) : analysis),
+    [analysis, monthlyBase]
+  );
+  const monthlyMonths = displayAnalysis.displayBase?.monthly ? displayAnalysis.displayBase.months : null;
 
   async function saveProfit() {
     const val = parseFloat(profitInput) || 0;
@@ -92,15 +100,26 @@ export default function BreakEvenSection({ dres, orders, productTypes, lines, ac
         {financialPeriod === 'selected_month' && (
           <span className="text-xs text-muted-foreground">Mês: <strong className="text-foreground">{selectedLabel}</strong> (seletor do topo da página)</span>
         )}
+        {/* Base de exibição: consolidado (soma — oficial) ou média mensal */}
+        <div className="inline-flex rounded-lg border border-border overflow-hidden">
+          <button onClick={() => setMonthlyBase(false)}
+            className={`text-xs px-3 py-1.5 transition-colors ${!monthlyBase ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}>
+            Consolidado
+          </button>
+          <button onClick={() => setMonthlyBase(true)}
+            className={`text-xs px-3 py-1.5 border-l border-border transition-colors ${monthlyBase ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'}`}>
+            Média mensal
+          </button>
+        </div>
+        {monthlyBase && (
+          <span className="text-[11px] font-medium text-primary bg-primary/10 rounded-full px-2.5 py-1">
+            base: média mensal (÷ {monthlyMonths || 1} {monthlyMonths === 1 ? 'mês' : 'meses'})
+          </span>
+        )}
         <span className="text-xs text-muted-foreground">
-          Período considerado: <strong className="text-foreground">{analysis.period.label}</strong> — {analysis.period.dreCount} DRE(s)
-          {analysis.period.months.length > 0 && analysis.period.months.length <= 6 ? ` (${analysis.period.months.join(' · ')})` : ''}
-          <span className="ml-2">Consolidação por <strong className="text-foreground">soma</strong> dos meses — nunca média dos pontos de equilíbrio.</span>
-          {analysis.monthlyAverage && (
-            <span className="ml-2">
-              Referencial mensal (média das DREs): <strong className="text-foreground">{fmtBRL(analysis.monthlyAverage.pee ?? analysis.monthlyAverage.pec)}</strong> / mês — informacional
-            </span>
-          )}
+          Período considerado: <strong className="text-foreground">{displayAnalysis.period.label}</strong> — {displayAnalysis.period.dreCount} DRE(s)
+          {displayAnalysis.period.months.length > 0 && displayAnalysis.period.months.length <= 6 ? ` (${displayAnalysis.period.months.join(' · ')})` : ''}
+          <span className="ml-2">Consolidação oficial por <strong className="text-foreground">soma</strong> dos meses — a média é apenas base de exibição.</span>
         </span>
       </div>
 
@@ -121,19 +140,19 @@ export default function BreakEvenSection({ dres, orders, productTypes, lines, ac
       </div>
 
       {/* Alertas — nunca bloqueiam a análise */}
-      {analysis.warnings.length > 0 && (
-        <div className={`border rounded-xl p-3 space-y-1 ${analysis.calculationStatus === 'invalid_margin' ? 'bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-700' : 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700'}`}>
-          {analysis.warnings.map((msg, i) => (
-            <p key={i} className={`text-[11px] flex items-start gap-1.5 ${analysis.calculationStatus === 'invalid_margin' && i === 0 ? 'text-red-800 dark:text-red-300 font-medium' : 'text-amber-800 dark:text-amber-300'}`}>
+      {displayAnalysis.warnings.length > 0 && (
+        <div className={`border rounded-xl p-3 space-y-1 ${displayAnalysis.calculationStatus === 'invalid_margin' ? 'bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-700' : 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700'}`}>
+          {displayAnalysis.warnings.map((msg, i) => (
+            <p key={i} className={`text-[11px] flex items-start gap-1.5 ${displayAnalysis.calculationStatus === 'invalid_margin' && i === 0 ? 'text-red-800 dark:text-red-300 font-medium' : 'text-amber-800 dark:text-amber-300'}`}>
               <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> {msg}
             </p>
           ))}
         </div>
       )}
 
-      <BreakEvenCards analysis={analysis} />
-      <BreakEvenMarginCards analysis={analysis} />
-      <BreakEvenCharts analysis={analysis} />
+      <BreakEvenCards analysis={displayAnalysis} />
+      <BreakEvenMarginCards analysis={displayAnalysis} />
+      <BreakEvenCharts analysis={displayAnalysis} />
 
       <div className="flex justify-center">
         <button onClick={() => setShowComposition(true)}
@@ -143,7 +162,7 @@ export default function BreakEvenSection({ dres, orders, productTypes, lines, ac
       </div>
 
       {showComposition && (
-        <BreakEvenCompositionModal analysis={analysis} onClose={() => setShowComposition(false)} />
+        <BreakEvenCompositionModal analysis={displayAnalysis} onClose={() => setShowComposition(false)} />
       )}
     </section>
   );

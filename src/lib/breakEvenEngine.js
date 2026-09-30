@@ -559,7 +559,7 @@ export function buildBreakEvenAnalysis({
         ? 'invalid_margin'
         : 'ok';
 
-  return {
+  const analysis = {
     calculationVersion: '1.1',
     costingEngineVersion: model.calculation_version,
     period: {
@@ -608,5 +608,70 @@ export function buildBreakEvenAnalysis({
     composition,
     warnings,
     calculationStatus,
+  };
+  // Expõe toMonthlyBase junto do motor — a análise em si permanece consolidada
+  analysis.toMonthlyBase = () => toMonthlyBase(analysis);
+  return analysis;
+}
+
+// ── Base de EXIBIÇÃO: média mensal ───────────────────────────────────────────
+// Derivada apenas para exibição (divisão simples pelo nº de meses com DRE do
+// período). NUNCA altera o cálculo consolidado do motor, nem o Simulador de
+// Preços. Percentuais (MC%, margem de segurança) e a evolução mensal (já
+// mensal por definição) ficam inalterados; o referencial monthlyAverage é
+// suprimido porque os próprios valores já estão na base mensal.
+export function toMonthlyBase(analysis) {
+  if (!analysis) return analysis;
+  const months = analysis.period?.dreCount || 0;
+  if (months <= 1) return analysis;
+  const div = (v) => (v == null || !Number.isFinite(v) ? v : v / months);
+  return {
+    ...analysis,
+    revenue: {
+      ...analysis.revenue,
+      gross: div(analysis.revenue.gross),
+      deductions: div(analysis.revenue.deductions),
+      net: div(analysis.revenue.net),
+    },
+    variableCosts: { ...analysis.variableCosts, total: div(analysis.variableCosts.total) },
+    contributionMargin: { ...analysis.contributionMargin, value: div(analysis.contributionMargin.value) },
+    fixedOperationalCosts: div(analysis.fixedOperationalCosts),
+    financialCashCosts: div(analysis.financialCashCosts),
+    investments: div(analysis.investments),
+    fixedNonCashCosts: div(analysis.fixedNonCashCosts),
+    financialNonCashCosts: div(analysis.financialNonCashCosts),
+    pec: {
+      ...analysis.pec,
+      fixedCosts: div(analysis.pec.fixedCosts),
+      breakEvenRevenue: div(analysis.pec.breakEvenRevenue),
+      breakEvenUnits: div(analysis.pec.breakEvenUnits),
+    },
+    pef: {
+      ...analysis.pef,
+      fixedCosts: div(analysis.pef.fixedCosts),
+      financialCashCosts: div(analysis.pef.financialCashCosts),
+      breakEvenRevenue: div(analysis.pef.breakEvenRevenue),
+      breakEvenUnits: div(analysis.pef.breakEvenUnits),
+    },
+    pee: {
+      ...analysis.pee,
+      fixedCosts: div(analysis.pee.fixedCosts),
+      desiredProfit: div(analysis.pee.desiredProfit),
+      breakEvenRevenue: div(analysis.pee.breakEvenRevenue),
+      breakEvenUnits: div(analysis.pee.breakEvenUnits),
+    },
+    results: {
+      operational: div(analysis.results.operational),
+      financial: div(analysis.results.financial),
+    },
+    safetyMargin: {
+      ...analysis.safetyMargin,
+      revenue: div(analysis.safetyMargin.revenue),
+      breakEven: div(analysis.safetyMargin.breakEven),
+      value: div(analysis.safetyMargin.value),
+    },
+    composition: (analysis.composition || []).map((r) => ({ ...r, value: div(r.value) })),
+    displayBase: { monthly: true, months },
+    monthlyAverage: null,
   };
 }
