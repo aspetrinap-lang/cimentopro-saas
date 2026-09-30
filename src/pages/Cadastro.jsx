@@ -10,7 +10,7 @@ export default function Cadastro() {
         <h1 className="text-2xl font-bold text-foreground">Cadastro de Produção</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Artefatos, traços de concreto, máquinas, categorias e insumos</p>
       </div>
-      <ProductionSettings canEditCost={can('PRODUCTION_EDIT')} />
+      <ProductionSettings canEditCost={can('PRODUCTION_EDIT')} canManageTraceMode={can('SETTINGS_MANAGE')} />
     </div>
   );
 }

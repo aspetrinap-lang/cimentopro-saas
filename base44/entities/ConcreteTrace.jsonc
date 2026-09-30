@@ -16,7 +16,41 @@
     },
     "ratio_label": {
       "type": "string",
-      "description": "R\u00f3tulo da propor\u00e7\u00e3o cimento/agregado (ex: 1/16)"
+      "description": "R\u00f3tulo da propor\u00e7\u00e3o cimento/agregado (ex: 1/16) \u2014 vazio nos tra\u00e7os por peso direto"
+    },
+    "input_mode": {
+      "type": "string",
+      "enum": [
+        "ratio",
+        "direct"
+      ],
+      "default": "ratio",
+      "description": "Modo de entrada do tra\u00e7o: ratio (por propor\u00e7\u00e3o 1/16) ou direct (peso direto em kg por material, convertido internamente para percentuais). Fixado na cria\u00e7\u00e3o; altern\u00e2ncia exclusiva de admin via reconvers\u00e3o"
+    },
+    "conversion_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "Data/hora da convers\u00e3o (ISO 8601)"
+          },
+          "user_email": {
+            "type": "string",
+            "description": "E-mail do usu\u00e1rio que realizou a convers\u00e3o"
+          },
+          "from_mode": {
+            "type": "string",
+            "description": "Modo de entrada anterior (ratio|direct)"
+          },
+          "to_mode": {
+            "type": "string",
+            "description": "Modo de entrada novo (ratio|direct)"
+          }
+        }
+      },
+      "description": "Hist\u00f3rico de reconvers\u00f5es de modo do tra\u00e7o (auditoria das altern\u00e2ncias ratio\u2194direct)"
     },
     "total_weight_kg": {
       "type": "number",
@@ -25,7 +59,7 @@
     "aggregate_parts": {
       "type": "number",
       "default": 16,
-      "description": "Partes de agregado na propor\u00e7\u00e3o (ex: 1/16 \u2192 16)"
+      "description": "Partes de agregado na propor\u00e7\u00e3o (ex: 1/16 \u2192 16); no modo direto, derivada dos kg (agregados \u00f7 cimento)"
     },
     "cement_parts": {
       "type": "number",
@@ -34,7 +68,7 @@
     },
     "materials_composition": {
       "type": "object",
-      "description": "Composi\u00e7\u00e3o din\u00e2mica: { chave: { percent, type: 'aggregate'|'additive' } }. Agregados: % do peso total; Aditivos: % do peso do cimento."
+      "description": "Composi\u00e7\u00e3o din\u00e2mica: { chave: { percent, type: 'aggregate'|'additive' } }. Agregados: % do peso total; Aditivos: % do peso do cimento. Id\u00eantica nos dois modos de entrada"
     },
     "sand_artificial_parts": {
       "type": "number",
@@ -62,7 +96,7 @@
     },
     "cement_kg_per_m3": {
       "type": "number",
-      "description": "Peso do cimento por tra\u00e7o (kg) \u2014 calculado a partir do peso total e propor\u00e7\u00e3o"
+      "description": "Peso do cimento por tra\u00e7o (kg) \u2014 calculado da propor\u00e7\u00e3o ou informado no modo direto"
     },
     "active": {
       "type": "boolean",

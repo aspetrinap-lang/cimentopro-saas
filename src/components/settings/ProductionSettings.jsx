@@ -7,6 +7,7 @@ import MachineForm from '@/components/settings/MachineForm';
 import { getActiveIntervals, isProductionMachine } from '@/lib/machineIntervals';
 import UnifiedInsumosForm from '@/components/settings/UnifiedInsumosForm';
 import ConcreteTraceForm from '@/components/settings/ConcreteTraceForm';
+import TraceModeTab from '@/components/settings/TraceModeTab';
 import ArtifactTab from '@/components/settings/ArtifactTab';
 import { Plus, Pencil, Trash2, CheckCircle2, XCircle } from 'lucide-react';
 
@@ -22,7 +23,7 @@ function fmtKg(v) {
   return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function ProductionSettings({ canEditCost }) {
+export default function ProductionSettings({ canEditCost, canManageTraceMode }) {
   const { refreshConfigs, rawMaterials } = useConfig();
   const [types, setTypes] = useState([]);
   const [machines, setMachines] = useState([]);
@@ -56,6 +57,7 @@ export default function ProductionSettings({ canEditCost }) {
 
   const newLabel = { categorias: 'Nova Categoria', tracos: 'Novo Traço', maquinas: 'Nova Máquina' }[tab];
   const hasNew = ['categorias', 'tracos', 'maquinas'].includes(tab);
+  const tabs = canManageTraceMode ? [...TABS, { key: 'tracos_config', label: 'Traços · Modo' }] : TABS;
 
   return (
     <div className="space-y-5">
@@ -70,7 +72,7 @@ export default function ProductionSettings({ canEditCost }) {
       </div>
 
       <div className="flex gap-1 bg-muted rounded-xl p-1 w-fit flex-wrap">
-        {TABS.map(t => (
+        {tabs.map(t => (
           <button key={t.key} onClick={() => { setTab(t.key); setShowForm(false); setEditing(null); }}
             className={`px-4 py-2 text-sm rounded-lg font-medium transition-all ${tab === t.key ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
             {t.label}
@@ -142,12 +144,17 @@ export default function ProductionSettings({ canEditCost }) {
                   <tr><td colSpan={7} className="px-5 py-12 text-center text-muted-foreground text-sm">Nenhum traço cadastrado. Crie um traço para calcular consumo automaticamente.</td></tr>
                 ) : traces.map(t => (
                   <tr key={t.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                    <td className="px-5 py-3 font-medium text-foreground">{t.name}</td>
+                    <td className="px-5 py-3 font-medium text-foreground">
+                      {t.name}
+                      <span className={`ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded-full align-middle ${t.input_mode === 'direct' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                        {t.input_mode === 'direct' ? 'Direto' : 'Proporção'}
+                      </span>
+                    </td>
                     <td className="px-5 py-3 text-right">{t.resistance_mpa ? `${t.resistance_mpa} MPa` : '—'}</td>
                     <td className="px-5 py-3 text-center font-mono text-xs">
-                      {t.ratio_label || (t.materials_parts
+                      {t.input_mode === 'direct' ? '—' : (t.ratio_label || (t.materials_parts
                         ? rawMaterials.map(m => Math.round(t.materials_parts[m.key] ?? 0)).join(':')
-                        : `${Math.round(t.cement_parts)}:${Math.round(t.sand_artificial_parts || 0)}:${Math.round(t.sand_medium_parts || 0)}:${Math.round(t.sand_fine_parts || 0)}:${Math.round(t.gravel_parts || 0)}`)}
+                        : `${Math.round(t.cement_parts)}:${Math.round(t.sand_artificial_parts || 0)}:${Math.round(t.sand_medium_parts || 0)}:${Math.round(t.sand_fine_parts || 0)}:${Math.round(t.gravel_parts || 0)}`))}
                     </td>
                     <td className="px-5 py-3 text-right">{t.total_weight_kg ? fmtKg(t.total_weight_kg) : '—'}</td>
                     <td className="px-5 py-3 text-right">{t.cement_kg_per_m3 ? fmtKg(t.cement_kg_per_m3) : '—'}</td>
@@ -222,6 +229,7 @@ export default function ProductionSettings({ canEditCost }) {
 
       {showForm && tab === 'categorias' && <ProductCategoryForm item={editing} onClose={() => setShowForm(false)} onSaved={() => { load(); refreshConfigs(); }} />}
       {showForm && tab === 'tracos' && <ConcreteTraceForm item={editing} onClose={() => setShowForm(false)} onSaved={() => { load(); refreshConfigs(); }} />}
+      {tab === 'tracos_config' && <TraceModeTab traces={traces} onChanged={load} />}
       {showForm && tab === 'maquinas' && <MachineForm item={editing} onClose={() => setShowForm(false)} onSaved={() => { load(); refreshConfigs(); }} />}
     </div>
   );
