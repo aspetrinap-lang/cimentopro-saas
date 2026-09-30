@@ -12,6 +12,8 @@ import QualityAnalysis from '@/components/analysis/QualityAnalysis';
 import ConsumptionPanel from '@/components/analysis/ConsumptionPanel';
 import SpecificConsumptionPanel from '@/components/analysis/SpecificConsumptionPanel';
 import OrderConsumptionTab from '@/components/analysis/OrderConsumptionTab';
+import ResistanceCurvePanel from '@/components/virtualEngineer/ResistanceCurvePanel';
+import { buildCurvesForProducts, compactAiSummary } from '@/lib/quality/resistanceCurveEngine';
 
 const MODES = [
   { key: 'period', label: 'Período' },
@@ -21,6 +23,9 @@ const MODES = [
 export default function VirtualEngineerPage() {
   const [orders, setOrders] = useState([]);
   const [productTypes, setProductTypes] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [traces, setTraces] = useState([]);
+  const [predictions, setPredictions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showReport, setShowReport] = useState(false);
   const [mode, setMode] = useState('period');
@@ -31,9 +36,15 @@ export default function VirtualEngineerPage() {
     Promise.all([
       base44.entities.ProductionOrder.filter(scopedFilter({ status: 'Concluída' }), '-production_date', 500),
       base44.entities.ProductType.filter(scopedFilter({}), 'name', 500),
-    ]).then(([orderData, productTypeData]) => {
+      base44.entities.QualityReport.filter(scopedFilter({}), '-created_date', 500),
+      base44.entities.ConcreteTrace.filter(scopedFilter({}), 'name', 500),
+      base44.entities.StrengthPrediction.filter(scopedFilter({}), '-created_date', 500),
+    ]).then(([orderData, productTypeData, reportData, traceData, predictionData]) => {
       setOrders(orderData);
       setProductTypes(productTypeData);
+      setReports(reportData);
+      setTraces(traceData);
+      setPredictions(predictionData);
       setLoading(false);
     });
   }, []);
@@ -41,6 +52,23 @@ export default function VirtualEngineerPage() {
   const productTypesById = useMemo(
     () => Object.fromEntries(productTypes.map((p) => [p.id, p])),
     [productTypes]
+  );
+
+  // Resumos determinísticos do motor de curva — entrada da interpretação IA.
+  const curveSummaries = useMemo(
+    () =>
+      reports.length > 0
+        ? buildCurvesForProducts({
+            company_id: productTypes[0]?.company_id,
+            reports,
+            productTypes,
+            traces,
+            predictions,
+          })
+            .map((c) => compactAiSummary(c))
+            .filter(Boolean)
+        : [],
+    [reports, productTypes, traces, predictions]
   );
 
   const periodAnalysis = useMemo(
@@ -85,17 +113,24 @@ export default function VirtualEngineerPage() {
         <div className="flex items-center justify-center h-64">
           <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin" />
         </div>
-      ) : orders.length === 0 ? (
+      ) : orders.length === 0 && reports.length === 0 ? (
         <div className="bg-card border border-border rounded-xl p-12 text-center text-muted-foreground text-sm">
           Nenhuma ordem concluída encontrada para análise.
         </div>
       ) : mode === 'period' ? (
         <>
-          <VirtualEngineer orders={orders} costs={costs} names={names} productTypesById={productTypesById} />
+          <VirtualEngineer orders={orders} costs={costs} names={names} productTypesById={productTypesById} resistanceCurves={curveSummaries} />
           {periodAnalysis && <ConsumptionPanel analysis={periodAnalysis} names={names} />}
           {periodAnalysis && <SpecificConsumptionPanel analysis={periodAnalysis} names={names} />}
           <OrderAnalysis orders={orders} costs={costs} names={names} />
           <QualityAnalysis orders={orders} />
+          <ResistanceCurvePanel
+            reports={reports}
+            productTypes={productTypes}
+            traces={traces}
+            predictions={predictions}
+            onPredictionsChanged={setPredictions}
+          />
         </>
       ) : (
         <OrderConsumptionTab orders={orders} productTypesById={productTypesById} names={names} />

@@ -32,7 +32,7 @@ const EVIDENCE_LABELS = {
   recommendation: 'Recomendação',
 };
 
-function buildSummary(orders, downtimes, costs, names, productTypesById) {
+function buildSummary(orders, downtimes, costs, names, productTypesById, resistanceCurves) {
   const concluded = orders.filter(o => o.status === 'Concluída');
   let s = '';
   s += `TOTAL: ${orders.length} ordens (${concluded.length} concluídas).\n\n`;
@@ -145,13 +145,29 @@ function buildSummary(orders, downtimes, costs, names, productTypesById) {
     if (oCem != null && rCem != null) s += `- Consumo específico de cimento: ${oCem.toFixed(1)} → ${rCem.toFixed(1)} kg/1.000 peças boas\n`;
   }
 
+  // Curva de resistência — saída do resistanceCurveEngine (determinística).
+  if (resistanceCurves && resistanceCurves.length > 0) {
+    s += '\nCURVA DE DESENVOLVIMENTO DA RESISTÊNCIA (resistanceCurveEngine — valores determinísticos, NÃO recalcular):\n';
+    resistanceCurves.forEach((c) => {
+      s += `- ${c.product_name}${c.trace_name ? ` (traço ${c.trace_name})` : ''}: ${c.result_count} resultados / ${c.lot_count} lotes (${c.period_start || '—'} a ${c.period_end || '—'}); escopo ${c.scope}; ${c.base_status_label}; confiança ${c.confidence}; método ${c.model_method} (${c.model_version})\n`;
+      (c.points || []).forEach((p) => {
+        s += `  · ${p.age}d: real ${p.real ?? '—'} | referência ${p.ref_center ?? '—'} | IA ${p.ai_center ?? '—'} MPa\n`;
+      });
+      if (c.validation) {
+        s += `  · validação: ${c.validation.count} previsões validadas, MAE ${c.validation.mae} MPa, viés ${c.validation.bias} MPa\n`;
+      }
+      (c.alerts || []).forEach((a) => { s += `  · ALERTA ${a}\n`; });
+    });
+    s += 'Use linguagem de tendência/projeção/estimativa/confiança. NUNCA trate a projeção como garantia; a referência não substitui critérios normativos (NBR 6136/9781).\n';
+  }
+
   return s;
 }
 
 // Engenheiro Virtual: IA analisa os indicadores determinísticos calculados
 // pelo sistema. Abrir a tela NUNCA executa IA — exibe a análise armazenada;
 // a execução acontece apenas pelo botão, via fluxo central (aiService).
-export default function VirtualEngineer({ orders, costs, names, productTypesById }) {
+export default function VirtualEngineer({ orders, costs, names, productTypesById, resistanceCurves = [] }) {
   const navigate = useNavigate();
   const [recommendations, setRecommendations] = useState([]);
   const [analyzing, setAnalyzing] = useState(false);
@@ -174,6 +190,7 @@ export default function VirtualEngineer({ orders, costs, names, productTypesById
     machines: machines.map(m => ({ id: m.id, u: m.updated_date })),
     costs: costs || {},
     names: names || {},
+    resistance_curve: resistanceCurves,
   });
 
   // Abertura da tela: exibe a análise armazenada mais recente (nunca executa IA).
@@ -202,7 +219,7 @@ export default function VirtualEngineer({ orders, costs, names, productTypesById
     setAnalyzing(true);
     setError(null);
     try {
-      const summary = buildSummary(orders, downtimes, costs, names, productTypesById);
+      const summary = buildSummary(orders, downtimes, costs, names, productTypesById, resistanceCurves);
       const prompt = `Você é o "Engenheiro Virtual", um assistente de IA especializado em análise de fábricas de artefatos de cimento.
 Analise os dados abaixo e emita recomendações automáticas, práticas e acionáveis.
 
@@ -212,6 +229,7 @@ METODOLOGIA OBRIGATÓRIA DE CONSUMO:
 3. O indicador principal de consumo é o específico por 1.000 peças (e por m³, quando disponível). Use-o para avaliar o comportamento do processo.
 4. Nas recomendações, diferencie FATO (desvio medido), PADRÃO (eventos simultâneos) e HIPÓTESE ("os dados indicam possível associação — recomenda-se investigar"). Nunca apresente hipótese como fato e nunca afirme causalidade.
 5. Insumos marcados "SEM padrão cadastrado" devem gerar recomendação de cadastrar o traço no artefato.
+6. CURVA DE RESISTÊNCIA: os valores da seção "CURVA DE DESENVOLVIMENTO DA RESISTÊNCIA" vêm do resistanceCurveEngine (determinísticos) — NUNCA os recalcule. Fale de tendência/projeção/estimativa/confiança, nunca trate a projeção como garantia e nunca associe a curva de referência a critérios normativos (NBR 6136/9781).
 
 Analise continuamente:
 1. Consumo de insumos (desvios do esperado para a produção boa, consumo específico fora do comportamento)
@@ -220,6 +238,7 @@ Analise continuamente:
 4. Custos (produtos mais caros, desperdícios com impacto financeiro)
 5. Tempo de parada (máquinas com mais paradas, categorias frequentes)
 6. Histórico (tendências entre períodos, com base no consumo específico)
+7. Curva de resistência (evolução abaixo/acima da referência, projeção IA e validações, quando presentes)
 
 Para cada recomendação, retorne:
 - priority: "critical", "high", "medium" ou "info"
