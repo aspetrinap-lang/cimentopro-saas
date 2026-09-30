@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { scopedFilter } from '@/lib/companyScope';
 import { base44 } from '@/api/base44Client';
 import { useNavigate } from 'react-router-dom';
 import { getCachedAnalysis } from '@/lib/ai/aiCache';
 import { computeFingerprint, runAnalysis } from '@/lib/ai/aiService';
 import AIStatusBadge from '@/components/ai/AIStatusBadge';
+import RecommendationCard from '@/components/ai/RecommendationCard';
+import { formatDateBR } from '@/lib/dateFormat';
 import { ShieldCheck, RefreshCw, ChevronRight, AlertCircle, Sparkles } from 'lucide-react';
 import ResistanceGrowthCard from './ResistanceGrowthCard';
 
@@ -34,7 +36,20 @@ const EVIDENCE_LABELS = {
 // Monta o sumário técnico determinístico que fundamenta a análise da IA:
 // laudos × produção da ordem × paradas × manutenções, tendência de fck por
 // artefato, média de fck por categoria e leitura da curva entre idades.
-function buildQualitySummary(reports, orders, downtimes, maintenances, productTypes, traces) {
+// Contadores determinísticos da origem dos dados (exibidos nos cards expandidos).
+function buildQualityInputStats(reports, orders, downtimes, maintenances) {
+  const dates = reports.map(r => r.test_date || r.molding_date).filter(Boolean).sort();
+  return {
+    reports: reports.length,
+    orders: orders.length,
+    downtimes: downtimes.length,
+    maintenances: maintenances.length,
+    period_start: dates[0] || null,
+    period_end: dates[dates.length - 1] || null,
+  };
+}
+
+function buildQualitySummary(reports, orders, downtimes, maintenances, productTypes, traces, inputStats) {
   const orderMap = {}; orders.forEach(o => { orderMap[o.id] = o; });
   const ptMap = {}; (productTypes || []).forEach(p => { ptMap[p.id] = p; });
   const traceMap = {}; (traces || []).forEach(t => { traceMap[t.id] = t; });
@@ -102,6 +117,14 @@ function buildQualitySummary(reports, orders, downtimes, maintenances, productTy
     }
   });
 
+  if (inputStats) {
+    s += `\nFONTE DOS DADOS (contadores determinísticos — NÃO invente números, cite apenas estes):\n`;
+    s += `- Laudos de qualidade analisados: ${inputStats.reports} (ensaio ${formatDateBR(inputStats.period_start)} a ${formatDateBR(inputStats.period_end)})\n`;
+    s += `- Ordens de produção concluídas cruzadas com os laudos: ${inputStats.orders}\n`;
+    s += `- Paradas de máquina consideradas: ${inputStats.downtimes}\n`;
+    s += `- Manutenções preventivas consideradas: ${inputStats.maintenances}\n`;
+  }
+
   return s;
 }
 
@@ -122,6 +145,20 @@ export default function QualityAnalysis({ orders }) {
   const [error, setError] = useState(null);
 
   // Inputs determinísticos do fingerprint (ids + versões dos registros).
+  // Origem determinística dos dados — exibida nos cards expandidos.
+  const inputStats = useMemo(
+    () => buildQualityInputStats(reports || [], orders || [], downtimes, maintenances),
+    [reports, orders, downtimes, maintenances]
+  );
+
+  const originLines = useMemo(() => [
+    `Análise de ${inputStats.reports} laudos de qualidade (ensaio ${formatDateBR(inputStats.period_start)} – ${formatDateBR(inputStats.period_end)})`,
+    `${inputStats.orders} ordens de produção concluídas cruzadas com os laudos`,
+    `${inputStats.downtimes} parada(s) e ${inputStats.maintenances} manutenção(ões) de máquina consideradas entre moldagem e ensaio`,
+    'Consumo de cimento: real vs planejado nas ordens vinculadas aos laudos',
+    'Curva de crescimento: agregação determinística dos corpos de prova por idade',
+  ], [inputStats]);
+
   const fingerprintInputs = () => ({
     reports: (reports || []).map(r => ({ id: r.id, u: r.updated_date })),
     orders: (orders || []).map(o => ({ id: o.id, u: o.updated_date })),
@@ -173,7 +210,7 @@ export default function QualityAnalysis({ orders }) {
     setAnalyzing(true);
     setError(null);
     try {
-      const summary = buildQualitySummary(reports, orders || [], downtimes, maintenances, productTypes, traces);
+      const summary = buildQualitySummary(reports, orders || [], downtimes, maintenances, productTypes, traces, inputStats);
       const prompt = `Você é o "Engenheiro Virtual" especializado em controle de qualidade de fábricas de artefatos de cimento.
 Analise os dados de qualidade abaixo (laudos, produção, paradas e manutenções) e emita achados técnicos em português, citando valores concretos dos dados.
 
@@ -194,6 +231,7 @@ Para cada achado, retorne:
 - evidence_type: "fact" (diretamente suportado pelos dados), "pattern" (observado nos dados) ou "hypothesis" (possível causa a confirmar — NUNCA apresente hipótese como fato)
 - confidence: "alta", "média" ou "baixa"
 - evidence: o dado concreto que sustenta o achado
+- data_source: origem dos dados usados no achado, citando os contadores do bloco "FONTE DOS DADOS" (ex: "análise de 25 laudos de qualidade no período 01/08/2026 a 30/09/2026"). NUNCA invente números — relate apenas os contadores fornecidos
 - action_page: página recomendada para ação, uma de: "quality", "history", "maintenance", "machines", "orders", "analysis"
 
 Gere entre 3 e 8 achados, priorizando os mais urgentes.
@@ -221,6 +259,7 @@ ${summary}`;
                   evidence_type: { type: 'string' },
                   confidence: { type: 'string' },
                   evidence: { type: 'string' },
+                  data_source: { type: 'string' },
                   action_page: { type: 'string' },
                 },
               },
@@ -309,40 +348,19 @@ ${summary}`;
 
           {sortedFindings.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {sortedFindings.map((f, i) => {
-                const p = PRIORITY[f.priority] || PRIORITY.info;
-                const route = PAGE_ROUTES[f.action_page] || '/quality';
-                const label = PAGE_LABELS[f.action_page] || 'Qualidade';
-                return (
-                  <div key={i} className={`bg-card rounded-xl border border-border border-l-4 ${p.border} p-4 flex flex-col gap-2 shadow-sm`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-xs font-semibold text-foreground">{f.category}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p.badge}`}>{p.label}</span>
-                    </div>
-                    <p className="text-sm font-medium text-foreground leading-snug">{f.title}</p>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{f.diagnosis}</p>
-                    {(f.evidence_type || f.evidence) && (
-                      <p className="text-[10px] text-muted-foreground border-t border-border pt-2">
-                        {f.evidence_type && (
-                          <span className="font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 mr-1.5">
-                            {EVIDENCE_LABELS[f.evidence_type] || f.evidence_type}{f.confidence ? ` · ${f.confidence}` : ''}
-                          </span>
-                        )}
-                        {f.evidence ? `Evidência: ${f.evidence}` : ''}
-                      </p>
-                    )}
-                    {f.parameters?.length > 0 && (
-                      <ul className="text-[11px] text-muted-foreground list-disc pl-4 space-y-0.5 border-t border-border pt-2">
-                        {f.parameters.map((p2, j) => <li key={j}>{p2}</li>)}
-                      </ul>
-                    )}
-                    <button onClick={() => navigate(route)}
-                      className="flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-900 transition-colors self-end">
-                      {label} <ChevronRight className="w-3 h-3" />
-                    </button>
-                  </div>
-                );
-              })}
+              {sortedFindings.map((f, i) => (
+                <RecommendationCard
+                  key={i}
+                  item={f}
+                  priorityMap={PRIORITY}
+                  evidenceLabels={EVIDENCE_LABELS}
+                  route={PAGE_ROUTES[f.action_page] || '/quality'}
+                  label={PAGE_LABELS[f.action_page] || 'Qualidade'}
+                  accent="emerald"
+                  originLines={originLines}
+                  dataSource={f.data_source}
+                />
+              ))}
             </div>
           )}
         </>

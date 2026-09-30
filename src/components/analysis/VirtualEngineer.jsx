@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { scopedFilter } from '@/lib/companyScope';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
@@ -7,6 +7,8 @@ import { analyzeConsumptionByArtifact, mergeAnalyses } from '@/lib/consumptionEn
 import { getCachedAnalysis } from '@/lib/ai/aiCache';
 import { computeFingerprint, runAnalysis } from '@/lib/ai/aiService';
 import AIStatusBadge from '@/components/ai/AIStatusBadge';
+import RecommendationCard from '@/components/ai/RecommendationCard';
+import { formatDateBR } from '@/lib/dateFormat';
 import { Bot, RefreshCw, ChevronRight, AlertCircle, Sparkles } from 'lucide-react';
 
 const PRIORITY = {
@@ -18,7 +20,7 @@ const PRIORITY = {
 
 const PAGE_ROUTES = {
   machines: '/machines', maintenance: '/maintenance', history: '/history',
-  analysis: '/analysis', orders: '/orders', molds: '/molds', settings: '/settings',
+  analysis: '/analysis', orders: '/orders', molds: '/molds', settings: '/configuracoes',
 };
 const PAGE_LABELS = {
   machines: 'Máquinas', maintenance: 'Manutenção', history: 'Histórico',
@@ -32,7 +34,25 @@ const EVIDENCE_LABELS = {
   recommendation: 'Recomendação',
 };
 
-function buildSummary(orders, downtimes, costs, names, productTypesById, resistanceCurves) {
+// Contadores determinísticos da origem dos dados (exibidos nos cards expandidos).
+function buildInputStats(orders, downtimes, machines, resistanceCurves) {
+  const concluded = orders.filter(o => o.status === 'Concluída');
+  const dates = orders.map(o => o.production_date).filter(Boolean).sort();
+  return {
+    orders_total: orders.length,
+    orders_concluded: concluded.length,
+    period_start: dates[0] || null,
+    period_end: dates[dates.length - 1] || null,
+    machines: machines.length,
+    downtimes: downtimes.length,
+    downtime_minutes: downtimes.reduce((a, d) => a + (d.duration_minutes || 0), 0),
+    curve_products: resistanceCurves.length,
+    curve_results: resistanceCurves.reduce((a, c) => a + (c.result_count || 0), 0),
+    curve_lots: resistanceCurves.reduce((a, c) => a + (c.lot_count || 0), 0),
+  };
+}
+
+function buildSummary(orders, downtimes, costs, names, productTypesById, resistanceCurves, inputStats) {
   const concluded = orders.filter(o => o.status === 'Concluída');
   let s = '';
   s += `TOTAL: ${orders.length} ordens (${concluded.length} concluídas).\n\n`;
@@ -161,6 +181,16 @@ function buildSummary(orders, downtimes, costs, names, productTypesById, resista
     s += 'Use linguagem de tendência/projeção/estimativa/confiança. NUNCA trate a projeção como garantia; a referência não substitui critérios normativos (NBR 6136/9781).\n';
   }
 
+  if (inputStats) {
+    s += `\nFONTE DOS DADOS (contadores determinísticos — NÃO invente números, cite apenas estes):\n`;
+    s += `- Ordens analisadas: ${inputStats.orders_concluded} concluídas de ${inputStats.orders_total} no período ${formatDateBR(inputStats.period_start)} a ${formatDateBR(inputStats.period_end)}\n`;
+    s += `- Máquinas consideradas: ${inputStats.machines}\n`;
+    s += `- Paradas consideradas: ${inputStats.downtimes} ocorrências (${inputStats.downtime_minutes} min)\n`;
+    if (inputStats.curve_products > 0) {
+      s += `- Curva de resistência (resistanceCurveEngine): ${inputStats.curve_products} produto(s), ${inputStats.curve_results} resultados em ${inputStats.curve_lots} lotes\n`;
+    }
+  }
+
   return s;
 }
 
@@ -183,6 +213,25 @@ export default function VirtualEngineer({ orders, costs, names, productTypesById
       base44.entities.Machine.filter(scopedFilter({}), 'name'),
     ]).then(([d, m]) => { setDowntimes(d); setMachines(m); });
   }, []);
+
+  // Origem determinística dos dados — exibida nos cards expandidos.
+  const inputStats = useMemo(
+    () => buildInputStats(orders || [], downtimes, machines, resistanceCurves),
+    [orders, downtimes, machines, resistanceCurves]
+  );
+
+  const originLines = useMemo(() => {
+    const l = [
+      `Análise de ${inputStats.orders_concluded} ordens de produção concluídas (de ${inputStats.orders_total} no período ${formatDateBR(inputStats.period_start)} – ${formatDateBR(inputStats.period_end)})`,
+      `${inputStats.machines} máquina(s) consideradas na análise de eficiência`,
+      `${inputStats.downtimes} parada(s) de máquina consideradas (${inputStats.downtime_minutes} min no total)`,
+      'Consumo: motor determinístico compara o real com o esperado para a produção boa (refugo descontado)',
+    ];
+    if (inputStats.curve_products > 0) {
+      l.push(`Curva de resistência: ${inputStats.curve_products} produto(s) via resistanceCurveEngine (${inputStats.curve_results} resultados, ${inputStats.curve_lots} lotes)`);
+    }
+    return l;
+  }, [inputStats]);
 
   const fingerprintInputs = () => ({
     orders: (orders || []).map(o => ({ id: o.id, u: o.updated_date })),
@@ -219,7 +268,7 @@ export default function VirtualEngineer({ orders, costs, names, productTypesById
     setAnalyzing(true);
     setError(null);
     try {
-      const summary = buildSummary(orders, downtimes, costs, names, productTypesById, resistanceCurves);
+      const summary = buildSummary(orders, downtimes, costs, names, productTypesById, resistanceCurves, inputStats);
       const prompt = `Você é o "Engenheiro Virtual", um assistente de IA especializado em análise de fábricas de artefatos de cimento.
 Analise os dados abaixo e emita recomendações automáticas, práticas e acionáveis.
 
@@ -248,6 +297,7 @@ Para cada recomendação, retorne:
 - evidence_type: "fact" (desvio medido, diretamente suportado pelos dados), "pattern" (observado nos dados) ou "hypothesis" (possível associação a investigar — nunca apresente hipótese como fato)
 - confidence: "alta", "média" ou "baixa"
 - evidence: o dado concreto que sustenta a recomendação
+- data_source: origem dos dados usados nesta recomendação, citando os contadores do bloco "FONTE DOS DADOS" (ex: "análise de 10 ordens de produção concluídas no período 01/09/2026 a 30/09/2026 que registraram esse consumo"). NUNCA invente números — relate apenas os contadores fornecidos
 - action_page: página recomendada para ação ("machines", "maintenance", "history", "analysis", "orders", "molds", "settings")
 
 Gere entre 4 e 8 recomendações, priorizando as mais urgentes.
@@ -274,6 +324,7 @@ ${summary}`;
                   evidence_type: { type: 'string' },
                   confidence: { type: 'string' },
                   evidence: { type: 'string' },
+                  data_source: { type: 'string' },
                   action_page: { type: 'string' },
                 },
               },
@@ -349,35 +400,19 @@ ${summary}`;
 
       {sortedRecs.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-          {sortedRecs.map((rec, i) => {
-            const p = PRIORITY[rec.priority] || PRIORITY.info;
-            const route = PAGE_ROUTES[rec.action_page] || '/analysis';
-            const label = PAGE_LABELS[rec.action_page] || 'Análise';
-            return (
-              <div key={i} className={`bg-card rounded-xl border border-border border-l-4 ${p.border} p-4 flex flex-col gap-2 shadow-sm`}>
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-xs font-semibold text-foreground">{rec.category}</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p.badge}`}>{p.label}</span>
-                </div>
-                <p className="text-sm font-medium text-foreground leading-snug">{rec.title}</p>
-                <p className="text-xs text-muted-foreground leading-relaxed flex-1">{rec.text}</p>
-                {(rec.evidence_type || rec.evidence) && (
-                  <p className="text-[10px] text-muted-foreground border-t border-border pt-2">
-                    {rec.evidence_type && (
-                      <span className="font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 mr-1.5">
-                        {EVIDENCE_LABELS[rec.evidence_type] || rec.evidence_type}{rec.confidence ? ` · ${rec.confidence}` : ''}
-                      </span>
-                    )}
-                    {rec.evidence ? `Evidência: ${rec.evidence}` : ''}
-                  </p>
-                )}
-                <button onClick={() => navigate(route)}
-                  className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors self-end">
-                  {label} <ChevronRight className="w-3 h-3" />
-                </button>
-              </div>
-            );
-          })}
+          {sortedRecs.map((rec, i) => (
+            <RecommendationCard
+              key={i}
+              item={rec}
+              priorityMap={PRIORITY}
+              evidenceLabels={EVIDENCE_LABELS}
+              route={PAGE_ROUTES[rec.action_page] || '/analysis'}
+              label={PAGE_LABELS[rec.action_page] || 'Análise'}
+              accent="indigo"
+              originLines={originLines}
+              dataSource={rec.data_source}
+            />
+          ))}
         </div>
       )}
     </section>
