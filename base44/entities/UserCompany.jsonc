@@ -25,11 +25,12 @@
     "role": {
       "type": "string",
       "enum": [
+        "member",
         "owner",
         "admin",
         "supervisor"
       ],
-      "description": "Papel do usu\u00e1rio na empresa"
+      "description": "Papel do usu\u00e1rio na empresa \u2014 member \u00e9 o v\u00ednculo simplificado da tela (acesso definido pelo perfil); owner/admin/supervisor para uso interno"
     },
     "profile_id": {
       "type": "string",

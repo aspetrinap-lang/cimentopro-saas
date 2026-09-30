@@ -10,7 +10,7 @@ import { isPlatformAdminVerified } from '../../shared/platformAdmin.ts';
 // por e-mail). Ao aceitar o convite e entrar no CimentoPro, o próprio usuário
 // ativa o vínculo (ação activateInvites) — o primeiro acesso já entra na
 // empresa, sem a tela de "Nenhuma empresa vinculada".
-const ROLES = ['owner', 'admin', 'supervisor'];
+const ROLES = ['owner', 'admin', 'supervisor', 'member'];
 
 export default async function(req) {
   try {
@@ -143,9 +143,12 @@ export default async function(req) {
 
     if (action === 'link') {
       const email = String(body.email || '').trim().toLowerCase();
-      const role = body.role;
-      if (!email || !ROLES.includes(role)) {
-        return Response.json({ error: 'E-mail e papel (owner, admin ou supervisor) são obrigatórios' }, { status: 400 });
+      let role = body.role;
+      if (!email) {
+        return Response.json({ error: 'E-mail é obrigatório' }, { status: 400 });
+      }
+      if (role && !ROLES.includes(role)) {
+        return Response.json({ error: 'Papel inválido (owner, admin, supervisor ou member)' }, { status: 400 });
       }
       // Perfil de acesso opcional: quando informado, RESTRINGE as permissões
       // do papel (interseção). Precisa existir e estar ativo.
@@ -157,6 +160,15 @@ export default async function(req) {
           return Response.json({ error: 'Perfil de acesso inválido ou inativo' }, { status: 400 });
         }
         profileName = profile.name;
+      }
+      // Vínculo simplificado (tela da empresa): sem papel informado, o perfil
+      // de acesso é obrigatório e o vínculo é gravado como 'member' — o
+      // acesso da pessoa é definido exatamente pelo perfil.
+      if (!role) {
+        if (!profileId) {
+          return Response.json({ error: 'Selecione o Perfil de Acesso para vincular o usuário.' }, { status: 400 });
+        }
+        role = 'member';
       }
       const users = await svc.entities.User.filter({ email });
       let target = users && users[0];
@@ -216,6 +228,11 @@ export default async function(req) {
       const existing = await svc.entities.UserCompany.filter({ user_id: target.id, company_id: companyId });
       if (existing.length) {
         const link = existing[0];
+        // O papel de Dono é gerido pelo SUPER_ADMIN — a tela da empresa
+        // (vínculo simplificado 'member') nunca o altera.
+        if (link.role === 'owner' && role === 'member') {
+          return Response.json({ error: 'O papel de Dono é gerido pelo SUPER_ADMIN da plataforma e não pode ser alterado aqui.' }, { status: 400 });
+        }
         if (link.status === 'active' && link.role === role && (link.profile_id || '') === profileId) {
           return Response.json({ error: 'Usuário já está vinculado a esta empresa com este papel e perfil' }, { status: 400 });
         }

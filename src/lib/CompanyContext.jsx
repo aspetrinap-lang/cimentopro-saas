@@ -14,6 +14,7 @@ export function getCurrentCompanyId() {
 
 // Mapeia o papel na empresa (UserCompany) para o papel do sistema de permissões existente
 const COMPANY_ROLE_TO_LEGACY = {
+  member: 'administrador',
   owner: 'administrador',
   admin: 'administrador',
   supervisor: 'supervisor',

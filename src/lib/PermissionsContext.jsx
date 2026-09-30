@@ -12,6 +12,8 @@ const COMPANY_ROLE_TO_GRANTS = {
   owner: 'administrador',
   admin: 'administrador',
   supervisor: 'supervisor',
+  // Vínculo simplificado: base completa; o perfil vinculado restringe.
+  member: 'administrador',
 };
 
 // Fonte única de permissões do usuário em sessão:
@@ -51,6 +53,9 @@ export const PermissionsProvider = ({ children }) => {
     }
     const profileGrants = resolvePermissions(membershipProfile?.permissions);
     if (profileGrants) return new Set([...set].filter((p) => profileGrants.has(p)));
+    // 'member' sem perfil válido: o papel interno não concede nada por si —
+    // cai no acesso básico (visualizar e criar produção).
+    if (currentRole === 'member') return new Set(ROLE_GRANTS.user);
     return set;
   }, [activeOperator, currentRole, platformAdmin, user, membershipProfile]);
 

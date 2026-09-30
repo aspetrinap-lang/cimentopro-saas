@@ -4,12 +4,7 @@ import { useCompany } from '@/lib/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { UserPlus, Trash2, Loader2, Pencil } from 'lucide-react';
 
-const ROLE_OPTIONS = [
-  { value: 'owner', label: 'Dono' },
-  { value: 'admin', label: 'Administrador' },
-  { value: 'supervisor', label: 'Supervisor' },
-];
-const ROLE_LABELS = { owner: 'Dono', admin: 'Administrador', supervisor: 'Supervisor' };
+const ROLE_LABELS = { owner: 'Dono', admin: 'Administrador', supervisor: 'Supervisor', member: 'Membro' };
 
 export default function CompanyUsersTab() {
   const { currentCompanyId, currentCompany, loading: loadingCompany } = useCompany();
@@ -18,7 +13,6 @@ export default function CompanyUsersTab() {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('supervisor');
   const [profileId, setProfileId] = useState('');
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -37,8 +31,8 @@ export default function CompanyUsersTab() {
     if (!editing) return;
     const email = (editing.user_email || '').trim();
     if (!email) return;
-    if (editRole === editing.role && (editProfileId || '') === (editing.profile_id || '')) {
-      toast({ title: 'Nenhuma alteração', description: 'Papel e perfil já estão como exibidos.' });
+    if ((editProfileId || '') === (editing.profile_id || '')) {
+      toast({ title: 'Nenhuma alteração', description: 'O perfil já está como exibido.' });
       setEditing(null);
       return;
     }
@@ -47,7 +41,7 @@ export default function CompanyUsersTab() {
       await base44.functions.invoke('companyMembers', {
         action: 'link', company_id: currentCompanyId, email, role: editRole, profile_id: editProfileId || null,
       });
-      toast({ title: 'Vínculo atualizado', description: `${email} agora tem o papel ${ROLE_LABELS[editRole] || editRole}${editProfileId ? ' com perfil de acesso' : ' sem restrição de perfil'}.` });
+      toast({ title: 'Vínculo atualizado', description: `${email} agora tem o perfil ${editProfileId ? (profiles.find((p) => p.id === editProfileId)?.name || editProfileId) : 'sem restrição'}.` });
       setEditing(null);
       load();
     } catch (err) {
@@ -82,7 +76,7 @@ export default function CompanyUsersTab() {
     setSaving(true);
     try {
       const res = await base44.functions.invoke('companyMembers', {
-        action: 'link', company_id: currentCompanyId, email: email.trim(), role, profile_id: profileId || null,
+        action: 'link', company_id: currentCompanyId, email: email.trim(), profile_id: profileId || null,
       });
       toast({
         title: res.data?.invited ? 'Convite enviado e usuário vinculado' : 'Usuário vinculado',
@@ -129,7 +123,7 @@ export default function CompanyUsersTab() {
       <div>
         <h2 className="text-lg font-semibold text-foreground">Usuários da Empresa</h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Vincule usuários a {currentCompany?.name || 'esta empresa'} e defina o papel de cada um (donos e administradores gerenciam a empresa; supervisores acompanham os módulos operacionais). E-mails ainda sem conta no CimentoPro recebem o convite da plataforma e entram direto na empresa no primeiro acesso. Opcionalmente, restringa o acesso com um perfil de acesso — o perfil só reduz as permissões do papel, nunca as amplia.
+          Vincule usuários a {currentCompany?.name || 'esta empresa'} definindo o Perfil de Acesso de cada um — o perfil define sozinho o que a pessoa acessa (ex.: técnico de qualidade vê apenas o módulo de Qualidade). E-mails ainda sem conta no CimentoPro recebem o convite da plataforma e entram direto na empresa no primeiro acesso. O papel de Dono é gerenciado pelo SUPER ADMIN da plataforma.
         </p>
       </div>
 
@@ -142,13 +136,8 @@ export default function CompanyUsersTab() {
           className={`${inputCls} flex-1 min-w-[220px]`}
           required
         />
-        <select value={role} onChange={(e) => setRole(e.target.value)} className={`${inputCls} w-44`}>
-          {ROLE_OPTIONS.map((r) => (
-            <option key={r.value} value={r.value}>{r.label}</option>
-          ))}
-        </select>
-        <select value={profileId} onChange={(e) => setProfileId(e.target.value)} className={`${inputCls} w-52`}>
-          <option value="">Perfil: sem restrição</option>
+        <select value={profileId} onChange={(e) => setProfileId(e.target.value)} className={`${inputCls} w-52`} required>
+          <option value="" disabled>Perfil de Acesso</option>
           {profiles.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
@@ -233,14 +222,6 @@ export default function CompanyUsersTab() {
                 <p className="text-sm text-foreground">{editing.user_name || '—'} <span className="text-muted-foreground">({editing.user_email})</span></p>
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Papel</label>
-                <select value={editRole} onChange={(e) => setEditRole(e.target.value)} className={inputCls}>
-                  {ROLE_OPTIONS.map((r) => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Perfil de Acesso</label>
                 <select value={editProfileId} onChange={(e) => setEditProfileId(e.target.value)} className={inputCls}>
                   <option value="">Sem restrição</option>
@@ -248,7 +229,7 @@ export default function CompanyUsersTab() {
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
-                <p className="text-xs text-muted-foreground/70 mt-1">O perfil só reduz as permissões do papel, nunca as amplia.</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">O perfil define o que esta pessoa acessa na empresa.</p>
               </div>
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setEditing(null)} className="flex-1 border border-border rounded-lg py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
