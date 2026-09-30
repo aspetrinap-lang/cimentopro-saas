@@ -563,22 +563,20 @@ export default async function(req) {
         if (dres.length >= 2 && pec != null) {
           const monthly = dres.map((d) => {
             const mSums = { fixed: 0 };
-            const byId = mapById, byName = mapByName;
             for (const it of d.items || []) {
               if (!it || !it.account_name) continue;
               const n = normalizeAccountName(it.account_name);
               if (SUBTOTAL_ACCOUNTS.includes(n)) continue;
-              const acc = (it.account_id && byId.get(it.account_id)) || byName.get(n) || null;
+              const acc = (it.account_id && mapById.get(it.account_id)) || mapByName.get(n) || null;
               const official = acc ? getOfficialClassification(acc) : null;
               const raw = official ? official.classification : (acc?.break_even_classification || 'excluded');
               if (effOf(raw) === 'fixed_operational') mSums.fixed += Number(it.actual_value) || 0;
             }
-            const mGross = (it: any) => 0; // placeholder — revenue por conta
             const mRev = d.items.reduce((s: number, it: any) => {
               if (!it || !it.account_name) return s;
               const n = normalizeAccountName(it.account_name);
               if (SUBTOTAL_ACCOUNTS.includes(n)) return s;
-              const acc = (it.account_id && byId.get(it.account_id)) || byName.get(n) || null;
+              const acc = (it.account_id && mapById.get(it.account_id)) || mapByName.get(n) || null;
               const official = acc ? getOfficialClassification(acc) : null;
               return official && official.classification === 'revenue' ? s + (Number(it.actual_value) || 0) : s;
             }, 0);
