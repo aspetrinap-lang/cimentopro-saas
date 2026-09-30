@@ -41,9 +41,21 @@ export default async function(req) {
       const pending = await svc.entities.UserCompany.filter({ status: 'invited' }, '-created_date', 500);
       const mine = pending.filter((l) => String(l.user_email || '').trim().toLowerCase() === email);
       const activated = [];
+      const skipped = [];
       for (const link of mine) {
         const company = await svc.entities.Company.get(link.company_id).catch(() => null);
         if (!company || !['active', 'trial'].includes(company.status)) continue;
+        // Limite de usuários do plano vigente: convite pendente NÃO é ativado
+        // quando o plano está cheio — o vínculo fica aguardando vaga livre.
+        const seat = await checkPlanLimit(svc, link.company_id, 'users');
+        if (seat.allowed === false) {
+          skipped.push({
+            company_id: link.company_id,
+            company_name: company.name,
+            reason: `Limite de usuários do plano ${seat.plan_name} atingido (${seat.current} de ${seat.limit}).`,
+          });
+          continue;
+        }
         await svc.entities.UserCompany.update(link.id, {
           user_id: auth.id,
           user_name: auth.full_name || '',
@@ -63,7 +75,7 @@ export default async function(req) {
         activated.push({ company_id: link.company_id, company_name: company.name, role: link.role });
       }
       if (activated.length) await syncUserCompanies(auth.id);
-      return Response.json({ activated });
+      return Response.json({ activated, skipped });
     }
 
     // ── Vínculos e empresas do próprio usuário (acesso de serviço) ──
@@ -181,6 +193,14 @@ export default async function(req) {
         // automaticamente quando a pessoa entra no CimentoPro pela primeira vez.
         if (!isPlatformAdmin) {
           return Response.json({ error: 'Usuário não encontrado. A pessoa precisa criar a conta no CimentoPro antes — ou peça ao administrador da plataforma para enviá-la um convite de acesso.' }, { status: 404 });
+        }
+        // Limite de usuários do plano vigente — validado ANTES de enviar o
+        // convite (a brecha que permitia ultrapassar max_users via convite).
+        const inviteSeat = await checkPlanLimit(svc, companyId, 'users');
+        if (inviteSeat.allowed === false) {
+          return Response.json({
+            error: `Limite de usuários do plano ${inviteSeat.plan_name} atingido (${inviteSeat.current} de ${inviteSeat.limit}). Contate a administração da plataforma CimentoPro para ampliar o plano.`,
+          }, { status: 400 });
         }
         const pending = await svc.entities.UserCompany.filter({ company_id: companyId, status: 'invited' }, '-created_date', 500);
         const myPending = pending.filter((l) => String(l.user_email || '').trim().toLowerCase() === email);
