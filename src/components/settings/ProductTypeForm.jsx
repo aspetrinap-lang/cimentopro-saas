@@ -278,10 +278,12 @@ export default function ProductTypeForm({ item, onClose, onSaved }) {
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">fck de Projeto (MPa)</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
+                  {inferNorm(form.category) === 'NBR 9781' ? 'fpk' : 'fbk'} de Projeto (MPa)
+                </label>
                 <input type="number" step="0.1" min="0"
-                  className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-muted/40 text-muted-foreground"
-                  value={form.target_resistance || ''} readOnly
+                  className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={form.target_resistance || ''} onChange={e => set('target_resistance', e.target.value)}
                   placeholder="Definido pela classe" />
               </div>
             </div>
