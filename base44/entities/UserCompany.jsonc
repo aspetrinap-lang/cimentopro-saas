@@ -31,6 +31,14 @@
       ],
       "description": "Papel do usu\u00e1rio na empresa"
     },
+    "profile_id": {
+      "type": "string",
+      "description": "ID do perfil de acesso (UserRoleProfile) vinculado \u2014 quando presente, RESTRINGE as permiss\u00f5es do papel (interse\u00e7\u00e3o); vazio = papel sem restri\u00e7\u00e3o"
+    },
+    "profile_name": {
+      "type": "string",
+      "description": "Nome do perfil de acesso (cache, exibi\u00e7\u00e3o)"
+    },
     "status": {
       "type": "string",
       "enum": [

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useMemo, useCallback, useState, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { useCompany } from '@/lib/CompanyContext';
 import { useOperator } from '@/lib/OperatorContext';
@@ -18,8 +19,23 @@ const COMPANY_ROLE_TO_GRANTS = {
 // - Usuário logado → papel na empresa ativa; SUPER_ADMIN recebe a plataforma.
 export const PermissionsProvider = ({ children }) => {
   const { user } = useAuth();
-  const { currentRole, platformAdmin } = useCompany();
+  const { currentRole, platformAdmin, currentMembership } = useCompany();
   const { activeOperator } = useOperator();
+
+  // Perfil de acesso do vínculo na empresa ativa: quando o vínculo tem
+  // profile_id, o perfil RESTRINGE o papel (interseção). Perfil ausente,
+  // inativo ou sem permissões válidas não restringe. SUPER_ADMIN nunca é
+  // restringido. Operador PIN mantém a lógica atual (perfil substitui o papel).
+  const profileId = currentMembership?.profile_id || '';
+  const [membershipProfile, setMembershipProfile] = useState(null);
+  useEffect(() => {
+    if (!profileId) { setMembershipProfile(null); return; }
+    let cancelled = false;
+    base44.entities.UserRoleProfile.get(profileId)
+      .then((p) => { if (!cancelled) setMembershipProfile(p && p.active !== false ? p : null); })
+      .catch(() => { if (!cancelled) setMembershipProfile(null); });
+    return () => { cancelled = true; };
+  }, [profileId]);
 
   const permissions = useMemo(() => {
     if (activeOperator) {
@@ -29,9 +45,14 @@ export const PermissionsProvider = ({ children }) => {
     }
     const grantRole = (currentRole && (COMPANY_ROLE_TO_GRANTS[currentRole] || currentRole)) || user?.role || 'user';
     const set = new Set(ROLE_GRANTS[grantRole] || ROLE_GRANTS.user);
-    if (platformAdmin) PLATFORM_GRANTS.forEach((p) => set.add(p));
+    if (platformAdmin) {
+      PLATFORM_GRANTS.forEach((p) => set.add(p));
+      return set;
+    }
+    const profileGrants = resolvePermissions(membershipProfile?.permissions);
+    if (profileGrants) return new Set([...set].filter((p) => profileGrants.has(p)));
     return set;
-  }, [activeOperator, currentRole, platformAdmin, user]);
+  }, [activeOperator, currentRole, platformAdmin, user, membershipProfile]);
 
   // Suporte é acessível a todo usuário logado (não é módulo do plano nem do
   // catálogo granular); operador PIN (sessão compartilhada) não acessa.

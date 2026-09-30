@@ -165,6 +165,7 @@ export const CompanyProvider = ({ children }) => {
       memberships,          // vínculos UserCompany ativos
       currentCompany,       // empresa ativa (objeto Company)
       currentCompanyId,     // id da empresa ativa
+      currentMembership,    // vínculo do usuário na empresa ativa (UserCompany)
       currentUser: user,     // usuário autenticado
       currentRole,          // papel na empresa ativa (ou papel da plataforma)
       permissions,          // rotas permitidas (mesma base do sistema atual)

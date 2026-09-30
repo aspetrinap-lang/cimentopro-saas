@@ -102,6 +102,8 @@ export default async function(req) {
           company_name: l.company_name,
           role: l.role,
           is_owner: l.is_owner,
+          profile_id: l.profile_id || '',
+          profile_name: l.profile_name || '',
         })),
         companies: selectable.map((c) => ({ id: c.id, name: c.name, status: c.status, logo_url: c.logo_url || '' })),
       });
@@ -145,6 +147,17 @@ export default async function(req) {
       if (!email || !ROLES.includes(role)) {
         return Response.json({ error: 'E-mail e papel (owner, admin ou supervisor) são obrigatórios' }, { status: 400 });
       }
+      // Perfil de acesso opcional: quando informado, RESTRINGE as permissões
+      // do papel (interseção). Precisa existir e estar ativo.
+      let profileName = '';
+      const profileId = String(body.profile_id || '').trim();
+      if (profileId) {
+        const profile = await svc.entities.UserRoleProfile.get(profileId).catch(() => null);
+        if (!profile || profile.active === false) {
+          return Response.json({ error: 'Perfil de acesso inválido ou inativo' }, { status: 400 });
+        }
+        profileName = profile.name;
+      }
       const users = await svc.entities.User.filter({ email });
       let target = users && users[0];
       let invited = false;
@@ -161,11 +174,11 @@ export default async function(req) {
         const myPending = pending.filter((l) => String(l.user_email || '').trim().toLowerCase() === email);
         if (myPending.length) {
           const link = myPending[0];
-          if (link.role === role) {
+          if (link.role === role && (link.profile_id || '') === profileId) {
             return Response.json({ error: 'Convite já enviado para este e-mail nesta empresa' }, { status: 400 });
           }
-          const updated = await svc.entities.UserCompany.update(link.id, { role, company_name: company.name });
-          await audit('PERMISSION_CHANGE', link.id, { role: link.role, status: 'invited' }, { role, status: 'invited' });
+          const updated = await svc.entities.UserCompany.update(link.id, { role, profile_id: profileId, profile_name: profileName, company_name: company.name });
+          await audit('PERMISSION_CHANGE', link.id, { role: link.role, status: 'invited' }, { role, status: 'invited', profile_name: profileName });
           return Response.json({ member: updated, invited: true });
         }
         let inviteError = null;
@@ -183,6 +196,8 @@ export default async function(req) {
           company_id: companyId,
           company_name: company.name,
           role,
+          profile_id: profileId,
+          profile_name: profileName,
           status: 'invited',
           is_owner: role === 'owner',
         });
@@ -201,14 +216,15 @@ export default async function(req) {
       const existing = await svc.entities.UserCompany.filter({ user_id: target.id, company_id: companyId });
       if (existing.length) {
         const link = existing[0];
-        if (link.status === 'active' && link.role === role) {
-          return Response.json({ error: 'Usuário já está vinculado a esta empresa com este papel' }, { status: 400 });
+        if (link.status === 'active' && link.role === role && (link.profile_id || '') === profileId) {
+          return Response.json({ error: 'Usuário já está vinculado a esta empresa com este papel e perfil' }, { status: 400 });
         }
         const updated = await svc.entities.UserCompany.update(link.id, {
-          role, status: 'active', user_email: target.email, user_name: target.full_name, company_name: company.name,
+          role, profile_id: profileId, profile_name: profileName,
+          status: 'active', user_email: target.email, user_name: target.full_name, company_name: company.name,
         });
         await syncUserCompanies(target.id);
-        await audit('PERMISSION_CHANGE', link.id, { role: link.role, status: link.status }, { role, status: 'active' });
+        await audit('PERMISSION_CHANGE', link.id, { role: link.role, status: link.status }, { role, status: 'active', profile_name: profileName });
         return Response.json({ member: updated });
       }
       const created = await svc.entities.UserCompany.create({
@@ -218,6 +234,8 @@ export default async function(req) {
         company_id: companyId,
         company_name: company.name,
         role,
+        profile_id: profileId,
+        profile_name: profileName,
         status: 'active',
         is_owner: role === 'owner',
       });

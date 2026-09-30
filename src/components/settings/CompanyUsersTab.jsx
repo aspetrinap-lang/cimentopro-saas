@@ -15,17 +15,23 @@ export default function CompanyUsersTab() {
   const { currentCompanyId, currentCompany, loading: loadingCompany } = useCompany();
   const { toast } = useToast();
   const [members, setMembers] = useState([]);
+  const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('supervisor');
+  const [profileId, setProfileId] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     if (!currentCompanyId) return;
     setLoading(true);
     try {
-      const res = await base44.functions.invoke('companyMembers', { action: 'list', company_id: currentCompanyId });
+      const [res, profs] = await Promise.all([
+        base44.functions.invoke('companyMembers', { action: 'list', company_id: currentCompanyId }),
+        base44.entities.UserRoleProfile.filter({ active: true }, 'name').catch(() => []),
+      ]);
       setMembers(res.data.members || []);
+      setProfiles(profs);
     } catch (e) {
       toast({ title: 'Erro ao carregar usuários', description: e.response?.data?.error || e.message, variant: 'destructive' });
     } finally {
@@ -41,7 +47,7 @@ export default function CompanyUsersTab() {
     setSaving(true);
     try {
       const res = await base44.functions.invoke('companyMembers', {
-        action: 'link', company_id: currentCompanyId, email: email.trim(), role,
+        action: 'link', company_id: currentCompanyId, email: email.trim(), role, profile_id: profileId || null,
       });
       toast({
         title: res.data?.invited ? 'Convite enviado e usuário vinculado' : 'Usuário vinculado',
@@ -88,7 +94,7 @@ export default function CompanyUsersTab() {
       <div>
         <h2 className="text-lg font-semibold text-foreground">Usuários da Empresa</h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Vincule usuários a {currentCompany?.name || 'esta empresa'} e defina o papel de cada um (donos e administradores gerenciam a empresa; supervisores acompanham os módulos operacionais). E-mails ainda sem conta no CimentoPro recebem o convite da plataforma e entram direto na empresa no primeiro acesso.
+          Vincule usuários a {currentCompany?.name || 'esta empresa'} e defina o papel de cada um (donos e administradores gerenciam a empresa; supervisores acompanham os módulos operacionais). E-mails ainda sem conta no CimentoPro recebem o convite da plataforma e entram direto na empresa no primeiro acesso. Opcionalmente, restringa o acesso com um perfil de acesso — o perfil só reduz as permissões do papel, nunca as amplia.
         </p>
       </div>
 
@@ -104,6 +110,12 @@ export default function CompanyUsersTab() {
         <select value={role} onChange={(e) => setRole(e.target.value)} className={`${inputCls} w-44`}>
           {ROLE_OPTIONS.map((r) => (
             <option key={r.value} value={r.value}>{r.label}</option>
+          ))}
+        </select>
+        <select value={profileId} onChange={(e) => setProfileId(e.target.value)} className={`${inputCls} w-52`}>
+          <option value="">Perfil: sem restrição</option>
+          {profiles.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
         <button
@@ -142,6 +154,9 @@ export default function CompanyUsersTab() {
                   <td className="px-4 py-2.5">
                     <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
                       {ROLE_LABELS[m.role] || m.role}
+                    </span>
+                    <span className="block text-xs text-muted-foreground mt-0.5">
+                      {m.profile_name ? `Perfil: ${m.profile_name}` : 'Sem restrição'}
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground">
