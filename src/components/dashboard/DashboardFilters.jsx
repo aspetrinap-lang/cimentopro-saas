@@ -12,15 +12,17 @@ export default function DashboardFilters({
   endDate,
   lineId,
   productTypeId,
+  categoryId,
   lines = [],
   products = [],
+  categories = [],
   onChange,
   onApply,
   onClear,
 }) {
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-  const set = (patch) => onChange({ startDate, endDate, lineId, productTypeId, ...patch });
+  const set = (patch) => onChange({ startDate, endDate, lineId, productTypeId, categoryId, ...patch });
 
   const fieldCls = 'h-9 rounded-lg border border-slate-200 px-3 text-xs text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40';
   const labelCls = 'text-[10px] font-semibold uppercase tracking-wide text-slate-400';
@@ -32,7 +34,7 @@ export default function DashboardFilters({
           <Filter className="w-4 h-4 text-blue-600" />
           <span className="text-xs font-semibold text-slate-700">Filtros</span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 flex-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 flex-1">
           <div className="space-y-1">
             <label className={labelCls}>De</label>
             <input type="date" max={endDate || today} value={startDate} onChange={(e) => set({ startDate: e.target.value })} className={fieldCls + ' w-full'} />
@@ -46,6 +48,13 @@ export default function DashboardFilters({
             <select value={lineId} onChange={(e) => set({ lineId: e.target.value })} className={fieldCls + ' w-full'}>
               <option value="">Todas</option>
               {lines.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className={labelCls}>Categoria</label>
+            <select value={categoryId} onChange={(e) => set({ categoryId: e.target.value })} className={fieldCls + ' w-full'}>
+              <option value="">Todas</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div className="space-y-1">

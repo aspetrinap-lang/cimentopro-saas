@@ -7,6 +7,7 @@ import { subDays, format } from 'date-fns';
 import DashboardReport from '@/components/reports/DashboardReport';
 import DashboardFilters from '@/components/dashboard/DashboardFilters';
 import KpiStrip from '@/components/dashboard/KpiStrip';
+import CategoryProductionCards from '@/components/dashboard/CategoryProductionCards';
 import ChartCard, { TOP_PREVIEW } from '@/components/dashboard/ChartCard';
 import ProductionEvolutionChart from '@/components/dashboard/ProductionEvolutionChart';
 import MachinePerformanceChart from '@/components/dashboard/MachinePerformanceChart';
@@ -56,8 +57,8 @@ async function loadAllOrders(start, end) {
 // (período atual ou período anterior). A linha é resolvida pelas MÁQUINAS
 // PRINCIPAIS do cadastro da linha — somente as classificadas 'Produção'
 // (máquinas 'Movimentação' ficam fora do escopo).
-function applySelection(list, sel, machines, lines) {
-  const { lineId, productTypeId } = sel;
+function applySelection(list, sel, machines, lines, products = []) {
+  const { lineId, productTypeId, categoryId, categoryNames } = sel;
   const machineTypeById = Object.fromEntries((machines || []).map((m) => [m.id, m.machine_type || 'Produção']));
   let lineMachines = null;
   if (lineId) {
@@ -66,9 +67,16 @@ function applySelection(list, sel, machines, lines) {
       .map((mm) => mm.machine_id)
       .filter((id) => machineTypeById[id] !== 'Movimentação'));
   }
+  // Categoria: vínculo ProductType.category (nome) == ProductCategory.name —
+  // resolve o conjunto de artefatos permitidos antes dos cálculos.
+  const catName = categoryId ? (categoryNames || {})[categoryId] : null;
+  const catProductIds = catName
+    ? new Set(products.filter((p) => p.category === catName).map((p) => p.id))
+    : null;
   return list.filter((o) => {
     if (lineMachines && !lineMachines.has(o.machine_id)) return false;
     if (productTypeId && o.product_type_id !== productTypeId) return false;
+    if (catProductIds && !catProductIds.has(o.product_type_id)) return false;
     return true;
   });
 }
@@ -79,6 +87,7 @@ export default function Dashboard() {
   const [machines, setMachines] = useState([]);
   const [lines, setLines] = useState([]);
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [traces, setTraces] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showReport, setShowReport] = useState(false);
@@ -90,6 +99,7 @@ export default function Dashboard() {
     endDate: fmtDate(new Date()),
     lineId: '',
     productTypeId: '',
+    categoryId: '',
   }));
   const [appliedFilters, setAppliedFilters] = useState(filters);
 
@@ -106,13 +116,14 @@ export default function Dashboard() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [o, po, m, l, p, t] = await Promise.all([
+    const [o, po, m, l, p, t, c] = await Promise.all([
       loadAllOrders(appliedFilters.startDate, appliedFilters.endDate),
       loadAllOrders(prevPeriod.startDate, prevPeriod.endDate),
       base44.entities.Machine.filter(scopedFilter({ active: true }), 'name', 500),
       base44.entities.ProductionLine.filter(scopedFilter({}), 'name', 500).catch(() => []),
       base44.entities.ProductType.filter(scopedFilter({}), 'name', 500),
       base44.entities.ConcreteTrace.filter(scopedFilter({}), undefined, 500),
+      base44.entities.ProductCategory.filter(scopedFilter({ active: true }), 'name', 500).catch(() => []),
     ]);
     setOrders(o);
     setPrevOrders(po);
@@ -120,6 +131,7 @@ export default function Dashboard() {
     setLines(l);
     setProducts(p);
     setTraces(t);
+    setCategories(c);
     setLoading(false);
   }, [appliedFilters.startDate, appliedFilters.endDate, prevPeriod.startDate, prevPeriod.endDate]);
 
@@ -128,8 +140,10 @@ export default function Dashboard() {
   const ptMap = useMemo(() => Object.fromEntries(products.map((p) => [p.id, p])), [products]);
   const traceMap = useMemo(() => Object.fromEntries(traces.map((t) => [t.id, t])), [traces]);
 
-  const filteredOrders = useMemo(() => applySelection(orders, appliedFilters, machines, lines), [orders, appliedFilters, machines, lines]);
-  const prevFilteredOrders = useMemo(() => applySelection(prevOrders, appliedFilters, machines, lines), [prevOrders, appliedFilters, machines, lines]);
+  const categoryNames = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c.name])), [categories]);
+  const sel = useMemo(() => ({ ...appliedFilters, categoryNames }), [appliedFilters, categoryNames]);
+  const filteredOrders = useMemo(() => applySelection(orders, sel, machines, lines, products), [orders, sel, machines, lines, products]);
+  const prevFilteredOrders = useMemo(() => applySelection(prevOrders, sel, machines, lines, products), [prevOrders, sel, machines, lines, products]);
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-[1400px] mx-auto bg-slate-50 min-h-full">
@@ -159,10 +173,11 @@ export default function Dashboard() {
         {...filters}
         lines={lines}
         products={products}
+        categories={categories}
         onChange={setFilters}
         onApply={() => setAppliedFilters(filters)}
         onClear={() => {
-          const cleared = { startDate: fmtDate(subDays(new Date(), 30)), endDate: fmtDate(new Date()), lineId: '', productTypeId: '' };
+          const cleared = { startDate: fmtDate(subDays(new Date(), 30)), endDate: fmtDate(new Date()), lineId: '', productTypeId: '', categoryId: '' };
           setFilters(cleared);
           setAppliedFilters(cleared);
         }}
@@ -183,6 +198,16 @@ export default function Dashboard() {
             traceMap={traceMap}
             costs={costs}
           />
+
+          {/* Cards de produção separados por categoria — apenas sem categoria selecionada */}
+          {!appliedFilters.categoryId && (
+            <CategoryProductionCards
+              orders={filteredOrders}
+              prevOrders={prevFilteredOrders}
+              ptMap={ptMap}
+              categories={categories}
+            />
+          )}
 
           {/* Faixa 1 (2 cartões): Evolução da Produção | Desempenho das Máquinas */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
