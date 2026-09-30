@@ -50,7 +50,7 @@ const STAT_COLORS = {
   purple: { bg: '#F5F3FF', border: '#8B5CF6', text: '#4C1D95' },
 };
 
-export function composeInfographic({ screenshot, tab, companyName }) {
+export function composeInfographic({ screenshot, tab, logo }) {
   const W = 1080;
   const H = 1350;
   const MARGIN = 80;
@@ -68,38 +68,34 @@ export function composeInfographic({ screenshot, tab, companyName }) {
   // ── Cabeçalho (faixa navy) ──
   ctx.fillStyle = COLORS.navy;
   ctx.fillRect(0, 0, W, 130);
-  ctx.fillStyle = COLORS.green;
-  roundRectPath(ctx, 70, 40, 52, 52, 12);
-  ctx.fill();
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(80, 74, 7, 12);
-  ctx.fillRect(92, 64, 7, 22);
-  ctx.fillRect(104, 54, 7, 32);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = '800 38px Inter, sans-serif';
-  ctx.fillText('CimentoPro', 142, 68);
+
+  // Marca: logo oficial do aplicativo (ou marca desenhada como fallback)
+  const hasLogo = logo && logo.width && logo.height;
+  const logoH = 64;
+  if (hasLogo) {
+    const logoW = Math.min(logo.width * (logoH / logo.height), 320);
+    ctx.drawImage(logo, 70, 18, logoW, logoH);
+  } else {
+    ctx.fillStyle = COLORS.green;
+    roundRectPath(ctx, 70, 40, 52, 52, 12);
+    ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(80, 74, 7, 12);
+    ctx.fillRect(92, 64, 7, 22);
+    ctx.fillRect(104, 54, 7, 32);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '800 38px Inter, sans-serif';
+    ctx.fillText('CimentoPro', 142, 68);
+  }
   ctx.fillStyle = COLORS.soft;
   ctx.font = '600 13px Inter, sans-serif';
-  ctx.fillText('GESTÃO INTELIGENTE PARA FÁBRICAS DE ARTEFATOS DE CONCRETO', 143, 98);
+  ctx.fillText('GESTÃO INTELIGENTE PARA FÁBRICAS DE ARTEFATOS DE CONCRETO', 72, 110);
 
-  // Chip à direita: empresa ativa (ou slogan padrão)
-  let chipText = (companyName || 'DECISÕES MAIS SEGURAS').toUpperCase();
-  ctx.font = '700 20px Inter, sans-serif';
-  let chipW = ctx.measureText(chipText).width + 48;
-  if (chipW > 360) {
-    while (chipText.length > 4 && ctx.measureText(`${chipText}…`).width + 48 > 360) {
-      chipText = chipText.slice(0, -1);
-    }
-    chipText = `${chipText}…`;
-    chipW = 360;
-  }
-  const chipX = W - 80 - chipW;
-  ctx.fillStyle = 'rgba(255,255,255,0.14)';
-  roundRectPath(ctx, chipX, 45, chipW, 44, 22);
-  ctx.fill();
+  // Slogan padrão à direita — sem nome de empresa (campanha pública)
   ctx.fillStyle = '#FFFFFF';
-  ctx.textAlign = 'center';
-  ctx.fillText(chipText, chipX + chipW / 2, 74);
+  ctx.font = '700 20px Inter, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('DECISÕES MAIS SEGURAS', W - 80, 74);
   ctx.textAlign = 'left';
 
   // ── Título ──
@@ -279,12 +275,20 @@ export function composeInfographic({ screenshot, tab, companyName }) {
   const footerY = H - 100;
   ctx.fillStyle = COLORS.navy;
   ctx.fillRect(0, footerY, W, 100);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = '800 30px Inter, sans-serif';
-  ctx.fillText('CimentoPro', MARGIN, footerY + 46);
+  // Marca: logo oficial (ou wordmark desenhado como fallback)
+  let brandX = MARGIN;
+  if (hasLogo) {
+    const fLogoW = Math.min(logo.width * (40 / logo.height), 200);
+    ctx.drawImage(logo, MARGIN, footerY + 30, fLogoW, 40);
+    brandX = MARGIN + fLogoW + 18;
+  } else {
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '800 30px Inter, sans-serif';
+    ctx.fillText('CimentoPro', brandX, footerY + 46);
+  }
   ctx.fillStyle = COLORS.soft;
   ctx.font = '500 15px Inter, sans-serif';
-  ctx.fillText('Dados que transformam produção em lucro', MARGIN, footerY + 72);
+  ctx.fillText('Dados que transformam produção em lucro', brandX, footerY + 72);
   ctx.fillStyle = COLORS.green;
   ctx.fillRect(W - 330, footerY, 250, 100);
   ctx.fillStyle = '#FFFFFF';

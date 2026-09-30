@@ -8,6 +8,8 @@ import { Sparkles, FileDown, Loader2, Megaphone, Camera } from 'lucide-react';
 import InfographicCard from '@/components/marketing/InfographicCard';
 import CaptureStage from '@/components/marketing/CaptureStage';
 import { composeInfographic, canvasToPngBlob } from '@/components/marketing/infographicComposer';
+import { loadAppLogo } from '@/components/marketing/brandLogo';
+import { collectMaskNames, maskNamesInElement } from '@/components/marketing/anonymizeCapture';
 import { useCompany, CompanyContext } from '@/lib/CompanyContext';
 import { useConfig, ConfigContext } from '@/lib/ConfigContext';
 import { useAuth, AuthContext } from '@/lib/AuthContext';
@@ -78,6 +80,14 @@ export default function Marketing() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [captureKey, setCaptureKey] = useState(null);
+  const [appLogo, setAppLogo] = useState(null);
+
+  // Logo oficial do aplicativo para o cabeçalho/rodapé dos infográficos.
+  useEffect(() => {
+    let mounted = true;
+    loadAppLogo().then((img) => { if (mounted) setAppLogo(img); });
+    return () => { mounted = false; };
+  }, []);
 
   const load = async () => {
     try {
@@ -114,6 +124,14 @@ export default function Marketing() {
       await sleep(CAPTURE_MIN_MS);
       await waitForStageData(el);
 
+      // Print anônimo: identidade da empresa vem genérica dos contextos;
+      // nomes de pessoas exibidos nos dados são ocultados antes da captura.
+      const maskNames = await collectMaskNames(currentCompany?.id, [
+        { name: auth.user?.full_name, email: auth.user?.email },
+        { name: operator.activeOperator?.name, email: operator.activeOperator?.email },
+      ]);
+      maskNamesInElement(el, maskNames);
+
       const screenshot = await html2canvas(el, {
         scale: 1.5,
         useCORS: true,
@@ -121,7 +139,7 @@ export default function Marketing() {
         backgroundColor: '#F8FAFC',
       });
 
-      const final = composeInfographic({ screenshot, tab, companyName: currentCompany?.name || '' });
+      const final = composeInfographic({ screenshot, tab, logo: appLogo });
       const blob = await canvasToPngBlob(final);
       const { file_url } = await base44.integrations.Core.UploadPublicFile({
         file: new File([blob], `cimentopro-${key}-infografico.png`, { type: 'image/png' }),
@@ -188,6 +206,19 @@ export default function Marketing() {
   const pending = tabs.filter((t) => !items[t.key]?.image_url).length;
   const readyCount = tabs.length - pending;
 
+  // Identidade genérica da captura (empresa/usuário/operador) — o id real da
+  // empresa é preservado para que as abas carreguem os dados corretos; nome,
+  // logo e identidades de pessoas são trocados apenas no palco.
+  const demoCompany = company.currentCompany
+    ? { ...company.currentCompany, name: 'Fábrica Demo', logo_url: null }
+    : null;
+  const demoUser = auth.user
+    ? { ...auth.user, full_name: 'Usuário', email: 'usuario@cimentopro.app' }
+    : null;
+  const demoOperator = operator.activeOperator
+    ? { ...operator.activeOperator, name: 'Operador', email: '' }
+    : null;
+
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[50vh]">
@@ -244,9 +275,9 @@ export default function Marketing() {
       <CaptureStage
         tabKey={captureKey}
         providers={[
-          [AuthContext, auth],
-          [OperatorContext, operator],
-          [CompanyContext, company],
+          [AuthContext, { ...auth, user: demoUser }],
+          [OperatorContext, { ...operator, activeOperator: demoOperator }],
+          [CompanyContext, { ...company, currentCompany: demoCompany, currentUser: demoUser }],
           [SubscriptionContext, subscription],
           [PermissionsContext, permissions],
           [ConfigContext, config],
