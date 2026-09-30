@@ -1,9 +1,9 @@
 // Filtro de comparativo entre produtos — seleção múltipla sobre a tabela do Simulador de Preços.
 import { useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Filter, Check, X, ChevronDown } from 'lucide-react';
+import { Filter, Check, X, ChevronDown, ArrowLeftRight } from 'lucide-react';
 
-export default function ProductCompareFilter({ products, selected, onChange }) {
+export default function ProductCompareFilter({ products, selected, onChange, onCompare }) {
   const [open, setOpen] = useState(false);
 
   function toggle(id) {
@@ -36,6 +36,12 @@ export default function ProductCompareFilter({ products, selected, onChange }) {
           </div>
         </PopoverContent>
       </Popover>
+      {selected.length >= 2 && onCompare && (
+        <button onClick={onCompare}
+          className="text-xs px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-medium flex items-center gap-1.5 transition-colors">
+          <ArrowLeftRight className="w-3.5 h-3.5" /> Comparar
+        </button>
+      )}
       {selected.length > 0 && (
         <button onClick={() => onChange([])}
           className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">

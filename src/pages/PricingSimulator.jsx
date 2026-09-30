@@ -8,6 +8,7 @@ import { fmtBRL, fmtNum } from '@/lib/statsUtils';
 import { buildCostModel, calculateSellingCost, unitLabel, FINANCIAL_PERIODS, historyRangeLabel } from '@/lib/industrialCostEngine';
 import FinancialBaseSection from '@/components/pricing/FinancialBaseSection';
 import ProductCompareFilter from '@/components/pricing/ProductCompareFilter';
+import ProductCompareModal from '@/components/pricing/ProductCompareModal';
 import CostCompositionPanel from '@/components/pricing/CostCompositionPanel';
 import CostingV2Report from '@/components/reports/CostingV2Report';
 
@@ -59,6 +60,7 @@ export default function PricingSimulator() {
   const [showV2Report, setShowV2Report] = useState(false);
   const [compareIds, setCompareIds] = useState([]); // comparativo: produtos selecionados ([] = todos)
   const [composingId, setComposingId] = useState(null);
+  const [showCompare, setShowCompare] = useState(false);
   const { costs: insumoCosts } = useInsumoCosts();
   const { taxes, setTaxes, currentRate } = useCompanyTaxes();
 
@@ -361,7 +363,7 @@ export default function PricingSimulator() {
           </div>
 
           {/* Filtro de comparativo entre produtos */}
-          <ProductCompareFilter products={visibleProducts} selected={compareIds} onChange={setCompareIds} />
+          <ProductCompareFilter products={visibleProducts} selected={compareIds} onChange={setCompareIds} onCompare={() => setShowCompare(true)} />
 
       {loading ? (
         <div className="flex items-center justify-center py-16"><div className="w-8 h-8 border-4 border-slate-200 border-t-primary rounded-full animate-spin" /></div>
@@ -459,6 +461,15 @@ export default function PricingSimulator() {
           product={composing}
           row={rowFor(composingPt)}
           onClose={() => setComposingId(null)}
+        />
+      )}
+
+      {showCompare && (
+        <ProductCompareModal
+          items={shownProducts.map((pt) => ({ pt, product: modelByProduct[pt.id] })).filter((i) => i.product)}
+          rowFor={rowFor}
+          bestId={bestId}
+          onClose={() => setShowCompare(false)}
         />
       )}
 
