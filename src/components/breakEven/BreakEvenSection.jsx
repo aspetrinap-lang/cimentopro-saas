@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Scale, AlertTriangle, Table2, Target } from 'lucide-react';
 import { FINANCIAL_PERIODS } from '@/lib/industrialCostEngine';
+import { fmtBRL } from '@/lib/statsUtils';
 import { buildBreakEvenAnalysis } from '@/lib/breakEvenEngine';
 import { base44 } from '@/api/base44Client';
 import { scopedFilter, withCompany } from '@/lib/companyScope';
@@ -95,6 +96,11 @@ export default function BreakEvenSection({ dres, orders, productTypes, lines, ac
           Período considerado: <strong className="text-foreground">{analysis.period.label}</strong> — {analysis.period.dreCount} DRE(s)
           {analysis.period.months.length > 0 && analysis.period.months.length <= 6 ? ` (${analysis.period.months.join(' · ')})` : ''}
           <span className="ml-2">Consolidação por <strong className="text-foreground">soma</strong> dos meses — nunca média dos pontos de equilíbrio.</span>
+          {analysis.monthlyAverage && (
+            <span className="ml-2">
+              Referencial mensal (média das DREs): <strong className="text-foreground">{fmtBRL(analysis.monthlyAverage.pee ?? analysis.monthlyAverage.pec)}</strong> / mês — informacional
+            </span>
+          )}
         </span>
       </div>
 

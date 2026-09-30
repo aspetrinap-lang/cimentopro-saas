@@ -31,6 +31,10 @@ function BreakEvenCard({ title, description, value, units, rows }) {
 // e PEE (econômico, com lucro mínimo desejado).
 export default function BreakEvenCards({ analysis }) {
   const mc = fmtPct(analysis.contributionMargin.percent);
+  const avg = analysis.monthlyAverage;
+  const monthlyRow = (v) => (avg
+    ? [`Referencial mensal (÷ ${avg.months} meses)`, v != null ? `${fmtBRL(v)} / mês` : '—']
+    : null);
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
       <BreakEvenCard
@@ -41,7 +45,8 @@ export default function BreakEvenCards({ analysis }) {
         rows={[
           ['Gastos Fixos Operacionais', fmtBRL(analysis.fixedOperationalCosts)],
           ['Margem de contribuição', mc],
-        ]}
+          monthlyRow(avg && avg.pec),
+        ].filter(Boolean)}
       />
       <BreakEvenCard
         title="PEF — Ponto de Equilíbrio Financeiro"
@@ -52,7 +57,8 @@ export default function BreakEvenCards({ analysis }) {
           ['Gastos Fixos Operacionais', fmtBRL(analysis.fixedOperationalCosts)],
           ['Obrigações financeiras de caixa', fmtBRL(analysis.financialCashCosts)],
           ['Margem de contribuição', mc],
-        ]}
+          monthlyRow(avg && avg.pef),
+        ].filter(Boolean)}
       />
       <BreakEvenCard
         title="PEE — Ponto de Equilíbrio Econômico"
@@ -63,7 +69,8 @@ export default function BreakEvenCards({ analysis }) {
           ['Gastos Fixos Operacionais', fmtBRL(analysis.fixedOperationalCosts)],
           ['Lucro mínimo desejado', fmtBRL(analysis.pee.desiredProfit || 0)],
           ['Margem de contribuição', mc],
-        ]}
+          monthlyRow(avg && avg.pee),
+        ].filter(Boolean)}
       />
     </div>
   );

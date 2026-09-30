@@ -537,6 +537,20 @@ export function buildBreakEvenAnalysis({
 
   const monthlySeries = used.map((dre) => monthlyBreakEven(dre, lookup, profit));
 
+  // Referencial mensal (média das DREs: total do período ÷ nº de meses).
+  // Apenas informativo — os PEs oficiais do período continuam consolidados
+  // por SOMA e nenhum cálculo existente é alterado.
+  const monthCount = used.length;
+  const monthlyAverage = monthCount > 1
+    ? {
+        months: monthCount,
+        revenue: grossRevenue / monthCount,
+        pec: pecValue != null ? pecValue / monthCount : null,
+        pef: pefValue != null ? pefValue / monthCount : null,
+        pee: peeValue != null ? peeValue / monthCount : null,
+      }
+    : null;
+
   const calculationStatus = !used.length
     ? 'insufficient'
     : !(grossRevenue > 0)
@@ -590,6 +604,7 @@ export function buildBreakEvenAnalysis({
     },
     mix,
     monthlySeries,
+    monthlyAverage,
     composition,
     warnings,
     calculationStatus,
