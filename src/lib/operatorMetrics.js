@@ -61,9 +61,13 @@ export function buildOperatorPanelData({ machines, orders, downtimes, lines }, c
     const rangeOrders = unitOrders.filter((o) => inRange(o.production_date));
     const prevOrders = unitOrders.filter((o) => inPrev(o.production_date));
 
-    const period = dayAgg(rangeOrders);
+    // Indicadores usam SOMENTE ordens concluídas: uma ordem "Em Andamento"
+    // pode ter minutos parciais sem quantidade lançada, o que distorceria
+    // peças/hora e horas produtivas (taxa falsamente baixa ou 0).
+    const metricOrders = rangeOrders.filter((o) => o.status === 'Concluída');
+    const period = dayAgg(metricOrders);
     period.ordersCount = rangeOrders.length;
-    const prev = dayAgg(prevOrders);
+    const prev = dayAgg(prevOrders.filter((o) => o.status === 'Concluída'));
 
     // Série para o gráfico: barras diárias (ou semanais em períodos longos)
     let series;
@@ -77,7 +81,7 @@ export function buildOperatorPanelData({ machines, orders, downtimes, lines }, c
           byWeek[wk] = { date: wk, label: format(new Date(wk + 'T00:00:00'), 'dd/MM'), pieces: 0, minutes: 0 };
           buckets.push(byWeek[wk]);
         }
-        const agg = dayAgg(unitOrders.filter((o) => o.production_date === ds));
+        const agg = dayAgg(metricOrders.filter((o) => o.production_date === ds));
         byWeek[wk].pieces += agg.pieces;
         byWeek[wk].minutes += agg.minutes;
       });
@@ -90,7 +94,7 @@ export function buildOperatorPanelData({ machines, orders, downtimes, lines }, c
     } else {
       series = dayList.map((d) => {
         const ds = format(d, 'yyyy-MM-dd');
-        const agg = dayAgg(unitOrders.filter((o) => o.production_date === ds));
+        const agg = dayAgg(metricOrders.filter((o) => o.production_date === ds));
         return { date: ds, label: format(d, 'dd/MM'), pieces: agg.pieces, piecesPerHour: agg.piecesPerHour };
       });
     }

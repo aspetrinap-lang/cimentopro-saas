@@ -179,7 +179,7 @@ export default function MachineCard({ card }) {
                           <td className="py-1.5 text-right">{fmt0(o.production_minutes)}</td>
                           <td className="py-1.5 text-center">
                             <span className={`px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[o.status] || 'bg-muted text-muted-foreground'}`}>
-                              {o.status}
+                              {o.status === 'Em Andamento' ? 'Em andamento (não contabilizada)' : o.status}
                             </span>
                           </td>
                         </tr>
