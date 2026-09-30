@@ -185,24 +185,38 @@ export default function QualityAnalysis({ orders }) {
   }, []);
 
   // Abertura da tela: exibe a análise armazenada mais recente (nunca executa IA).
+  // Carrega imediatamente ao abrir, independente do estado dos dados.
   useEffect(() => {
-    if (!reports) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const { analysis, fresh } = await getCachedAnalysis('quality_analysis', fingerprintInputs);
-        if (cancelled) return;
-        if (analysis) {
-          setFindings(analysis.result?.findings || []);
-          setCachedMeta({ created_date: analysis.created_date, cached: true });
-          setStaleData(!fresh);
-        }
+        const { analysis } = await getCachedAnalysis('quality_analysis');
+        if (cancelled || !analysis) return;
+        setFindings(analysis.result?.findings || []);
+        setCachedMeta({ created_date: analysis.created_date, fingerprint: analysis.data_fingerprint });
+        setStaleData(false);
       } catch (e) {
         // Sem análise armazenada — o botão inicia a primeira análise.
       }
     })();
     return () => { cancelled = true; };
-  }, [reports, orders, downtimes, maintenances, productTypes, traces]);
+  }, []);
+
+  // Aviso "Dados atualizados desde a análise": refaz a checagem de fingerprint
+  // quando os inputs terminam de carregar ou mudam.
+  useEffect(() => {
+    if (!cachedMeta?.fingerprint || !reports) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const fingerprint = await computeFingerprint('quality_analysis', fingerprintInputs());
+        if (!cancelled) setStaleData(cachedMeta.fingerprint !== fingerprint);
+      } catch (e) {
+        if (!cancelled) setStaleData(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [reports, orders, downtimes, maintenances, productTypes, traces, cachedMeta]);
 
   // Executa a análise somente por ação EXPLÍCITA (fluxo central aiService).
   async function analyze() {
@@ -273,7 +287,7 @@ ${summary}`;
         setError(res.error || 'Não foi possível gerar a análise de qualidade agora. Tente novamente.');
       } else {
         setFindings(res.analysis.result?.findings || []);
-        setCachedMeta({ created_date: res.analysis.created_date, cached: res.source === 'cache' });
+        setCachedMeta({ created_date: res.analysis.created_date, fingerprint: res.analysis.data_fingerprint, cached: res.source === 'cache' });
         setStaleData(false);
       }
     } catch (e) {

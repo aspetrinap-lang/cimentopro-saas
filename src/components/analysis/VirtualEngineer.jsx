@@ -243,24 +243,38 @@ export default function VirtualEngineer({ orders, costs, names, productTypesById
   });
 
   // Abertura da tela: exibe a análise armazenada mais recente (nunca executa IA).
+  // Carrega imediatamente ao abrir, independente do estado dos dados.
   useEffect(() => {
-    if (orders.length === 0 || machines.length === 0) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const { analysis, fresh } = await getCachedAnalysis('virtual_engineer', fingerprintInputs);
-        if (cancelled) return;
-        if (analysis) {
-          setRecommendations(analysis.result?.recommendations || []);
-          setCachedMeta({ created_date: analysis.created_date, cached: true });
-          setStaleData(!fresh);
-        }
+        const { analysis } = await getCachedAnalysis('virtual_engineer');
+        if (cancelled || !analysis) return;
+        setRecommendations(analysis.result?.recommendations || []);
+        setCachedMeta({ created_date: analysis.created_date, fingerprint: analysis.data_fingerprint });
+        setStaleData(false);
       } catch (e) {
         // Sem análise armazenada — o botão inicia a primeira análise.
       }
     })();
     return () => { cancelled = true; };
-  }, [orders, machines]);
+  }, []);
+
+  // Aviso "Dados atualizados desde a análise": refaz a checagem de fingerprint
+  // quando os inputs terminam de carregar ou mudam.
+  useEffect(() => {
+    if (!cachedMeta?.fingerprint || (orders.length === 0 && machines.length === 0)) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const fingerprint = await computeFingerprint('virtual_engineer', fingerprintInputs());
+        if (!cancelled) setStaleData(cachedMeta.fingerprint !== fingerprint);
+      } catch (e) {
+        if (!cancelled) setStaleData(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [orders, downtimes, machines, costs, names, resistanceCurves, cachedMeta]);
 
   // Executa a análise somente por ação EXPLÍCITA (fluxo central aiService).
   async function analyze() {
@@ -338,7 +352,7 @@ ${summary}`;
         setError(res.error || 'Não foi possível gerar recomendações agora. Tente novamente.');
       } else {
         setRecommendations(res.analysis.result?.recommendations || []);
-        setCachedMeta({ created_date: res.analysis.created_date, cached: res.source === 'cache' });
+        setCachedMeta({ created_date: res.analysis.created_date, fingerprint: res.analysis.data_fingerprint, cached: res.source === 'cache' });
         setStaleData(false);
       }
     } catch (e) {
