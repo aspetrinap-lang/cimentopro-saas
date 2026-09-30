@@ -18,6 +18,10 @@ const TABS = [
   { key: 'insumos', label: 'Insumos e Custos' },
 ];
 
+function fmtKg(v) {
+  return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export default function ProductionSettings({ canEditCost }) {
   const { refreshConfigs, rawMaterials } = useConfig();
   const [types, setTypes] = useState([]);
@@ -145,8 +149,8 @@ export default function ProductionSettings({ canEditCost }) {
                         ? rawMaterials.map(m => Math.round(t.materials_parts[m.key] ?? 0)).join(':')
                         : `${Math.round(t.cement_parts)}:${Math.round(t.sand_artificial_parts || 0)}:${Math.round(t.sand_medium_parts || 0)}:${Math.round(t.sand_fine_parts || 0)}:${Math.round(t.gravel_parts || 0)}`)}
                     </td>
-                    <td className="px-5 py-3 text-right">{t.total_weight_kg ? `${t.total_weight_kg}` : '—'}</td>
-                    <td className="px-5 py-3 text-right">{t.cement_kg_per_m3 ? `${t.cement_kg_per_m3}` : '—'}</td>
+                    <td className="px-5 py-3 text-right">{t.total_weight_kg ? fmtKg(t.total_weight_kg) : '—'}</td>
+                    <td className="px-5 py-3 text-right">{t.cement_kg_per_m3 ? fmtKg(t.cement_kg_per_m3) : '—'}</td>
                     <td className="px-5 py-3 text-center">
                       {t.active !== false ? <CheckCircle2 className="w-4 h-4 text-green-600 inline" /> : <XCircle className="w-4 h-4 text-muted-foreground inline" />}
                     </td>
