@@ -586,7 +586,7 @@ export default async function(req) {
               if (!it || !it.account_name) continue;
               const n = normalizeAccountName(it.account_name);
               if (SUBTOTAL_ACCOUNTS.includes(n)) continue;
-              const acc = (it.account_id && byId.get(it.account_id)) || byName.get(n) || null;
+              const acc = (it.account_id && mapById.get(it.account_id)) || mapByName.get(n) || null;
               const official = acc ? getOfficialClassification(acc) : null;
               const raw = official ? official.classification : (acc?.break_even_classification || 'excluded');
               if (effOf(raw) === 'variable') {

@@ -63,7 +63,7 @@ export const OFFICIAL_CLASSIFICATION: Record<string, OfficialClassification> = {
   // ── 1. Faturamento Bruto (revenue) ──
   'receita de venda produtos': REV,
   'outras receitas - operacoes com cartoes': REV,
-  '( + ) receitas operacionais': REV,
+  'receitas operacionais': REV,
 
   // ── 2. Deduções da Receita (variable / revenue_deduction) ──
   'devolucoes de vendas': DED,
@@ -137,6 +137,7 @@ export const OFFICIAL_CLASSIFICATION: Record<string, OfficialClassification> = {
   // ── 5. Obrigações Não Operacionais de Caixa (financial_cash → PEF) ──
   'juros sobre emprestimos': FIN('interest'),
   'juros emprestimos': FIN('interest'),
+  'juros empretimos': FIN('interest'),
   'iof': FIN('iof'),
   'emprestimos e financiamentos - amortizacoes': FIN('amortization'),
 

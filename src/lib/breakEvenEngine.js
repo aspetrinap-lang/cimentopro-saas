@@ -48,6 +48,16 @@ const num = (v) => {
 const normName = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
 const PERIOD_MONTHS = { last_3: 3, last_6: 6, last_12: 12 };
 
+// ── 11. Subtotais da DRE — resultados calculados, NUNCA contas individuais ───
+// (anti-dupla-contagem: analíticas + subtotal jamais somadas juntas)
+const SUBTOTAL_ACCOUNTS = new Set([
+  'receita operacional bruta', 'receita operacional liquida', 'custo de producao',
+  'lucro bruto', 'margem de contribuicao', 'ebitda', 'resultado financeiro',
+  'lucro/prejuizo', 'lucro ou prejuizo', 'investimentos',
+  'resultado financeiro apos investimentos', 'resultado financeiro apos participacoes',
+]);
+const isSubtotal = (name) => SUBTOTAL_ACCOUNTS.has(normName(name).replace(/^[=\-—\s()+.]+/, ''));
+
 // ── Classificações do Ponto de Equilíbrio (Estrutura da DRE) ────────────────
 // fixed_operational é a classificação oficial v1.1; os valores legados
 // (fixed_industrial/fixed_cash) continuam válidos e são mapeados pelo motor.
