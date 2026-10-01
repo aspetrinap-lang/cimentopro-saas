@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { X, AlertTriangle } from 'lucide-react';
 import { scopedFilter, withCompany } from '@/lib/companyScope';
-import { useOperator } from '@/lib/OperatorContext';
 
 const CATEGORIES = ['Elétrico', 'Mecânico', 'Pneumático', 'Hidráulico', 'Operacional', 'Manutenção Preventiva', 'Falta de Material', 'Outros'];
 
@@ -31,7 +30,6 @@ export default function MachineDowntimeForm({ item, prefillMachineId, prefillMac
   const [machines, setMachines] = useState([]);
   const [patterns, setPatterns] = useState([]);
   const [saving, setSaving] = useState(false);
-  const { activeOperator } = useOperator();
 
   useEffect(() => {
     Promise.all([
@@ -80,15 +78,7 @@ export default function MachineDowntimeForm({ item, prefillMachineId, prefillMac
     e.preventDefault();
     setSaving(true);
     const payload = { ...form, duration_minutes: parseFloat(form.duration_minutes) || 0 };
-    // Operador ativo: mutação roteada pelo backend, que valida as permissões
-    // do perfil server-side antes de executar (não confia no cliente).
-    if (activeOperator) {
-      if (item?.id) {
-        await base44.functions.invoke('operatorAction', { entity: 'MachineDowntime', operation: 'update', operator_id: activeOperator.id, entity_id: item.id, payload });
-      } else {
-        await base44.functions.invoke('operatorAction', { entity: 'MachineDowntime', operation: 'create', operator_id: activeOperator.id, payload });
-      }
-    } else if (item?.id) {
+    if (item?.id) {
       await base44.entities.MachineDowntime.update(item.id, payload);
     } else {
       await base44.entities.MachineDowntime.create(withCompany(payload));
