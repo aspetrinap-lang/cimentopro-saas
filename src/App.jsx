@@ -35,6 +35,8 @@ import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import PinLogin from '@/pages/PinLogin';
+import Privacy from '@/pages/Privacy';
+import Lgpd from '@/pages/Lgpd';
 import AdminGuard from '@/components/admin/AdminGuard';
 import AdminHome from '@/pages/admin/AdminHome';
 import AdminCompanies from '@/pages/admin/AdminCompanies';
@@ -72,6 +74,7 @@ const AuthenticatedApp = () => {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/privacidade" element={<Privacy />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       );
@@ -103,6 +106,8 @@ const AuthenticatedApp = () => {
         <Route path="/suporte" element={<MyTickets />} />
         <Route path="/suporte/novo" element={<NewTicket />} />
         <Route path="/suporte/chamado/:id" element={<TicketDetail />} />
+        <Route path="/lgpd" element={<Lgpd />} />
+        <Route path="/privacidade" element={<Privacy />} />
       </Route>
       <Route path="/admin" element={<AdminGuard />}>
         <Route index element={<AdminHome />} />
