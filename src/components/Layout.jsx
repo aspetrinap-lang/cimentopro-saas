@@ -3,8 +3,8 @@ import { LayoutDashboard, ClipboardList, History, Settings, Factory, Menu, X, Ba
 import SupportBell from '@/components/support/SupportBell';
 import { useState } from 'react';
 import BottomTabs from '@/components/layout/BottomTabs';
-import { useDailyBackup } from '@/hooks/useDailyBackup';
 import { useEnterToTab } from '@/hooks/useEnterToTab';
+import { clearLocalBackup } from '@/lib/backupUtils';
 import { useAuth } from '@/lib/AuthContext';
 import { useOperator } from '@/lib/OperatorContext';
 import { ROLE_LABELS } from '@/lib/permissions';
@@ -47,7 +47,6 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const { activeOperator, clearOperator } = useOperator();
   const navigate = useNavigate();
-  useDailyBackup();
   useEnterToTab();
 
   const { allowedPaths, can } = usePermissions();
@@ -125,6 +124,8 @@ export default function Layout() {
     await logAudit({ action: 'LOGOUT', entity_name: 'User' });
     // Limpa a empresa ativa e a chave persistida por usuário no navegador
     clearCompany();
+    // Limpa backup local automático (dados sensíveis não persistem após logout)
+    clearLocalBackup();
     logout(true);
   }
 
