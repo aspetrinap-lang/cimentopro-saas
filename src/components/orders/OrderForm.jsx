@@ -7,6 +7,7 @@ import { INSUMO_KEYS, INSUMO_FIELDS, INSUMO_TRACE_PARTS, traceInsumoKeys } from 
 import MachineDowntimeForm from './MachineDowntimeForm';
 import { useBackButtonClose } from '@/hooks/useBackButtonClose';
 import { scopedFilter, withCompany, assertSameCompany, activeCompanyId } from '@/lib/companyScope';
+import { useOperator } from '@/lib/OperatorContext';
 
 const LOSS_FIELDS = [
   { key: 'loss_second_line', label: '2ª Linha' },
@@ -42,6 +43,7 @@ export default function OrderForm({ order, productTypes, onClose, onSaved }) {
   const [form, setForm] = useState(order ? { ...order } : { ...emptyForm });
   const [saving, setSaving] = useState(false);
   const [machines, setMachines] = useState([]);
+  const { activeOperator } = useOperator();
   const [molds, setMolds] = useState([]);
   const [concreteTraces, setConcreteTraces] = useState([]);
   const [operators, setOperators] = useState([]);
@@ -217,8 +219,14 @@ export default function OrderForm({ order, productTypes, onClose, onSaved }) {
     }
 
     if (order?.id) {
-      await base44.entities.ProductionOrder.update(order.id, payload);
-      await logAudit({ action: 'UPDATE', entity_name: 'ProductionOrder', entity_id: order.id, old_value: order, new_value: payload });
+      // Operador ativo: mutação roteada pelo backend, que valida as permissões
+      // do perfil server-side antes de executar (não confia no cliente).
+      if (activeOperator) {
+        await base44.functions.invoke('operatorAction', { entity: 'ProductionOrder', operation: 'update', operator_id: activeOperator.id, entity_id: order.id, payload });
+      } else {
+        await base44.entities.ProductionOrder.update(order.id, payload);
+        await logAudit({ action: 'UPDATE', entity_name: 'ProductionOrder', entity_id: order.id, old_value: order, new_value: payload });
+      }
       // Atualiza ciclos do molde ao CONCLUIR (transição para Concluída)
       const wasConcluded = order.status === 'Concluída';
       const isNowConcluded = payload.status === 'Concluída';
@@ -226,8 +234,14 @@ export default function OrderForm({ order, productTypes, onClose, onSaved }) {
         await updateMoldCycles(payload.machine_cycles_actual);
       }
     } else {
-      const created = await base44.entities.ProductionOrder.create(withCompany(payload));
-      await logAudit({ action: 'CREATE', entity_name: 'ProductionOrder', entity_id: created.id, new_value: payload });
+      let created;
+      if (activeOperator) {
+        const res = await base44.functions.invoke('operatorAction', { entity: 'ProductionOrder', operation: 'create', operator_id: activeOperator.id, payload });
+        created = res.data.result;
+      } else {
+        created = await base44.entities.ProductionOrder.create(withCompany(payload));
+        await logAudit({ action: 'CREATE', entity_name: 'ProductionOrder', entity_id: created.id, new_value: payload });
+      }
       // Se criada já como Concluída, conta ciclos
       if (payload.status === 'Concluída') {
         await updateMoldCycles(payload.machine_cycles_actual);

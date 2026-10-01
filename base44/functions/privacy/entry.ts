@@ -147,7 +147,10 @@ export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
     const svc = base44.asServiceRole;
-    const ip = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || null;
+    // IP real da conexão: cf-connecting-ip é definido na borda (Cloudflare) e
+    // não pode ser forjado pelo chamador. x-forwarded-for é fallback e pode ser
+    // manipulado; nunca confiar nele isoladamente para rate limit.
+    const ip = req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for') || null;
 
     let body = {};
     try { body = await req.json(); } catch (error) { body = {}; }
@@ -166,21 +169,22 @@ export default async function(req) {
       // Verificação de identidade proporcional: e-mail sintático + confirmação
       // posterior; nunca exige nem armazena documentos por padrão. A consulta
       // NUNCA ocorre apenas por conhecimento de e-mail ou protocolo.
-      // Rate limiting por IP: evita spam/poluição da fila LGPD por chamadas
-      // anônimas em massa. Limite: 5 pedidos por IP em 1 hora.
-      if (ip) {
-        const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-        const recent = await svc.entities.AuditLog.filter(
-          { entity_name: 'PrivacyRequest', action: 'CREATE', ip },
-          '-created_date', 50
-        ).catch(() => []);
-        const recentCount = recent.filter((l) => String(l.created_date || '') >= since).length;
-        if (recentCount >= 5) {
-          return Response.json({ error: 'Muitas solicitações. Tente novamente mais tarde.' }, { status: 429 });
-        }
+      // Rate limiting anti-abuso: limite de 5 pedidos por IP em 1 hora. Quando
+      // o IP não está disponível (sem cabeçalho de borda), usa bucket conservador
+      // 'unknown' para não deixar o canal sem limite.
+      const rateBucket = ip || 'unknown';
+      const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const recent = await svc.entities.AuditLog.filter(
+        { entity_name: 'PrivacyRequest', action: 'CREATE', ip: rateBucket === 'unknown' ? null : rateBucket },
+        '-created_date', 50
+      ).catch(() => []);
+      const recentCount = recent.filter((l) => String(l.created_date || '') >= since).length;
+      const limit = rateBucket === 'unknown' ? 3 : 5;
+      if (recentCount >= limit) {
+        return Response.json({ error: 'Muitas solicitações. Tente novamente mais tarde.' }, { status: 429 });
       }
       const requestType = body.request_type;
-      const description = String(body.description || '').trim();
+      const description = String(body.description || '').trim().slice(0, 4000);
       const contactEmail = String(body.contact_email || '').trim().toLowerCase();
       if (!REQUEST_TYPES.includes(requestType)) {
         return Response.json({ error: 'Tipo de pedido inválido' }, { status: 400 });
