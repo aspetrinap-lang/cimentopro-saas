@@ -1,7 +1,7 @@
 import { Outlet, NavLink, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { LayoutDashboard, ClipboardList, History, Settings, Factory, Menu, X, BarChart2, Gauge, SquareStack, Wrench, Database, FileText, Bot, Package, LogOut, UserCircle, KeyRound, ShieldCheck, Activity, Layers, Calculator, Tags, Timer, LifeBuoy, Store } from 'lucide-react';
 import SupportBell from '@/components/support/SupportBell';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import BottomTabs from '@/components/layout/BottomTabs';
 import { useDailyBackup } from '@/hooks/useDailyBackup';
 import { useEnterToTab } from '@/hooks/useEnterToTab';
@@ -18,6 +18,16 @@ import { useSubscription } from '@/lib/SubscriptionContext';
 import CompanySelectionScreen from '@/components/CompanySelectionScreen';
 import { useCompany } from '@/lib/CompanyContext';
 import { logAudit } from '@/lib/audit';
+
+// Redireciona e exibe o toast de acesso restrito em useEffect — nunca
+// durante o render, para não causar re-renderização em loop.
+function AccessRestrictedRedirect({ to }) {
+  const { toast } = useToast();
+  useEffect(() => {
+    toast({ title: 'Acesso restrito', description: 'Você não tem permissão para acessar este módulo.' });
+  }, [toast]);
+  return <Navigate to={to} replace />;
+}
 
 const navItems = [
   { to: '/', label: 'Controle de Fábrica', icon: LayoutDashboard },
@@ -106,8 +116,7 @@ export default function Layout() {
   // Subrotas (ex.: /suporte/novo, /suporte/chamado/:id) herdam o acesso do
   // módulo pai quando presente na lista permitida.
   if (!allowed.includes(location.pathname) && !allowed.some((p) => location.pathname.startsWith(`${p}/`))) {
-    toast({ title: 'Acesso restrito', description: 'Você não tem permissão para acessar este módulo.' });
-    return <Navigate to={fallbackPath || '/pin-login'} replace />;
+    return <AccessRestrictedRedirect to={fallbackPath || '/pin-login'} />;
   }
 
   // Módulo fora do plano vigente: bloqueado com mensagem clara — o menu já o
