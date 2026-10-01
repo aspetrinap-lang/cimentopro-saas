@@ -156,14 +156,6 @@ export default function Layout() {
             className="w-full flex items-center gap-2 px-3 py-3 rounded-lg text-sm font-semibold text-white hover:bg-white/8 transition-colors">
             <Store className="w-4 h-4" /> Marketplace
           </Link>
-          <Link to="/lgpd" onClick={() => setMobileOpen(false)}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white/70 hover:text-white hover:bg-white/8 transition-colors">
-            <ShieldCheck className="w-3.5 h-3.5" /> Privacidade (LGPD)
-          </Link>
-          <Link to="/privacidade" onClick={() => setMobileOpen(false)}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white/50 hover:text-white/80 hover:bg-white/8 transition-colors">
-            <FileText className="w-3.5 h-3.5" /> Aviso de Privacidade
-          </Link>
           <SupportBell mode="customer" />
           {canManageOperators && (
             <Link to="/pin-login" onClick={() => setMobileOpen(false)} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white/70 hover:text-white hover:bg-white/8 transition-colors">

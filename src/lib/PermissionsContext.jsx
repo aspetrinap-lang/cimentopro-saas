@@ -62,7 +62,7 @@ export const PermissionsProvider = ({ children }) => {
   // Suporte é acessível a todo usuário logado (não é módulo do plano nem do
   // catálogo granular); operador PIN (sessão compartilhada) não acessa.
   const allowedPaths = useMemo(
-    () => (activeOperator ? [...permissionsToPaths(permissions), '/marketplace'] : [...permissionsToPaths(permissions), '/suporte', '/marketplace']),
+    () => (activeOperator ? [...permissionsToPaths(permissions), '/marketplace'] : [...permissionsToPaths(permissions), '/suporte', '/lgpd', '/privacidade', '/marketplace']),
     [permissions, activeOperator]
   );
   const can = useCallback((perm) => permissions.has(perm), [permissions]);

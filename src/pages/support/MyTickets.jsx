@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, LifeBuoy, Loader2, Bug } from 'lucide-react';
+import { Plus, Search, LifeBuoy, Loader2, Bug, ShieldCheck, FileText } from 'lucide-react';
 import { supportDesk } from '@/lib/supportClient';
 import { activeCompanyId } from '@/lib/companyScope';
 import {
@@ -121,6 +121,27 @@ export default function MyTickets() {
           ))}
         </div>
       )}
-    </div>
-  );
-}
+
+      <div className="mt-8 grid sm:grid-cols-2 gap-3">
+      <Link to="/lgpd" className="flex items-center gap-3 bg-card border border-border rounded-xl p-4 hover:border-primary/40 transition-colors">
+      <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+        <ShieldCheck className="w-4 h-4 text-primary" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-foreground">Privacidade (LGPD)</p>
+        <p className="text-xs text-muted-foreground">Acesse, corrija, exporte ou solicite a exclusão dos seus dados.</p>
+      </div>
+      </Link>
+      <Link to="/privacidade" className="flex items-center gap-3 bg-card border border-border rounded-xl p-4 hover:border-primary/40 transition-colors">
+      <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+        <FileText className="w-4 h-4 text-primary" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-foreground">Aviso de Privacidade</p>
+        <p className="text-xs text-muted-foreground">Como tratamos seus dados pessoais e seus direitos como titular.</p>
+      </div>
+      </Link>
+      </div>
+      </div>
+      );
+      }
