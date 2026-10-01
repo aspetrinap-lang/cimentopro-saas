@@ -7,27 +7,32 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const ROLE_OPTIONS = [
-  { value: 'owner', label: 'Dono' },
-  { value: 'admin', label: 'Administrador' },
-  { value: 'supervisor', label: 'Supervisor' },
-];
-const ROLE_LABELS = { owner: 'Dono', admin: 'Administrador', supervisor: 'Supervisor' };
+// Selos dos papéis internos — exibidos para vínculos legados/owner/admin já
+// existentes. Novos vínculos pelo Super Admin usam Perfil de Acesso.
+const ROLE_LABELS = { owner: 'Dono', admin: 'Administrador', supervisor: 'Supervisor', member: 'Membro' };
 
 export default function CompanyMembersDialog({ open, company, onClose, onChanged }) {
   const { toast } = useToast();
   const [members, setMembers] = useState([]);
+  const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('supervisor');
+  const [profileId, setProfileId] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     if (!open || !company?.id) return;
     setLoading(true);
     try {
-      const res = await base44.functions.invoke('companyMembers', { action: 'list', company_id: company.id });
-      setMembers(res.data.members || []);
+      const [membersRes, profileList] = await Promise.all([
+        base44.functions.invoke('companyMembers', { action: 'list', company_id: company.id }),
+        base44.entities.UserRoleProfile.filter({ active: true }, 'name', 500),
+      ]);
+      setMembers(membersRes.data?.members || []);
+      const activeProfiles = (profileList || []).filter((p) => p.active !== false);
+      setProfiles(activeProfiles);
+      // Pré-seleciona o primeiro perfil ativo quando nenhum está escolhido.
+      setProfileId((prev) => prev || (activeProfiles[0]?.id || ''));
     } catch (e) {
       toast({ title: 'Erro ao carregar usuários', description: e.response?.data?.error || e.message, variant: 'destructive' });
     } finally {
@@ -41,10 +46,14 @@ export default function CompanyMembersDialog({ open, company, onClose, onChanged
   async function handleLink(e) {
     e.preventDefault();
     if (!email.trim()) return;
+    if (!profileId) {
+      toast({ title: 'Selecione um Perfil de Acesso', description: 'Cadastre perfis em Configurações → Perfis de Acesso antes de vincular usuários.', variant: 'destructive' });
+      return;
+    }
     setSaving(true);
     try {
       const res = await base44.functions.invoke('companyMembers', {
-        action: 'link', company_id: company.id, email: email.trim(), role,
+        action: 'link', company_id: company.id, email: email.trim(), profile_id: profileId,
       });
       toast({
         title: res.data?.invited ? 'Convite enviado e usuário vinculado' : 'Usuário vinculado',
@@ -96,21 +105,25 @@ export default function CompanyMembersDialog({ open, company, onClose, onChanged
             />
           </div>
           <div>
-            <Label className="text-xs text-slate-500">Papel</Label>
-            <select value={role} onChange={(e) => setRole(e.target.value)} className={`${inputCls} mt-1 sm:w-36`}>
-              {ROLE_OPTIONS.map((r) => (
-                <option key={r.value} value={r.value}>{r.label}</option>
-              ))}
+            <Label className="text-xs text-slate-500">Perfil de Acesso</Label>
+            <select value={profileId} onChange={(e) => setProfileId(e.target.value)} className={`${inputCls} mt-1 sm:w-44`} required>
+              {profiles.length === 0 ? (
+                <option value="">Nenhum perfil cadastrado</option>
+              ) : (
+                profiles.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))
+              )}
             </select>
           </div>
-          <Button type="submit" disabled={saving} className="gap-2">
+          <Button type="submit" disabled={saving || !profileId} className="gap-2">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
             Vincular
           </Button>
         </form>
 
         <p className="text-xs text-muted-foreground -mt-1">
-          E-mails sem conta no CimentoPro recebem o convite da plataforma e o vínculo é criado na mesma hora — o primeiro acesso já entra nesta empresa.
+          E-mails sem conta no CimentoPro recebem o convite da plataforma e o vínculo é criado na mesma hora — o primeiro acesso já entra nesta empresa com o Perfil de Acesso escolhido.
         </p>
 
         {loading ? (
@@ -125,7 +138,7 @@ export default function CompanyMembersDialog({ open, company, onClose, onChanged
               <thead className="bg-muted/60 text-muted-foreground text-xs">
                 <tr>
                   <th className="text-left px-3 py-2 font-medium">Usuário</th>
-                  <th className="text-left px-3 py-2 font-medium">Papel</th>
+                  <th className="text-left px-3 py-2 font-medium">Perfil de Acesso</th>
                   <th className="px-3 py-2"></th>
                 </tr>
               </thead>
@@ -143,7 +156,7 @@ export default function CompanyMembersDialog({ open, company, onClose, onChanged
                     </td>
                     <td className="px-3 py-2">
                       <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
-                        {ROLE_LABELS[m.role] || m.role}
+                        {m.profile_name || ROLE_LABELS[m.role] || m.role || '—'}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-right">
