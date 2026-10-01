@@ -65,10 +65,10 @@ export const NBR_9781_2013_COMPRESSION = {
   engine_version: '1.0.0',
   parameter_version: 'NBR9781-COMPRESSION-2013',
 
-  // 2013: fck,est = fmédia − 1,65 × s (mínimo 3 CPs válidos)
+  // 2013: fpk,est = fmédia − 1,65 × s (mínimo 3 CPs válidos)
   min_specimens: 3,
   k_factor: 1.65,
-  // Conformidade: média ≥ fck E mínima ≥ 0,8 × fck
+  // Conformidade: média ≥ fpk E mínima ≥ 0,8 × fpk
   min_individual_ratio: 0.80,
 };
 

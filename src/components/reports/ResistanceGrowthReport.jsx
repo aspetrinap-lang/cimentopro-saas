@@ -70,15 +70,15 @@ export default function ResistanceGrowthReport({ rows, target, reading, traceNam
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   {target > 0 && (
                     <ReferenceLine y={target} stroke="#ef4444" strokeDasharray="6 4"
-                      label={{ value: `fck alvo ${target} MPa`, fontSize: 10, position: 'insideTopRight', fill: '#ef4444' }} />
+                      label={{ value: `alvo ${target} MPa`, fontSize: 10, position: 'insideTopRight', fill: '#ef4444' }} />
                   )}
                   <Line type="monotone" dataKey="average" name="Resistência média" stroke="#4f46e5" strokeWidth={2} dot={{ r: 4 }} />
-                  <Line type="monotone" dataKey="fck_est" name="fck estimado" stroke="#059669" strokeWidth={2} strokeDasharray="5 3" dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="fck_est" name="Resist. estimada" stroke="#059669" strokeWidth={2} strokeDasharray="5 3" dot={{ r: 4 }} />
                 </LineChart>
               </div>
               {target > 0 && (
                 <p className="text-[11px] text-slate-500 mt-1.5">
-                  Linha tracejada vermelha: fck alvo de referência ({target} MPa). Base: {reportCount || 0} laudo(s).
+                  Linha tracejada vermelha: resistência alvo de referência ({target} MPa). Base: {reportCount || 0} laudo(s).
                 </p>
               )}
             </Section>
@@ -89,7 +89,7 @@ export default function ResistanceGrowthReport({ rows, target, reading, traceNam
                   <tr className="text-left text-slate-500 border-b border-slate-300">
                     <th className="py-1.5 font-semibold">Idade (dias)</th>
                     <th className="py-1.5 font-semibold text-right">Resistência média (MPa)</th>
-                    <th className="py-1.5 font-semibold text-right">fck estimado (MPa)</th>
+                    <th className="py-1.5 font-semibold text-right">Resist. estimada (MPa)</th>
                     <th className="py-1.5 font-semibold text-right">Nº de corpos de prova</th>
                   </tr>
                 </thead>
@@ -105,7 +105,7 @@ export default function ResistanceGrowthReport({ rows, target, reading, traceNam
                 </tbody>
               </table>
               <p className="text-[10px] text-slate-500 mt-1.5">
-                fck estimado = média − 1,65 × desvio-padrão da amostra (mínimo de 3 corpos de prova válidos por idade).
+                Resistência estimada = média − 1,65 × desvio-padrão da amostra (mínimo de 3 corpos de prova válidos por idade).
               </p>
             </Section>
 

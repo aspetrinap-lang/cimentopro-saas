@@ -25,6 +25,17 @@ export {
   buildAlerts2026,
 } from './quality/compressionEngine';
 
+export {
+  getResistanceMetric,
+  resolveFamily,
+  resistanceSymbol,
+  resistanceLabelWithSymbol,
+  resistanceEstimatedLabelWithSymbol,
+  RESISTANCE_FAMILIES,
+} from './quality/resistanceMetric';
+
+import { getResistanceMetric } from './quality/resistanceMetric';
+
 export const NORM_OPTIONS = ['NBR 6136', 'NBR 9781'];
 
 export const AGE_PRESETS = [7, 14, 21, 28];
@@ -41,8 +52,8 @@ export const NORM_CLASSES = {
     { value: 'C', label: 'C (fbk ≥ 3,0 MPa) — Estrutural/não estrutural', fbk: 3 },
   ],
   'NBR 9781': [
-    { value: '35', label: '35 MPa — Pedestres/veículos leves', fbk: 35 },
-    { value: '50', label: '50 MPa — Veículos especiais/abrasão', fbk: 50 },
+    { value: '35', label: '35 (fpk ≥ 35 MPa) — Pedestres/veículos leves', fbk: 35 },
+    { value: '50', label: '50 (fpk ≥ 50 MPa) — Veículos especiais/abrasão', fbk: 50 },
   ],
 };
 
@@ -140,12 +151,14 @@ export function checkThickness(nominal, measured) {
 // Gera alertas informativos (não bloqueantes)
 export function buildAlerts({ norm_reference, average, min, target, traffic_type, thickness_ok, hasFinalAge }) {
   const alerts = [];
+  const metric = getResistanceMetric({ normReference: norm_reference });
+  const sym = metric.symbol || 'fck';
   if (target > 0) {
     if (average < target) {
-      alerts.push(`Resistência média (${average.toFixed(2)} MPa) abaixo do fck de projeto (${target} MPa).`);
+      alerts.push(`Resistência média (${average.toFixed(2)} MPa) abaixo do ${sym} de projeto (${target} MPa).`);
     }
     if (min < 0.8 * target) {
-      alerts.push(`Menor resistência individual (${min.toFixed(2)} MPa) inferior a 80% do fck (0,8 × ${target} = ${(0.8 * target).toFixed(2)} MPa).`);
+      alerts.push(`Menor resistência individual (${min.toFixed(2)} MPa) inferior a 80% do ${sym} (0,8 × ${target} = ${(0.8 * target).toFixed(2)} MPa).`);
     }
   }
   if (norm_reference === 'NBR 9781') {

@@ -6,7 +6,7 @@ import { formatDateBR } from '@/lib/dateFormat';
 import {
   MIN_RESISTANCE_BY_TRAFFIC, MIN_THICKNESS_BY_TRAFFIC, DIMENSIONAL_TOLERANCE_MM,
   groupByAge, ageStats, estimateFck, checkCompliance, buildAlerts,
-  resolveRevision,
+  resolveRevision, getResistanceMetric,
 } from '@/lib/qualityNorms';
 
 function fmtDate(d) {
@@ -41,6 +41,7 @@ function ageRowData(report, group) {
 
 export default function QualityReportView({ report, onClose, onEdit }) {
   const pavimento = report.norm_reference === 'NBR 9781';
+  const metric = getResistanceMetric({ category: report.category, normReference: report.norm_reference });
   const groups = groupByAge(report.specimens || []);
   const rows = groups.map(g => ageRowData(report, g));
   const finalAge = report.final_age_days || (groups.length ? Math.max(...groups.map(g => g.age_days)) : 0);
@@ -137,7 +138,7 @@ export default function QualityReportView({ report, onClose, onEdit }) {
               <Info label="Local de Aplicação" value={report.application_location} />
               <Info label="Data de Moldagem" value={fmtDate(report.molding_date)} />
               <Info label="Idade de Referência" value={`${finalAge} dias`} />
-              <Info label="fck de Projeto" value={report.target_resistance ? `${report.target_resistance} MPa` : '—'} />
+              <Info label={`${metric.symbol ? `${metric.symbol} de Projeto` : 'Resist. de Projeto'}`} value={report.target_resistance ? `${report.target_resistance} MPa` : '—'} />
             </div>
           </section>
 
@@ -186,8 +187,8 @@ export default function QualityReportView({ report, onClose, onEdit }) {
                     <th className="border border-slate-200 px-3 py-2 text-left">Data de Rompimento</th>
                     <th className="border border-slate-200 px-3 py-2 text-center">Nº de CPs</th>
                     <th className="border border-slate-200 px-3 py-2 text-right">Resistência Média (MPa)</th>
-                    <th className="border border-slate-200 px-3 py-2 text-right">fck Estimado (MPa)</th>
-                    <th className="border border-slate-200 px-3 py-2 text-right">fck Projeto (MPa)</th>
+                    <th className="border border-slate-200 px-3 py-2 text-right">{metric.estimatedSymbol || 'Estimada'} (MPa)</th>
+                    <th className="border border-slate-200 px-3 py-2 text-right">{metric.symbol || 'Projeto'} (MPa)</th>
                     <th className="border border-slate-200 px-3 py-2 text-center">Conformidade</th>
                   </tr>
                 </thead>
@@ -289,8 +290,8 @@ export default function QualityReportView({ report, onClose, onEdit }) {
           <section className="grid grid-cols-5 gap-3 text-sm">
             <Box label={`Resistência Média (${finalAge}d)`} value={`${(report.average_resistance || 0).toFixed(2)} MPa`} />
             <Box label="Menor Individual" value={`${(report.min_resistance || 0).toFixed(2)} MPa`} />
-            <Box label={report.normative_revision === '2026' ? 'fpk,est (MPa)' : 'fck Estimado'} value={report.fpk || report.estimated_fck ? `${(report.fpk || report.estimated_fck).toFixed(2)} MPa` : '—'} />
-            <Box label="fck Projeto" value={report.target_resistance ? `${report.target_resistance} MPa` : '—'} />
+            <Box label={metric.estimatedSymbol ? `${metric.estimatedSymbol} (MPa)` : 'Resist. Estimada'} value={report.fpk || report.estimated_fck ? `${(report.fpk || report.estimated_fck).toFixed(2)} MPa` : '—'} />
+            <Box label={metric.symbol ? `${metric.symbol} Projeto` : 'Resist. Projeto'} value={report.target_resistance ? `${report.target_resistance} MPa` : '—'} />
             <Box label="Conformidade" value={compliant ? 'CONFORME' : 'NÃO CONFORME'} highlight={compliant ? 'green' : 'red'} />
           </section>
 
@@ -348,6 +349,7 @@ export default function QualityReportView({ report, onClose, onEdit }) {
 
 function PrintLaudoBlock({ report, group }) {
   const pavimento = report.norm_reference === 'NBR 9781';
+  const metric = getResistanceMetric({ category: report.category, normReference: report.norm_reference });
   const specimens = group ? group.specimens : [];
   const ageDays = group ? group.age_days : 0;
   const row = group ? ageRowData(report, group) : null;
@@ -422,7 +424,7 @@ function PrintLaudoBlock({ report, group }) {
             <Info label="Data de Moldagem" value={fmtDate(report.molding_date)} />
             <Info label="Idade de Ruptura" value={`${ageDays} dias`} />
             <Info label="Data de Rompimento" value={fmtDate(rDate)} />
-            <Info label="fck de Projeto" value={target ? `${target} MPa` : '—'} />
+            <Info label={`${metric.symbol ? `${metric.symbol} de Projeto` : 'Resist. de Projeto'}`} value={target ? `${target} MPa` : '—'} />
           </div>
         </section>
 
@@ -499,8 +501,8 @@ function PrintLaudoBlock({ report, group }) {
         <section className="grid grid-cols-5 gap-3 text-sm">
           <Box label={`Resistência Média (${ageDays}d)`} value={`${(stats.average || 0).toFixed(2)} MPa`} />
           <Box label="Menor Individual" value={`${(stats.min || 0).toFixed(2)} MPa`} />
-          <Box label="fck Estimado" value={row && row.estimated_fck ? `${row.estimated_fck.toFixed(2)} MPa` : '—'} />
-          <Box label="fck Projeto" value={target ? `${target} MPa` : '—'} />
+          <Box label={metric.estimatedSymbol ? `${metric.estimatedSymbol} estimado` : 'Resist. Estimada'} value={row && row.estimated_fck ? `${row.estimated_fck.toFixed(2)} MPa` : '—'} />
+          <Box label={metric.symbol ? `${metric.symbol} projeto` : 'Resist. Projeto'} value={target ? `${target} MPa` : '—'} />
           <Box
             label="Conformidade"
             value={row && row.compliant != null ? (row.compliant ? 'CONFORME' : 'NÃO CONFORME') : '—'}

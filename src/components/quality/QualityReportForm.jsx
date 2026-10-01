@@ -11,6 +11,7 @@ import {
   checkThickness, buildAlerts, checkApproval, estimateFck, getClassFbk,
   COMPRESSION_REVISIONS,
   calculateCompression2026, getEngineMetadata, buildAlerts2026,
+  getResistanceMetric,
 } from '@/lib/qualityNorms';
 
 // Resolve o fck de referência: usa o fck de projeto informado; na NBR 9781 sem
@@ -133,6 +134,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
   }, [groups, form.final_age_days]);
 
   const target = resolveTargetFck(form);
+  const metric = useMemo(() => getResistanceMetric({ category: form.category, normReference: form.norm_reference }), [form.category, form.norm_reference]);
   const finalGroup = groups.find(g => g.age_days === finalAge) || { specimens: [] };
   const { average, min } = ageStats(finalGroup.specimens);
   const estimatedFck = useMemo(() => estimateFck(finalGroup.specimens), [finalGroup]);
@@ -178,11 +180,12 @@ export default function QualityReportForm({ order, productType, report, onClose,
         hasFinalAge,
       });
 
-  // Critério de aprovação: 2026 usa fpk do motor; 2013 usa fck,est (média − 1,65·s)
+  // Critério de aprovação: 2026 usa fpk do motor; 2013 usa fbk,est/fpk,est (média − 1,65·s)
   const finalApproval = is2026
     ? compressionResult2026.approval
     : checkApproval({ estimatedFck, target });
   const compliant = is2026 ? compressionResult2026.compliant : (finalApproval === 'APROVADO');
+  const fckLabel = is2026 ? metric.symbol : metric.estimatedSymbol;
 
   useEffect(() => {
     setForm(f => ({
@@ -254,9 +257,8 @@ export default function QualityReportForm({ order, productType, report, onClose,
       payload.test_date = d.toISOString().slice(0, 10);
     }
     const targetLabel = Number(form.target_resistance) > 0
-      ? `fck de ${target} MPa`
+      ? `${metric.symbol || 'resistência'} de ${target} MPa`
       : `resistência mínima de ${target} MPa (${payload.norm_reference} — tráfego ${payload.traffic_type})`;
-    const fckLabel = is2026 ? 'fpk' : 'fck,est';
     const revisionLabel = payload.normative_revision === '2026' ? ` (NBR 9781:2026 — ${payload.compression_method === 'large_sample' ? 'amostra grande' : 'amostra pequena'})` : '';
     if (!effectiveFck || effectiveFck === 0) {
       payload.conclusion = `Laudo em fase de preenchimento — aguardando resultados do ensaio de compressão para avaliação da conformidade à norma ${payload.norm_reference}.`;
@@ -375,7 +377,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
                       value={form.application_location} onChange={e => setField('application_location', e.target.value)} placeholder="Obra / local" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Resistência Característica — fck (MPa)</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Resistência Característica — {metric.symbol || 'MPa'} (MPa)</label>
                     <input type="number" step="0.1" required className="w-full px-3 py-2 border border-input rounded-lg text-sm bg-background"
                       value={form.target_resistance} onChange={e => setField('target_resistance', parseFloat(e.target.value))} />
                   </div>
@@ -474,7 +476,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
                           {isLaudo && <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary">laudo</span>}
                         </p>
                         <p className="text-base font-bold text-foreground">{stats.average ? stats.average.toFixed(2) : '—'} <span className="text-xs font-normal text-muted-foreground">MPa</span></p>
-                        <p className="text-[11px] text-muted-foreground">fck est: <strong className="text-foreground">{fckEst ? fckEst.toFixed(2) : '—'}</strong> MPa</p>
+                        <p className="text-[11px] text-muted-foreground">{metric.estimatedSymbol || 'estimada'}: <strong className="text-foreground">{fckEst ? fckEst.toFixed(2) : '—'}</strong> MPa</p>
                         <p className="text-[10px] text-muted-foreground">{g?.specimens.length || 0} CP{stats.min ? ` • mín ${stats.min.toFixed(2)}` : ''}</p>
                       </div>
                     );
@@ -540,12 +542,12 @@ export default function QualityReportForm({ order, productType, report, onClose,
                     <p className="text-xs text-muted-foreground">MPa</p>
                   </div>
                   <div className="bg-primary/5 rounded-lg p-3 border border-primary/30 text-center">
-                    <p className="text-xs text-muted-foreground">fck Estimado</p>
+                    <p className="text-xs text-muted-foreground">{metric.estimatedSymbol ? `${metric.estimatedSymbol} estimado` : 'Resist. Estimada'}</p>
                     <p className="text-xl font-bold text-primary">{displayEstimatedFck ? displayEstimatedFck.toFixed(2) : '—'}</p>
                     <p className="text-xs text-muted-foreground">MPa</p>
                   </div>
                   <div className="bg-muted/40 rounded-lg p-3 border border-border text-center">
-                    <p className="text-xs text-muted-foreground">fck Projeto</p>
+                    <p className="text-xs text-muted-foreground">{metric.symbol ? `${metric.symbol} projeto` : 'Resist. Projeto'}</p>
                     <p className="text-xl font-bold text-foreground">{target || '—'}</p>
                     <p className="text-xs text-muted-foreground">MPa</p>
                   </div>
@@ -567,7 +569,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
                       {displayApproval === 'REPROVADO' && <><XCircle className="w-5 h-5" /> REPROVADO</>}
                       {displayApproval === null && '—'}
                     </p>
-                    <p className="text-xs text-muted-foreground">fck,est {displayEstimatedFck ? displayEstimatedFck.toFixed(2) : '—'} / fck {target || '—'} MPa</p>
+                    <p className="text-xs text-muted-foreground">{metric.estimatedSymbol || 'est'} {displayEstimatedFck ? displayEstimatedFck.toFixed(2) : '—'} / {metric.symbol || 'alvo'} {target || '—'} MPa</p>
                   </div>
                 </div>
 

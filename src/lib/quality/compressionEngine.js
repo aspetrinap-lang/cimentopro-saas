@@ -66,7 +66,7 @@ export function calculateCompression2013(specimens, { targetFck = 0 } = {}) {
 
   steps.push({ step: 2, description: 'Média das resistências', value: +mean.toFixed(2) });
   steps.push({ step: 3, description: 'Desvio-padrão (s)', value: +stdDev.toFixed(4) });
-  steps.push({ step: 4, description: `fck,est = média − ${params.k_factor} × s`, formula: `${mean.toFixed(2)} − ${params.k_factor} × ${stdDev.toFixed(4)}`, value: +fpkEst.toFixed(2) });
+  steps.push({ step: 4, description: `fpk,est = média − ${params.k_factor} × s`, formula: `${mean.toFixed(2)} − ${params.k_factor} × ${stdDev.toFixed(4)}`, value: +fpkEst.toFixed(2) });
   steps.push({ step: 5, description: 'Menor resistência individual', value: +minVal.toFixed(2) });
 
   const compliant = targetFck > 0
@@ -77,7 +77,7 @@ export function calculateCompression2013(specimens, { targetFck = 0 } = {}) {
     : fpkEst >= 0.95 * targetFck ? 'ATENÇÃO'
     : 'REPROVADO';
 
-  steps.push({ step: 6, description: `Conformidade: fck,est ${fpkEst.toFixed(2)} ≥ fck ${targetFck}`, value: compliant });
+  steps.push({ step: 6, description: `Conformidade: fpk,est ${fpkEst.toFixed(2)} ≥ fpk ${targetFck}`, value: compliant });
 
   return {
     engine: params,
@@ -277,7 +277,7 @@ export function buildAlerts2026(result, { target, hasFinalAge } = {}) {
     return alerts;
   }
   if (target > 0 && result.fpk < target) {
-    alerts.push(`fpk estimado (${result.fpk.toFixed(2)} MPa) abaixo do fck de projeto (${target} MPa).`);
+    alerts.push(`fpk estimado (${result.fpk.toFixed(2)} MPa) abaixo do fpk de projeto (${target} MPa).`);
   }
   if (result.floor_applied) {
     const floor = result.psi * result.fp1;

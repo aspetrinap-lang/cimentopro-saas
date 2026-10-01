@@ -131,7 +131,7 @@ export default function ResistanceGrowthCard({ reports, productTypes, traces }) 
                 <span className="ml-1 text-[10px] font-semibold px-2 py-0.5 rounded-full align-middle bg-violet-100 text-violet-700">IA {curve.ai.confidence}</span>
               )}
             </h3>
-            <p className="text-xs text-muted-foreground">Corpos de prova agregados por idade — média, fck estimado, referência e projeção IA</p>
+            <p className="text-xs text-muted-foreground">Corpos de prova agregados por idade — média, resistência estimada, referência e projeção IA</p>
           </div>
         </div>
         <button onClick={() => setShowReport(true)} disabled={rows.length === 0}
@@ -184,12 +184,12 @@ export default function ResistanceGrowthCard({ reports, productTypes, traces }) 
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {target > 0 && (
                 <ReferenceLine y={target} stroke="#ef4444" strokeDasharray="6 4"
-                  label={{ value: `fck alvo ${target} MPa`, fontSize: 10, position: 'insideTopRight', fill: '#ef4444' }} />
+                  label={{ value: `alvo ${target} MPa`, fontSize: 10, position: 'insideTopRight', fill: '#ef4444' }} />
               )}
               <Area dataKey={['refLower', 'refUpper']} name="Faixa de Referência" stroke="none" fill="#94a3b8" fillOpacity={0.18} connectNulls />
               <Line type="monotone" dataKey="refCenter" name="Referência" stroke="#64748b" strokeWidth={1.5} strokeDasharray="6 4" dot={false} connectNulls={false} />
               <Line type="monotone" dataKey="average" name="Resistência média" stroke="#6366f1" strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
-              <Line type="monotone" dataKey="fck_est" name="fck estimado" stroke="#10b981" strokeWidth={2} strokeDasharray="5 3" dot={{ r: 4 }} connectNulls={false} />
+              <Line type="monotone" dataKey="fck_est" name="Resist. estimada" stroke="#10b981" strokeWidth={2} strokeDasharray="5 3" dot={{ r: 4 }} connectNulls={false} />
               <Line type="monotone" dataKey="aiCenter" name="IA (projeção)" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="4 3" dot={{ r: 3 }} connectNulls={false} />
             </LineChart>
           </ResponsiveContainer>

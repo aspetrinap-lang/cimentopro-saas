@@ -148,7 +148,7 @@ export default function Quality() {
                   <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Artefato</th>
                   <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Norma</th>
                   <th className="px-4 py-3 text-right font-semibold whitespace-nowrap">Média (MPa)</th>
-                  <th className="px-4 py-3 text-right font-semibold whitespace-nowrap">fck</th>
+                  <th className="px-4 py-3 text-right font-semibold whitespace-nowrap">Resist. (MPa)</th>
                   <th className="px-4 py-3 text-center font-semibold whitespace-nowrap">Conformidade</th>
                   <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Data Ensaio</th>
                   <th className="px-4 py-3 text-center font-semibold whitespace-nowrap">Status</th>
