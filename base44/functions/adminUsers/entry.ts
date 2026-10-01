@@ -32,8 +32,12 @@ export default async function(req) {
         const ok = await isProtectedPlatformAdmin(svc, me.id);
         if (!ok) return Response.json({ error: 'Forbidden: SUPER_ADMIN required' }, { status: 403 });
       } else {
-        const flag = me.is_platform_admin === true || (me.data && me.data.is_platform_admin) === true;
-        if (flag !== true) return Response.json({ error: 'Forbidden: SUPER_ADMIN required' }, { status: 403 });
+        // Janela de bootstrap: nenhum SUPER_ADMIN protegido existe ainda.
+        // Não confiamos na flag is_platform_admin da sessão (auto-promoção):
+        // exigimos o papel administrativo da plataforma (role === 'admin'),
+        // que só o builder/owner convidado possui e usuários comuns não podem
+        // alterar em si mesmos. A flag apenas marca quem será migrado.
+        if (me.role !== 'admin') return Response.json({ error: 'Forbidden: administrador da plataforma required' }, { status: 403 });
       }
       const users = await svc.entities.User.list('-created_date', 1000);
       const protectedIds = new Set(adminRecs.map((a) => a.user_id));

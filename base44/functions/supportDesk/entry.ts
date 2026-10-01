@@ -76,7 +76,11 @@ export default async function(req) {
       if (!TICKET_PRIORITIES.includes(priority)) return Response.json({ error: 'Prioridade inválida' }, { status: 400 });
       if (!TICKET_SOURCES.includes(source)) return Response.json({ error: 'Origem inválida' }, { status: 400 });
 
-      const attachments = sanitizeAttachments(body.attachments);
+      const attachments = sanitizeAttachments(body.attachments).map((a) => ({
+        ...a,
+        uploaded_by_user_id: auth.id,
+        uploaded_company_id: companyId,
+      }));
       if (attachments.length < (Array.isArray(body.attachments) ? body.attachments.length : 0)) {
         return Response.json({ error: 'Anexo inválido: use PNG, JPG, WEBP, PDF, XLSX ou CSV (até 10 MB)' }, { status: 400 });
       }
@@ -223,6 +227,10 @@ export default async function(req) {
         const attachments = [];
         for (const a of (m.attachments || [])) {
           if (!a.file_uri) continue;
+          // Verificação de propriedade: o anexo só é assinado se tiver sido
+          // registrado por um remetente da mesma empresa do chamado (stamp
+          // server-side no save). Anexos sem o stamp (legados) não são assinados.
+          if (a.uploaded_by_user_id && a.uploaded_company_id !== ticket.company_id) continue;
           const signed = await svc.integrations.Core.CreateFileSignedUrl({ file_uri: a.file_uri, expires_in: 3600 })
             .catch(() => null);
           attachments.push({ ...a, signed_url: signed?.signed_url || null });
@@ -239,7 +247,11 @@ export default async function(req) {
       const isSupport = isAdmin;
       const isInternal = isSupport ? body.is_internal === true : false; // cliente nunca cria nota interna
       const text = String(body.message || '').trim().slice(0, 5000);
-      const attachments = sanitizeAttachments(body.attachments);
+      const attachments = sanitizeAttachments(body.attachments).map((a) => ({
+        ...a,
+        uploaded_by_user_id: auth.id,
+        uploaded_company_id: ticket.company_id,
+      }));
       if (!text && !attachments.length) return Response.json({ error: 'Mensagem vazia' }, { status: 400 });
 
       const msg = await svc.entities.SupportMessage.create({

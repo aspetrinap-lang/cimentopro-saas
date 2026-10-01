@@ -24,17 +24,29 @@ export function exportCSV(filename, rows) {
 
 // ── PDF (via print) ──────────────────────────────────────────────────────────
 
+function escapeHtml(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function exportTablePDF(title, headers, rows, filename) {
   const date = new Date().toLocaleDateString('pt-BR');
+  const safeTitle = escapeHtml(title);
+  const safeHeaders = (headers || []).map(escapeHtml);
   const tableRows = rows.map(r =>
-    `<tr>${r.map(c => `<td>${c ?? ''}</td>`).join('')}</tr>`
+    `<tr>${r.map(c => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`
   ).join('');
 
   const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>${title}</title>
+  <title>${safeTitle}</title>
   <style>
     body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; margin: 20px; }
     h1 { font-size: 16px; margin-bottom: 4px; }
@@ -47,10 +59,10 @@ export function exportTablePDF(title, headers, rows, filename) {
   </style>
 </head>
 <body>
-  <h1>${title}</h1>
-  <p class="date">Gerado em ${date}</p>
+  <h1>${safeTitle}</h1>
+  <p class="date">Gerado em ${escapeHtml(date)}</p>
   <table>
-    <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+    <thead><tr>${safeHeaders.map(h => `<th>${h}</th>`).join('')}</tr></thead>
     <tbody>${tableRows}</tbody>
   </table>
 </body>

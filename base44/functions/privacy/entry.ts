@@ -166,6 +166,19 @@ export default async function(req) {
       // Verificação de identidade proporcional: e-mail sintático + confirmação
       // posterior; nunca exige nem armazena documentos por padrão. A consulta
       // NUNCA ocorre apenas por conhecimento de e-mail ou protocolo.
+      // Rate limiting por IP: evita spam/poluição da fila LGPD por chamadas
+      // anônimas em massa. Limite: 5 pedidos por IP em 1 hora.
+      if (ip) {
+        const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const recent = await svc.entities.AuditLog.filter(
+          { entity_name: 'PrivacyRequest', action: 'CREATE', ip },
+          '-created_date', 50
+        ).catch(() => []);
+        const recentCount = recent.filter((l) => String(l.created_date || '') >= since).length;
+        if (recentCount >= 5) {
+          return Response.json({ error: 'Muitas solicitações. Tente novamente mais tarde.' }, { status: 429 });
+        }
+      }
       const requestType = body.request_type;
       const description = String(body.description || '').trim();
       const contactEmail = String(body.contact_email || '').trim().toLowerCase();
