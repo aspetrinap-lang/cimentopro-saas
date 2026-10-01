@@ -8,6 +8,7 @@ import { getActiveIntervals, isProductionMachine } from '@/lib/machineIntervals'
 import UnifiedInsumosForm from '@/components/settings/UnifiedInsumosForm';
 import ConcreteTraceForm from '@/components/settings/ConcreteTraceForm';
 import TraceModeTab from '@/components/settings/TraceModeTab';
+import OrderNumberingConfig from '@/components/settings/OrderNumberingConfig';
 import ArtifactTab from '@/components/settings/ArtifactTab';
 import { Plus, Pencil, Trash2, CheckCircle2, XCircle } from 'lucide-react';
 
@@ -57,7 +58,7 @@ export default function ProductionSettings({ canEditCost, canManageTraceMode }) 
 
   const newLabel = { categorias: 'Nova Categoria', tracos: 'Novo Traço', maquinas: 'Nova Máquina' }[tab];
   const hasNew = ['categorias', 'tracos', 'maquinas'].includes(tab);
-  const tabs = canManageTraceMode ? [...TABS, { key: 'tracos_config', label: 'Traços · Modo' }] : TABS;
+  const tabs = canManageTraceMode ? [...TABS, { key: 'tracos_config', label: 'Traços · Modo' }, { key: 'numeracao', label: 'Numeração' }] : TABS;
 
   return (
     <div className="space-y-5">
@@ -236,6 +237,7 @@ export default function ProductionSettings({ canEditCost, canManageTraceMode }) 
       {showForm && tab === 'categorias' && <ProductCategoryForm item={editing} onClose={() => setShowForm(false)} onSaved={() => { load(); refreshConfigs(); }} />}
       {showForm && tab === 'tracos' && <ConcreteTraceForm item={editing} onClose={() => setShowForm(false)} onSaved={() => { load(); refreshConfigs(); }} />}
       {tab === 'tracos_config' && <TraceModeTab traces={traces} onChanged={load} />}
+      {tab === 'numeracao' && <OrderNumberingConfig />}
       {showForm && tab === 'maquinas' && <MachineForm item={editing} onClose={() => setShowForm(false)} onSaved={() => { load(); refreshConfigs(); }} />}
     </div>
   );

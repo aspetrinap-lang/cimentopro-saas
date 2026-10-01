@@ -70,6 +70,25 @@ export default function OrderForm({ order, productTypes, onClose, onSaved }) {
 
   async function generateOrderNumber() {
     setGeneratingNumber(true);
+    try {
+      const res = await base44.functions.invoke('orderNumbering', {
+        action: 'generate',
+        company_id: activeCompanyId(),
+      });
+      const data = res.data || res;
+      if (data && data.order_number) {
+        setForm(f => ({
+          ...f,
+          order_number: data.order_number,
+          order_year: data.order_year,
+          order_sequence: data.order_sequence,
+        }));
+        setGeneratingNumber(false);
+        return;
+      }
+    } catch (e) {
+      // Fallback abaixo caso a função backend esteja indisponível.
+    }
     const year = new Date().getFullYear();
     const yearShort = String(year).slice(-2);
     const existingOrders = await base44.entities.ProductionOrder.filter(scopedFilter({ order_year: year }), 'order_sequence', 500);

@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.44';
 import { isPlatformAdminVerified } from '../../shared/platformAdmin.ts';
+import { extractCompanyIds, isRoleAdminUser, hasCompanyAccess, canManageCompany, makeAuditor } from '../../shared/companyAccess.ts';
 
 // Segurança do PIN do operador (UserPin):
 // - o PIN de 4 dígitos é armazenado apenas como hash salgado (SHA-256 + salt por operador)
@@ -40,31 +41,13 @@ export default async function(req) {
     const action = body.action;
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || null;
     const isPlatformAdmin = await isPlatformAdminVerified(svc, auth);
-    const companyIds = (Array.isArray(auth.company_ids) && auth.company_ids)
-      || (auth.data && Array.isArray(auth.data.company_ids) && auth.data.company_ids) || [];
-    const isRoleAdmin = ['admin', 'administrador'].includes(auth.role);
-
-    const audit = async (actionName, entityId, companyId, newValue) => {
-      await svc.entities.AuditLog.create({
-        user_id: auth.id,
-        user_email: auth.email,
-        company_id: companyId || null,
-        action: actionName,
-        entity_name: 'UserPin',
-        entity_id: entityId,
-        ip,
-        new_value: newValue || null,
-      }).catch(() => null);
-    };
+    const companyIds = extractCompanyIds(auth);
+    const isRoleAdmin = isRoleAdminUser(auth);
+    const audit = makeAuditor(svc, auth, ip, 'UserPin');
 
     // Autorização para gerenciar operadores de uma empresa:
     // SUPER_ADMIN, admin da plataforma ou dono/admin da empresa (vínculo UserCompany).
-    const canManage = async (companyId) => {
-      if (isPlatformAdmin || isRoleAdmin) return true;
-      if (!companyId) return false;
-      const links = await svc.entities.UserCompany.filter({ user_id: auth.id, company_id: companyId });
-      return links.some((l) => l.status === 'active' && ['owner', 'admin'].includes(l.role));
-    };
+    const canManage = (companyId) => canManageCompany(svc, auth, isPlatformAdmin, isRoleAdmin, companyId);
 
     if (action === 'list') {
       const companyId = body.company_id || null;
