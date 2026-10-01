@@ -380,42 +380,50 @@ function PrintLaudoBlock({ report, group }) {
     : null;
 
   return (
-    <div className="laudo-print text-[11px] leading-tight">
-      <div className="px-6 py-4 space-y-2">
-        {/* Cabeçalho compacto — faixa única */}
-        <header className="flex items-center justify-between border-b-2 border-slate-900 pb-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <CompanyBrand className="shrink-0" />
-            <div className="min-w-0">
-              <h1 className="text-sm font-bold tracking-tight leading-tight">
+    <div>
+      <div className="p-8 space-y-6">
+        {/* Cabeçalho */}
+        <div className="border-b-2 border-slate-900 pb-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <CompanyBrand className="mb-2" />
+              <h1 className="text-xl font-bold tracking-tight">
                 LAUDO TÉCNICO DE ENSAIO DE COMPRESSÃO AXIAL
               </h1>
-              <p className="text-[10px] text-slate-600 leading-tight">
-                {report.norm_reference} — {pavimento ? 'Pavimentos Intertravados de Concreto' : 'Blocos Vazados de Concreto'}
+              <p className="text-sm text-slate-600 mt-1">
+                Norma de referência: <strong>{report.norm_reference}</strong>
+                {pavimento ? ' — Pavimentos Intertravados de Concreto' : ' — Blocos Vazados de Concreto'}
               </p>
+              <p className="text-xs text-slate-500 mt-1">Idade de Ruptura: <strong>{ageDays} dias</strong></p>
+            </div>
+            <div className="text-right text-sm">
+              <p>Nº: <strong>{report.report_number}</strong></p>
+              <p className="text-slate-600">Rompimento: <strong>{fmtDate(rDate)}</strong></p>
             </div>
           </div>
-          <div className="text-right text-[10px] shrink-0">
-            <p><span className="text-slate-500">Nº</span> <strong>{report.report_number}</strong></p>
-            <p className="text-slate-600">Rompimento: <strong>{fmtDate(rDate)}</strong></p>
-            <p className="text-slate-600">Idade: <strong>{ageDays} dias</strong></p>
-          </div>
-        </header>
+        </div>
 
-        {/* Laboratório + Equipamento — grade densa única */}
-        <section className="grid grid-cols-4 gap-x-4 gap-y-1">
+        {/* Laboratório */}
+        <section className="grid grid-cols-2 gap-4 text-sm">
           <Info label="Laboratório" value={report.laboratory_name} />
           <Info label="Responsável Técnico" value={`${report.responsible_engineer || '—'}${report.engineer_crea ? ` — CREA ${report.engineer_crea}` : ''}`} />
-          <Info label="Máquina de Ensaio" value={report.test_equipment} />
-          <Info label="Calibração Nº" value={report.calibration_number} />
-          <Info label="Data da Calibração" value={fmtDate(report.calibration_date)} />
-          <Info label="Emitente" value={report.calibration_issuer} />
         </section>
 
-        {/* Rastreabilidade — grade densa */}
+        {/* Equipamento de Ensaio */}
         <section>
-          <h2 className="text-[10px] font-bold uppercase text-slate-600 border-b border-slate-300 pb-0.5 mb-1">Rastreabilidade do Lote</h2>
-          <div className="grid grid-cols-4 gap-x-4 gap-y-1">
+          <h2 className="text-sm font-bold uppercase text-slate-700 border-b border-slate-200 pb-1 mb-3">Equipamento de Ensaio e Calibração</h2>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            <Info label="Máquina de Ensaio" value={report.test_equipment} />
+            <Info label="Calibração Nº" value={report.calibration_number} />
+            <Info label="Data da Calibração" value={fmtDate(report.calibration_date)} />
+            <Info label="Emitente" value={report.calibration_issuer} />
+          </div>
+        </section>
+
+        {/* Rastreabilidade */}
+        <section>
+          <h2 className="text-sm font-bold uppercase text-slate-700 border-b border-slate-200 pb-1 mb-3">Rastreabilidade do Lote</h2>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             <Info label="Ordem de Produção" value={report.order_number} />
             <Info label="Artefato" value={report.product_type_name} />
             <Info label="Categoria" value={report.category} />
@@ -432,57 +440,65 @@ function PrintLaudoBlock({ report, group }) {
         {/* Requisitos NBR 9781 */}
         {pavimento && (
           <section>
-            <h2 className="text-[10px] font-bold uppercase text-slate-600 border-b border-slate-300 pb-0.5 mb-1">Verificação Dimensional — NBR 9781</h2>
-            <div className="grid grid-cols-6 gap-x-3 gap-y-1">
+            <h2 className="text-sm font-bold uppercase text-slate-700 border-b border-slate-200 pb-1 mb-3">Verificação Dimensional — NBR 9781</h2>
+            <div className="grid grid-cols-3 gap-3 text-sm">
               <Info label="Tipo de Tráfego" value={report.traffic_type} />
-              <Info label="Resist. Mínima" value={`${MIN_RESISTANCE_BY_TRAFFIC[report.traffic_type] || '—'} MPa`} />
-              <Info label="Espessura Mínima" value={`${(MIN_THICKNESS_BY_TRAFFIC[report.traffic_type] || 0) / 10} cm`} />
+              <Info label="Resist. Mínima (norma)" value={`${MIN_RESISTANCE_BY_TRAFFIC[report.traffic_type] || '—'} MPa`} />
+              <Info label="Espessura Mínima (norma)" value={`${(MIN_THICKNESS_BY_TRAFFIC[report.traffic_type] || 0) / 10} cm`} />
               <Info label="Espessura Nominal" value={report.nominal_thickness_mm ? `${report.nominal_thickness_mm} mm` : '—'} />
               <Info label="Espessura Medida" value={report.measured_thickness_mm ? `${report.measured_thickness_mm} mm` : '—'} />
               <div>
-                <p className="text-[9px] text-slate-500">Variação (tol. ±{DIMENSIONAL_TOLERANCE_MM} mm)</p>
-                <p className="font-medium flex items-center gap-1">
+                <p className="text-xs text-slate-500">Variação (tol. ±{DIMENSIONAL_TOLERANCE_MM} mm)</p>
+                <p className="font-medium flex items-center gap-1.5">
                   {thicknessVariation != null ? `${thicknessVariation.toFixed(1)} mm` : '—'}
-                  {report.thickness_ok === false && <span className="text-[9px] text-red-700">Fora</span>}
-                  {report.thickness_ok === true && thicknessVariation != null && <span className="text-[9px] text-green-700">OK</span>}
+                  {report.thickness_ok === false && (
+                    <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+                      <AlertTriangle className="w-3 h-3" /> Fora
+                    </span>
+                  )}
+                  {report.thickness_ok === true && thicknessVariation != null && (
+                    <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+                      <CheckCircle2 className="w-3 h-3" /> OK
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
           </section>
         )}
 
-        {/* CP table for this age — compacta */}
+        {/* CP table for this age */}
         <section>
-          <h2 className="text-[10px] font-bold uppercase text-slate-600 border-b border-slate-300 pb-0.5 mb-1">
+          <h2 className="text-sm font-bold uppercase text-slate-700 border-b border-slate-200 pb-1 mb-3">
             Resultados dos Corpos de Prova — {ageDays} dias
           </h2>
           {specimens.length === 0 ? (
-            <p className="text-[11px] text-slate-500">Nenhum corpo de prova registrado para esta idade.</p>
+            <p className="text-sm text-slate-500">Nenhum corpo de prova registrado para esta idade.</p>
           ) : (
-            <table className="w-full text-[10px] border-collapse">
+            <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="uppercase text-slate-500">
-                  <th className="border border-slate-200 px-1.5 py-0.5 text-left">CP</th>
-                  <th className="border border-slate-200 px-1.5 py-0.5 text-right">Larg. (mm)</th>
-                  <th className="border border-slate-200 px-1.5 py-0.5 text-right">Comp. (mm)</th>
-                  <th className="border border-slate-200 px-1.5 py-0.5 text-right">Alt. (mm)</th>
-                  <th className="border border-slate-200 px-1.5 py-0.5 text-right">Área (cm²)</th>
-                  <th className="border border-slate-200 px-1.5 py-0.5 text-right">Massa (g)</th>
-                  <th className="border border-slate-200 px-1.5 py-0.5 text-right">Carga (kN)</th>
-                  <th className="border border-slate-200 px-1.5 py-0.5 text-right">Resist. (MPa)</th>
+                <tr className="text-xs uppercase text-slate-500">
+                  <th className="border border-slate-200 px-2 py-1 text-left">CP</th>
+                  <th className="border border-slate-200 px-2 py-1 text-right">Larg. (mm)</th>
+                  <th className="border border-slate-200 px-2 py-1 text-right">Comp. (mm)</th>
+                  <th className="border border-slate-200 px-2 py-1 text-right">Alt. (mm)</th>
+                  <th className="border border-slate-200 px-2 py-1 text-right">Área (cm²)</th>
+                  <th className="border border-slate-200 px-2 py-1 text-right">Massa (g)</th>
+                  <th className="border border-slate-200 px-2 py-1 text-right">Carga (kN)</th>
+                  <th className="border border-slate-200 px-2 py-1 text-right">Resist. (MPa)</th>
                 </tr>
               </thead>
               <tbody>
                 {specimens.map(s => (
                   <tr key={s.id}>
-                    <td className="border border-slate-200 px-1.5 py-0.5 font-medium">{s.id}</td>
-                    <td className="border border-slate-200 px-1.5 py-0.5 text-right">{s.width_mm || '—'}</td>
-                    <td className="border border-slate-200 px-1.5 py-0.5 text-right">{s.length_mm || '—'}</td>
-                    <td className="border border-slate-200 px-1.5 py-0.5 text-right">{s.height_mm || '—'}</td>
-                    <td className="border border-slate-200 px-1.5 py-0.5 text-right">{s.area_cm2}</td>
-                    <td className="border border-slate-200 px-1.5 py-0.5 text-right">{s.mass_g || '—'}</td>
-                    <td className="border border-slate-200 px-1.5 py-0.5 text-right">{s.rupture_load_kn}</td>
-                    <td className="border border-slate-200 px-1.5 py-0.5 text-right font-semibold">{s.resistance_mpa}</td>
+                    <td className="border border-slate-200 px-2 py-1 font-medium">{s.id}</td>
+                    <td className="border border-slate-200 px-2 py-1 text-right">{s.width_mm || '—'}</td>
+                    <td className="border border-slate-200 px-2 py-1 text-right">{s.length_mm || '—'}</td>
+                    <td className="border border-slate-200 px-2 py-1 text-right">{s.height_mm || '—'}</td>
+                    <td className="border border-slate-200 px-2 py-1 text-right">{s.area_cm2}</td>
+                    <td className="border border-slate-200 px-2 py-1 text-right">{s.mass_g || '—'}</td>
+                    <td className="border border-slate-200 px-2 py-1 text-right">{s.rupture_load_kn}</td>
+                    <td className="border border-slate-200 px-2 py-1 text-right font-semibold">{s.resistance_mpa}</td>
                   </tr>
                 ))}
               </tbody>
@@ -490,12 +506,12 @@ function PrintLaudoBlock({ report, group }) {
           )}
         </section>
 
-        {/* Resumo específico da idade — faixa única compacta */}
-        <section className="grid grid-cols-5 gap-2">
-          <Box label={`Média (${ageDays}d)`} value={`${(stats.average || 0).toFixed(2)} MPa`} />
+        {/* Resumo específico da idade */}
+        <section className="grid grid-cols-5 gap-3 text-sm">
+          <Box label={`Resistência Média (${ageDays}d)`} value={`${(stats.average || 0).toFixed(2)} MPa`} />
           <Box label="Menor Individual" value={`${(stats.min || 0).toFixed(2)} MPa`} />
-          <Box label={metric.estimatedSymbol ? `${metric.estimatedSymbol} est.` : 'Resist. Estimada'} value={row && row.estimated_fck ? `${row.estimated_fck.toFixed(2)} MPa` : '—'} />
-          <Box label={metric.symbol ? `${metric.symbol} proj.` : 'Resist. Projeto'} value={target ? `${target} MPa` : '—'} />
+          <Box label={metric.estimatedSymbol ? `${metric.estimatedSymbol} estimado` : 'Resist. Estimada'} value={row && row.estimated_fck ? `${row.estimated_fck.toFixed(2)} MPa` : '—'} />
+          <Box label={metric.symbol ? `${metric.symbol} projeto` : 'Resist. Projeto'} value={target ? `${target} MPa` : '—'} />
           <Box
             label="Conformidade"
             value={row && row.compliant != null ? (row.compliant ? 'CONFORME' : 'NÃO CONFORME') : '—'}
@@ -503,39 +519,54 @@ function PrintLaudoBlock({ report, group }) {
           />
         </section>
 
-        {/* Alertas — texto corrido compacto */}
-        {alerts.length > 0 && (
-          <p className="text-[10px] text-amber-700">
-            <strong>Alertas:</strong> {alerts.join(' • ')}
-          </p>
+        {/* Versionamento normativo (impressão) */}
+        {report.normative_revision === '2026' && (
+          <section className="text-[10px] text-slate-500 border-t border-slate-200 pt-2">
+            <p>
+              Motor: <strong>{report.engine_name || 'NBR_9781_2026_COMPRESSION'}</strong> v{report.engine_version || '1.0.0'} •
+              Método: {report.compression_method === 'large_sample' ? 'amostra grande' : 'amostra pequena'} •
+              p={report.thickness_factor?.toFixed(2) || '—'} •
+              ψ={report.psi_coefficient ?? '—'} •
+              Cálculo: {report.calculation_timestamp ? formatDateBR(report.calculation_timestamp) : '—'}
+            </p>
+          </section>
         )}
 
-        {/* Conclusão + Observações — bloco único */}
+        {/* Alertas */}
+        {alerts.length > 0 && (
+          <section className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 text-amber-700 text-sm font-semibold mb-2">
+              <AlertTriangle className="w-4 h-4" /> Alertas de Não Conformidade (informativos)
+            </div>
+            <ul className="space-y-1">
+              {alerts.map((a, i) => (
+                <li key={i} className="text-sm text-amber-700 flex items-start gap-2">
+                  <span className="mt-0.5">•</span>{a}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Conclusão */}
         <section>
-          <h2 className="text-[10px] font-bold uppercase text-slate-600 border-b border-slate-300 pb-0.5 mb-1">Conclusão</h2>
-          <p className="text-[11px] leading-snug">{report.conclusion || '—'}</p>
+          <h2 className="text-sm font-bold uppercase text-slate-700 border-b border-slate-200 pb-1 mb-2">Conclusão</h2>
+          <p className="text-sm leading-relaxed">{report.conclusion || '—'}</p>
           {report.notes && (
-            <p className="text-[10px] text-slate-600 mt-1"><span className="font-semibold">Observações:</span> {report.notes}</p>
+            <div className="mt-3">
+              <p className="text-xs font-semibold text-slate-600 mb-1">Observações:</p>
+              <p className="text-sm text-slate-600">{report.notes}</p>
+            </div>
           )}
         </section>
 
-        {/* Versionamento normativo — linha de rodapé */}
-        {report.normative_revision === '2026' && (
-          <p className="text-[9px] text-slate-500 border-t border-slate-200 pt-1">
-            Motor: <strong>{report.engine_name || 'NBR_9781_2026_COMPRESSION'}</strong> v{report.engine_version || '1.0.0'} •
-            Método: {report.compression_method === 'large_sample' ? 'amostra grande' : 'amostra pequena'} •
-            p={report.thickness_factor?.toFixed(2) || '—'} • ψ={report.psi_coefficient ?? '—'} •
-            Cálculo: {report.calculation_timestamp ? formatDateBR(report.calculation_timestamp) : '—'}
-          </p>
-        )}
-
-        {/* Assinatura — rodapé da mesma página */}
-        <footer className="pt-4">
-          <div className="border-t border-slate-400 pt-0.5 max-w-[14rem] mx-auto text-center">
-            <p className="text-[11px]">{report.responsible_engineer || 'Engenheiro Responsável'}</p>
-            <p className="text-[9px] text-slate-600">Engenheiro Civil {report.engineer_crea ? `— CREA ${report.engineer_crea}` : ''}</p>
+        {/* Assinatura */}
+        <section className="mt-12">
+          <div className="border-t border-slate-400 pt-1 max-w-xs text-center">
+            <p className="text-sm">{report.responsible_engineer || 'Engenheiro Responsável'}</p>
+            <p className="text-xs text-slate-600">Engenheiro Civil {report.engineer_crea ? `— CREA ${report.engineer_crea}` : ''}</p>
           </div>
-        </footer>
+        </section>
       </div>
     </div>
   );
