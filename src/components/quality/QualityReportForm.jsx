@@ -11,8 +11,12 @@ import {
   checkThickness, buildAlerts, checkApproval, estimateFck, getClassFbk,
   COMPRESSION_REVISIONS,
   calculateCompression2026, getEngineMetadata, buildAlerts2026,
+  BLOCK_COMPRESSION_REVISIONS,
+  calculateBlockCompression2026, getBlockEngineMetadata, buildBlockAlerts2026,
+  resolveBlockRevision, decideLot,
   getResistanceMetric,
 } from '@/lib/qualityNorms';
+import BlockCompressionSection from './BlockCompressionSection';
 
 // Resolve o fck de referência: usa o fck de projeto informado; na NBR 9781 sem
 // fck de projeto, vale a classe da norma (35 → 35 MPa; 50 → 50 MPa) e, como
@@ -151,6 +155,55 @@ export default function QualityReportForm({ order, productType, report, onClose,
   const is2026 = !!compressionResult2026 && !compressionResult2026.error;
   const effectiveFck = is2026 ? compressionResult2026.fpk : estimatedFck;
 
+  // ── Motor NBR 6136-2:2026 (BLOCOS) ──────────────────────
+  const isBlock = form.norm_reference === 'NBR 6136';
+  const isBlock2026 = isBlock && form.normative_revision === '2026';
+
+  // fbk especificado: busca automática do cadastro do produto (fallback: target_resistance)
+  const fbkEspecificado = useMemo(() => {
+    return Number(productType?.fbk_especificado_mpa) || Number(form.target_resistance) || 0;
+  }, [productType, form.target_resistance]);
+
+  // CPs da prova: todos os CPs da idade de referência (ou marcados como 'proof')
+  const proofSpecs = useMemo(() => {
+    const finalGroupSpecs = computedSpecimens.filter(s => Number(s.age_days) === finalAge);
+    if (!finalGroupSpecs.length) return [];
+    const marked = finalGroupSpecs.filter(s => s.sample_role === 'proof');
+    return marked.length ? marked : finalGroupSpecs;
+  }, [computedSpecimens, finalAge]);
+
+  // Resultado do motor de blocos 2026 (prova)
+  const blockResult2026 = useMemo(() => {
+    if (!isBlock2026) return null;
+    return calculateBlockCompression2026(proofSpecs, { fbkEspecificado });
+  }, [isBlock2026, proofSpecs, fbkEspecificado]);
+
+  // Estado e CPs da contraprova
+  const [counterproofState, setCounterproofState] = useState(form.counterproof_state || 'NOT_REQUIRED');
+  const [counterproofSpecs, setCounterproofSpecs] = useState(() => {
+    if (report?.specimens) return report.specimens.filter(s => s.sample_role === 'counterproof').map(s => ({ ...s }));
+    return [];
+  });
+
+  // Resultado da contraprova (cálculo independente)
+  const counterproofResult = useMemo(() => {
+    if (!isBlock2026 || counterproofState !== 'COMPLETED' || counterproofSpecs.length < 6) return null;
+    return calculateBlockCompression2026(counterproofSpecs, { fbkEspecificado });
+  }, [isBlock2026, counterproofState, counterproofSpecs, fbkEspecificado]);
+
+  // Decisão do lote (prova/contraprova)
+  const lotDecision = useMemo(() => {
+    if (!isBlock2026 || !blockResult2026) return null;
+    return decideLot(
+      { compliant: blockResult2026.compliant, fbk_estimado: blockResult2026.fbk_estimado },
+      counterproofResult ? { compliant: counterproofResult.compliant, fbk_estimado: counterproofResult.fbk_estimado } : null,
+      counterproofState
+    );
+  }, [isBlock2026, blockResult2026, counterproofResult, counterproofState]);
+
+  const isBlock2026Valid = isBlock2026 && blockResult2026 && !blockResult2026.error;
+  const effectiveBlockFbk = isBlock2026Valid ? blockResult2026.fbk_estimado : 0;
+
   // Valores de exibição: refletem a idade selecionada (activeAge) nos cartões de resumo
   const displayGroup = useMemo(
     () => groups.find(g => g.age_days === activeAge) || { specimens: [] },
@@ -170,7 +223,9 @@ export default function QualityReportForm({ order, productType, report, onClose,
   const thicknessOk = checkThickness(form.nominal_thickness_mm, effectiveMeasured);
   const hasFinalAge = groups.some(g => g.age_days === finalAge && g.specimens.some(s => s.resistance_mpa > 0));
 
-  const alerts = is2026
+  const alerts = isBlock2026Valid
+    ? buildBlockAlerts2026(blockResult2026, { fbkEspecificado, hasFinalAge })
+    : is2026
     ? buildAlerts2026(compressionResult2026, { target, hasFinalAge })
     : buildAlerts({
         norm_reference: form.norm_reference,
@@ -181,11 +236,17 @@ export default function QualityReportForm({ order, productType, report, onClose,
       });
 
   // Critério de aprovação: 2026 usa fpk do motor; 2013 usa fbk,est/fpk,est (média − 1,65·s)
-  const finalApproval = is2026
+  const finalApproval = isBlock2026Valid
+    ? blockResult2026.approval
+    : is2026
     ? compressionResult2026.approval
     : checkApproval({ estimatedFck, target });
-  const compliant = is2026 ? compressionResult2026.compliant : (finalApproval === 'APROVADO');
-  const fckLabel = is2026 ? metric.symbol : metric.estimatedSymbol;
+  const compliant = isBlock2026Valid
+    ? blockResult2026.compliant
+    : is2026
+    ? compressionResult2026.compliant
+    : (finalApproval === 'APROVADO');
+  const fckLabel = isBlock2026Valid ? metric.symbol : (is2026 ? metric.symbol : metric.estimatedSymbol);
 
   useEffect(() => {
     setForm(f => ({
@@ -218,6 +279,31 @@ export default function QualityReportForm({ order, productType, report, onClose,
     setSpecimens(prev => prev.filter((_, i) => i !== idx));
   }
 
+  function toggleProofSpec(spec) {
+    setSpecimens(prev => prev.map(s =>
+      s.id === spec.id ? { ...s, sample_role: s.sample_role === 'proof' ? 'tracking' : 'proof' } : s
+    ));
+  }
+
+  function addCounterproofSpec() {
+    const idx = counterproofSpecs.length;
+    setCounterproofSpecs(prev => [...prev, {
+      id: 5000 + idx + 1,
+      age_days: 28,
+      width_mm: 0, height_mm: 0, length_mm: 0, area_cm2: 0,
+      rupture_load_kn: 0, resistance_mpa: 0,
+      sample_role: 'counterproof',
+    }]);
+  }
+
+  function removeCounterproofSpec(idx) {
+    setCounterproofSpecs(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  function updateCounterproofSpec(idx, field, value) {
+    setCounterproofSpecs(prev => prev.map((s, i) => i === idx ? { ...s, [field]: value } : s));
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setLoading(true);
@@ -232,7 +318,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
       alerts,
       final_age_days: finalAge,
     };
-    // Motor 2026: persiste metadados de versionamento e memória de cálculo
+    // Motor 2026 (pavimentos): persiste metadados de versionamento e memória de cálculo
     if (is2026) {
       const meta = getEngineMetadata('2026');
       Object.assign(payload, {
@@ -251,6 +337,40 @@ export default function QualityReportForm({ order, productType, report, onClose,
         estimated_fck: compressionResult2026.fpk, // compatibilidade de exibição
       });
     }
+
+    // Motor 2026 (blocos NBR 6136-1/-2:2026): snapshot, versionamento, prova/contraprova
+    if (isBlock2026Valid) {
+      const meta = getBlockEngineMetadata('2026');
+      const loadingRate = fbkEspecificado >= 8 ? { target: 0.15, min: 0.12, max: 0.18 } : { target: 0.05, min: 0.04, max: 0.06 };
+      Object.assign(payload, {
+        normative_revision: '2026',
+        normative_standard: meta.normative_standard,
+        normative_requirements: meta.normative_requirements,
+        normative_version: meta.normative_version,
+        engine_name: meta.engine_name,
+        engine_version: meta.engine_version,
+        parameter_version: meta.parameter_version,
+        test_method_revision: meta.test_method_revision,
+        calculation_timestamp: meta.calculation_timestamp,
+        fbk_especificado_snapshot_mpa: fbkEspecificado,
+        estimated_fck: blockResult2026.fbk_estimado,
+        psi_coefficient: blockResult2026.psi,
+        compression_method: blockResult2026.method,
+        calculation_memory: blockResult2026.calculation_memory,
+        proof_result: { fbk_estimado: blockResult2026.fbk_estimado, compliant: blockResult2026.compliant },
+        counterproof_state: counterproofState,
+        final_lot_result: lotDecision?.final_lot_result || (blockResult2026.compliant ? 'CONFORME' : 'NÃO CONFORME'),
+        loading_rate_min: loadingRate.min,
+        loading_rate_max: loadingRate.max,
+        specimens: computedSpecimens.map(s => ({
+          ...s,
+          sample_role: s.sample_role || (proofSpecs.some(p => p.id === s.id) ? 'proof' : 'tracking'),
+        })),
+      });
+      if (counterproofResult) {
+        payload.counterproof_result = { fbk_estimado: counterproofResult.fbk_estimado, compliant: counterproofResult.compliant };
+      }
+    }
     if (!payload.test_date && payload.molding_date) {
       const d = new Date(payload.molding_date + 'T00:00:00');
       d.setDate(d.getDate() + (payload.final_age_days || 28));
@@ -259,8 +379,21 @@ export default function QualityReportForm({ order, productType, report, onClose,
     const targetLabel = Number(form.target_resistance) > 0
       ? `${metric.symbol || 'resistência'} de ${target} MPa`
       : `resistência mínima de ${target} MPa (${payload.norm_reference} — tráfego ${payload.traffic_type})`;
-    const revisionLabel = payload.normative_revision === '2026' ? ` (NBR 9781:2026 — ${payload.compression_method === 'large_sample' ? 'amostra grande' : 'amostra pequena'})` : '';
-    if (!effectiveFck || effectiveFck === 0) {
+    const revisionLabel = payload.normative_revision === '2026' && !isBlock2026
+      ? ` (NBR 9781:2026 — ${payload.compression_method === 'large_sample' ? 'amostra grande' : 'amostra pequena'})`
+      : isBlock2026
+      ? ` (blockCompressionEngine v2026.1 — NBR 6136-1/-2:2026)`
+      : '';
+    if (isBlock2026) {
+      const fbkEspLabel = `fbk especificado de ${fbkEspecificado} MPa`;
+      if (!effectiveBlockFbk || effectiveBlockFbk === 0) {
+        payload.conclusion = `Laudo em fase de preenchimento — aguardando resultados do ensaio de compressão para avaliação da conformidade à NBR 6136-1/-2:2026.`;
+      } else {
+        payload.conclusion = compliant
+          ? `Lote CONFORME à NBR 6136-1:2026. fbk estimado de ${effectiveBlockFbk.toFixed(2)} MPa atende ao ${fbkEspLabel}. Motor blockCompressionEngine v2026.1.`
+          : `Lote NÃO CONFORME à NBR 6136-1:2026. fbk estimado de ${effectiveBlockFbk.toFixed(2)} MPa não atende ao ${fbkEspLabel}. Motor blockCompressionEngine v2026.1.`;
+      }
+    } else if (!effectiveFck || effectiveFck === 0) {
       payload.conclusion = `Laudo em fase de preenchimento — aguardando resultados do ensaio de compressão para avaliação da conformidade à norma ${payload.norm_reference}.`;
     } else {
       payload.conclusion = compliant
@@ -440,6 +573,24 @@ export default function QualityReportForm({ order, productType, report, onClose,
                     </div>
                   </div>
                 </section>
+              )}
+
+              {/* 2.6 — Campos específicos NBR 6136 (Blocos) */}
+              {isBlock && (
+                <BlockCompressionSection
+                  form={form}
+                  setField={setField}
+                  productType={productType}
+                  blockResult={blockResult2026}
+                  proofSpecs={proofSpecs}
+                  counterproofSpecs={counterproofSpecs}
+                  counterproofState={counterproofState}
+                  onCounterproofStateChange={setCounterproofState}
+                  onToggleProofSpec={toggleProofSpec}
+                  onAddCounterproofSpec={addCounterproofSpec}
+                  onRemoveCounterproofSpec={removeCounterproofSpec}
+                  onUpdateCounterproofSpec={updateCounterproofSpec}
+                />
               )}
 
               {/* 3. Resultados por idade */}

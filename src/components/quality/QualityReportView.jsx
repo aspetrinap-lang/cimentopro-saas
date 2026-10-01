@@ -7,6 +7,7 @@ import {
   MIN_RESISTANCE_BY_TRAFFIC, MIN_THICKNESS_BY_TRAFFIC, DIMENSIONAL_TOLERANCE_MM,
   groupByAge, ageStats, estimateFck, checkCompliance, buildAlerts,
   resolveRevision, getResistanceMetric,
+  resolveBlockRevision,
 } from '@/lib/qualityNorms';
 
 function fmtDate(d) {
@@ -41,6 +42,9 @@ function ageRowData(report, group) {
 
 export default function QualityReportView({ report, onClose, onEdit }) {
   const pavimento = report.norm_reference === 'NBR 9781';
+  const isBlock = report.norm_reference === 'NBR 6136';
+  const blockRevision = resolveBlockRevision(report);
+  const isBlock2026 = isBlock && blockRevision === '2026';
   const metric = getResistanceMetric({ category: report.category, normReference: report.norm_reference });
   const groups = groupByAge(report.specimens || []);
   const rows = groups.map(g => ageRowData(report, g));
@@ -296,8 +300,13 @@ export default function QualityReportView({ report, onClose, onEdit }) {
           </section>
 
           {/* Versionamento normativo e memória de cálculo (NBR 9781:2026) */}
-          {report.normative_revision === '2026' && (
+          {report.normative_revision === '2026' && !isBlock2026 && (
             <NormativeVersionBlock report={report} />
+          )}
+
+          {/* Versionamento normativo e memória de cálculo (NBR 6136-1/-2:2026 — Blocos) */}
+          {isBlock2026 && (
+            <BlockNormativeVersionBlock report={report} />
           )}
 
           {/* Alertas */}
@@ -589,13 +598,110 @@ function NormativeVersionBlock({ report }) {
       )}
       {steps.length > 0 && (
         <details className="text-xs">
-          <summary className="cursor-pointer text-slate-600 hover:text-slate-900 font-medium">Memória de Cálculo ({steps.length} passos)</summary>
+          <summary className="cursor-pointer text-slate-600 hover:text-slate-900 font-medium">Ver memória de cálculo ({steps.length} passos)</summary>
           <ol className="mt-2 space-y-1 pl-4 list-decimal text-slate-600">
             {steps.map((s, i) => (
               <li key={i}>
                 {s.description}
                 {s.value != null && <span className="font-medium text-slate-900"> → {typeof s.value === 'number' ? s.value.toFixed(2) : s.value}</span>}
                 {s.formula && <span className="text-slate-500"> ({s.formula})</span>}
+                {s.error && <span className="text-red-600 font-medium"> [ERRO: {s.error}]</span>}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+    </section>
+  );
+}
+
+function BlockNormativeVersionBlock({ report }) {
+  const mem = report.calculation_memory;
+  const steps = mem?.steps || [];
+  const fbkSnapshot = report.fbk_especificado_snapshot_mpa;
+  return (
+    <section className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg p-4 space-y-3">
+      <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 text-sm font-semibold">
+        <FileCheck2 className="w-4 h-4 text-blue-600" />
+        Versionamento Normativo — blockCompressionEngine v2026.1
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+        <Info label="Norma de Requisitos" value={report.normative_requirements || 'NBR 6136-1'} />
+        <Info label="Norma de Ensaio" value={report.normative_standard || 'NBR 6136-2'} />
+        <Info label="Versão da Norma" value={report.normative_version || '2026'} />
+        <Info label="Método de Ensaio" value={report.test_method_revision || 'NBR 6136-2:2026'} />
+        <Info label="Motor" value={report.engine_name || 'blockCompressionEngine'} />
+        <Info label="Versão do Motor" value={report.engine_version || 'v2026.1'} />
+        <Info label="Coeficiente Ψ" value={report.psi_coefficient ?? '—'} />
+        <Info label="Método Estatístico" value={report.compression_method === 'large_sample' ? 'Amostra grande' : report.compression_method === 'small_sample' ? 'Amostra pequena' : '—'} />
+      </div>
+
+      {/* fbk especificado (snapshot imutável) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+        <div className="bg-white dark:bg-slate-800 rounded p-2 border border-slate-200 dark:border-slate-700">
+          <p className="text-muted-foreground">fbk Especificado (snapshot)</p>
+          <p className="font-bold text-foreground text-sm">{fbkSnapshot != null ? `${fbkSnapshot.toFixed(2)} MPa` : '—'}</p>
+        </div>
+        <div className="bg-white dark:bg-slate-800 rounded p-2 border border-slate-200 dark:border-slate-700">
+          <p className="text-muted-foreground">fbk Estimado</p>
+          <p className="font-bold text-blue-600 text-sm">{report.estimated_fck != null ? `${report.estimated_fck.toFixed(2)} MPa` : '—'}</p>
+        </div>
+        <div className={`rounded p-2 border text-center ${report.is_compliant ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900' : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900'}`}>
+          <p className="text-muted-foreground">Conformidade</p>
+          <p className={`font-bold text-sm ${report.is_compliant ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+            {report.is_compliant ? 'CONFORME' : 'NÃO CONFORME'}
+          </p>
+        </div>
+      </div>
+
+      {/* Resultado do lote (prova/contraprova) */}
+      {report.final_lot_result && (
+        <div className="text-xs">
+          <p className="text-muted-foreground font-medium mb-1">Resultado Final do Lote:</p>
+          <div className="flex gap-3 flex-wrap">
+            <span className={`px-2 py-1 rounded font-medium ${report.final_lot_result === 'CONFORME' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {report.final_lot_result}
+            </span>
+            {report.counterproof_state && (
+              <span className="px-2 py-1 rounded bg-blue-100 text-blue-700">
+                Contraprova: {report.counterproof_state}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Condições do ensaio */}
+      {(report.loading_rate_mpa_s || report.preparation_condition || report.humidity_relative_percent) && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs border-t border-blue-200 dark:border-blue-900 pt-2">
+          {report.loading_rate_mpa_s && (
+            <Info label="Vel. Carregamento (MPa/s)" value={`${report.loading_rate_mpa_s} (${report.loading_rate_min}–${report.loading_rate_max})`} />
+          )}
+          {report.preparation_condition && (
+            <Info label="Cond. Preparação" value={report.preparation_condition} />
+          )}
+          {report.humidity_relative_percent != null && (
+            <Info label="Umidade Relativa (%)" value={report.humidity_relative_percent} />
+          )}
+          {report.equipment_accuracy_class && (
+            <Info label="Classe Acurácia" value={report.equipment_accuracy_class} />
+          )}
+        </div>
+      )}
+
+      {report.calculation_timestamp && (
+        <p className="text-[11px] text-slate-500">Cálculo executado em: {formatDateBR(report.calculation_timestamp)}</p>
+      )}
+      {steps.length > 0 && (
+        <details className="text-xs">
+          <summary className="cursor-pointer text-slate-600 hover:text-slate-900 font-medium">Ver memória de cálculo ({steps.length} passos)</summary>
+          <ol className="mt-2 space-y-1 pl-4 list-decimal text-slate-600">
+            {steps.map((s, i) => (
+              <li key={i}>
+                {s.description}
+                {s.value != null && <span className="font-medium text-slate-900"> → {typeof s.value === 'number' ? s.value.toFixed(2) : s.value}</span>}
+                {s.formula && <span className="text-slate-500"> ({s.formula})</span>}
+                {s.values && <span className="text-slate-500"> [{s.values.map(v => typeof v === 'number' ? v.toFixed(2) : v).join(', ')}]</span>}
                 {s.error && <span className="text-red-600 font-medium"> [ERRO: {s.error}]</span>}
               </li>
             ))}

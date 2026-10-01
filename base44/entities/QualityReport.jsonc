@@ -42,30 +42,51 @@
       "type": "string",
       "enum": [
         "2013",
+        "2016",
         "2026"
       ],
       "default": "2026",
-      "description": "Revis\u00e3o da norma aplicada no c\u00e1lculo de compress\u00e3o (2013 ou 2026). Laudos sem este campo s\u00e3o tratados como 2013 (preserva\u00e7\u00e3o do hist\u00f3rico)."
+      "description": "Revis\u00e3o da norma aplicada no c\u00e1lculo de compress\u00e3o. Pavimentos: 2013 ou 2026 (NBR 9781). Blocos: 2016 ou 2026 (NBR 6136). Laudos sem este campo s\u00e3o tratados pela revis\u00e3o anterior (preserva\u00e7\u00e3o do hist\u00f3rico)."
+    },
+    "normative_standard": {
+      "type": "string",
+      "description": "Norma de m\u00e9todo de ensaio (ex: NBR 6136-2 para blocos, NBR 9781-2 para pavimentos)"
+    },
+    "normative_requirements": {
+      "type": "string",
+      "description": "Norma de requisitos (ex: NBR 6136-1 para blocos, NBR 9781-1 para pavimentos)"
+    },
+    "normative_version": {
+      "type": "string",
+      "description": "Vers\u00e3o da norma (ex: 2026, 2016, 2013)"
     },
     "engine_name": {
       "type": "string",
-      "description": "Nome do motor de c\u00e1lculo utilizado (ex: NBR_9781_2026_COMPRESSION). Imut\u00e1vel ap\u00f3s a emiss\u00e3o."
+      "description": "Nome do motor de c\u00e1lculo utilizado (ex: NBR_9781_2026_COMPRESSION, blockCompressionEngine). Imut\u00e1vel ap\u00f3s a emiss\u00e3o."
     },
     "engine_version": {
       "type": "string",
-      "description": "Vers\u00e3o do motor (ex: 1.0.0)"
+      "description": "Vers\u00e3o do motor (ex: 1.0.0, v2026.1)"
     },
     "parameter_version": {
       "type": "string",
-      "description": "Vers\u00e3o dos par\u00e2metros normativos (ex: NBR9781-COMPRESSION-2026)"
+      "description": "Vers\u00e3o dos par\u00e2metros normativos (ex: NBR9781-COMPRESSION-2026, NBR6136-COMPRESSION-2026)"
     },
     "test_method_revision": {
       "type": "string",
-      "description": "Revis\u00e3o do m\u00e9todo de ensaio (ex: NBR 9781-2:2026)"
+      "description": "Revis\u00e3o do m\u00e9todo de ensaio (ex: NBR 9781-2:2026, NBR 6136-2:2026)"
     },
     "calculation_timestamp": {
       "type": "string",
       "description": "Data/hora do c\u00e1lculo (ISO 8601) \u2014 rastreabilidade"
+    },
+    "historical_engine_version": {
+      "type": "string",
+      "description": "Vers\u00e3o do motor hist\u00f3rico utilizado em laudos anteriores \u2014 nunca recalculado pelo motor vigente"
+    },
+    "historical_normative_version": {
+      "type": "string",
+      "description": "Vers\u00e3o normativa hist\u00f3rica do laudo \u2014 preservada para rastreabilidade"
     },
     "laboratory_name": {
       "type": "string",
@@ -87,6 +108,23 @@
     "calibration_issuer": {
       "type": "string",
       "description": "Emitente do certificado de calibra\u00e7\u00e3o"
+    },
+    "calibration_valid_until": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de validade do certificado de calibra\u00e7\u00e3o da prensa"
+    },
+    "press_id": {
+      "type": "string",
+      "description": "Identifica\u00e7\u00e3o da prensa utilizada no ensaio"
+    },
+    "press_serial": {
+      "type": "string",
+      "description": "N\u00famero de s\u00e9rie da prensa"
+    },
+    "equipment_accuracy_class": {
+      "type": "string",
+      "description": "Classe de acur\u00e1cia da prensa (ex: Classe 1, Classe 0.5)"
     },
     "responsible_engineer": {
       "type": "string",
@@ -151,6 +189,47 @@
           },
           "resistance_mpa": {
             "type": "number"
+          },
+          "specimen_id": {
+            "type": "string",
+            "description": "Identifica\u00e7\u00e3o \u00fanica do corpo de prova (NBR 6136-2:2026)"
+          },
+          "sample_id": {
+            "type": "string",
+            "description": "Identifica\u00e7\u00e3o da amostra (prova/contraprova)"
+          },
+          "gross_area_mm2": {
+            "type": "number",
+            "description": "\u00c1rea bruta (mm\u00b2) \u2014 usada no c\u00e1lculo de fb (nunca a \u00e1rea l\u00edquida)"
+          },
+          "maximum_force_n": {
+            "type": "number",
+            "description": "For\u00e7a m\u00e1xima de ruptura (N)"
+          },
+          "individual_strength_mpa": {
+            "type": "number",
+            "description": "Resist\u00eancia individual fb = F/Ab (MPa)"
+          },
+          "failure_mode": {
+            "type": "string",
+            "description": "Modo de ruptura do corpo de prova"
+          },
+          "validity_status": {
+            "type": "string",
+            "enum": [
+              "VALID",
+              "INVALID"
+            ],
+            "description": "Situa\u00e7\u00e3o do corpo de prova"
+          },
+          "sample_role": {
+            "type": "string",
+            "enum": [
+              "tracking",
+              "proof",
+              "counterproof"
+            ],
+            "description": "Papel do CP: tracking (acompanhamento por idade), proof (prova de aceita\u00e7\u00e3o), counterproof (contraprova)"
           }
         }
       },
@@ -181,6 +260,10 @@
       "type": "number",
       "description": "Resist\u00eancia caracter\u00edstica final (fpk \u2014 MPa) \u2014 revis\u00e3o 2026"
     },
+    "fbk_especificado_snapshot_mpa": {
+      "type": "number",
+      "description": "Snapshot imut\u00e1vel do fbk especificado (MPa) no momento da emiss\u00e3o do laudo \u2014 preserva a interpreta\u00e7\u00e3o hist\u00f3rica mesmo se o cadastro do produto mudar posteriormente. Nunca recalculado."
+    },
     "psi_coefficient": {
       "type": "number",
       "description": "Coeficiente estat\u00edstico \u03c8 aplicado (revis\u00e3o 2026)"
@@ -195,7 +278,7 @@
     },
     "target_resistance": {
       "type": "number",
-      "description": "Resist\u00eancia caracter\u00edstica de projeto (fck MPa)"
+      "description": "Resist\u00eancia caracter\u00edstica de projeto (fck/fbk MPa)"
     },
     "traffic_type": {
       "type": "string",
@@ -216,6 +299,70 @@
     "thickness_ok": {
       "type": "boolean",
       "description": "Conformidade dimensional da espessura (varia\u00e7\u00e3o \u2264 3 mm)"
+    },
+    "preparation_condition": {
+      "type": "string",
+      "description": "Condi\u00e7\u00e3o de prepara\u00e7\u00e3o do corpo de prova (ex: seco ao ar, imers\u00e3o, estufa)"
+    },
+    "humidity_relative_percent": {
+      "type": "number",
+      "description": "Umidade relativa (%) no momento do ensaio"
+    },
+    "humidity_validation_status": {
+      "type": "string",
+      "description": "Situa\u00e7\u00e3o da valida\u00e7\u00e3o de umidade (ex: DENTRO DO LIMITE, FORA DO LIMITE)"
+    },
+    "loading_rate_mpa_s": {
+      "type": "number",
+      "description": "Velocidade de carregamento informada pelo laborat\u00f3rio (MPa/s) \u2014 n\u00e3o alterada pelo sistema"
+    },
+    "loading_rate_min": {
+      "type": "number",
+      "description": "Limite m\u00ednimo da velocidade de carregamento normativa (MPa/s)"
+    },
+    "loading_rate_max": {
+      "type": "number",
+      "description": "Limite m\u00e1ximo da velocidade de carregamento normativa (MPa/s)"
+    },
+    "temperature_c": {
+      "type": "number",
+      "description": "Temperatura (\u00b0C) do procedimento de secagem/estufa, quando aplic\u00e1vel"
+    },
+    "exposure_time_hours": {
+      "type": "number",
+      "description": "Tempo de exposi\u00e7\u00e3o (horas) no procedimento de secagem/estufa, quando aplic\u00e1vel"
+    },
+    "post_oven_test_time_minutes": {
+      "type": "number",
+      "description": "Tempo (minutos) entre a retirada da estufa e o ensaio, quando aplic\u00e1vel"
+    },
+    "proof_result": {
+      "type": "object",
+      "description": "Resultado da prova de aceita\u00e7\u00e3o (6 CPs) \u2014 c\u00e1lculo independente, nunca misturado com a contraprova"
+    },
+    "counterproof_result": {
+      "type": "object",
+      "description": "Resultado da contraprova (6 CPs) \u2014 c\u00e1lculo independente, somente quando acionada pelo fluxo de aceita\u00e7\u00e3o"
+    },
+    "counterproof_state": {
+      "type": "string",
+      "enum": [
+        "NOT_REQUIRED",
+        "AVAILABLE",
+        "REQUIRED",
+        "IN_PROGRESS",
+        "COMPLETED"
+      ],
+      "default": "NOT_REQUIRED",
+      "description": "Estado da contraprova no fluxo de aceita\u00e7\u00e3o do lote"
+    },
+    "final_lot_result": {
+      "type": "string",
+      "enum": [
+        "CONFORME",
+        "N\u00c3O CONFORME"
+      ],
+      "description": "Resultado final do lote (decis\u00e3o com base em prova/contraprova)"
     },
     "is_compliant": {
       "type": "boolean",

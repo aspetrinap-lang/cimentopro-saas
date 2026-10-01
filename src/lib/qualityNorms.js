@@ -34,6 +34,30 @@ export {
   RESISTANCE_FAMILIES,
 } from './quality/resistanceMetric';
 
+// ── Motor de compressão de BLOCOS (NBR 6136-1/-2:2026) ─────
+export {
+  NBR_6136_2026_COMPRESSION,
+  NBR_6136_2016_COMPRESSION,
+  BLOCK_COMPRESSION_REVISIONS,
+  getBlockCompressionParams,
+  getBlockPsi,
+  getBlockIndexI,
+  resolveLoadingRate,
+  validateLoadingRate,
+} from './quality/blockNormativeParams';
+
+export {
+  calcBlockIndividualResistance,
+  calculateBlockCompression2026,
+  calculateBlockCompression2016,
+  calculateBlockCompression,
+  validateBlockTest,
+  decideLot,
+  getBlockEngineMetadata,
+  resolveBlockRevision,
+  buildBlockAlerts2026,
+} from './quality/blockCompressionEngine';
+
 import { getResistanceMetric } from './quality/resistanceMetric';
 
 export const NORM_OPTIONS = ['NBR 6136', 'NBR 9781'];
