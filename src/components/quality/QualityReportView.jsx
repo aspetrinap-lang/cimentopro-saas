@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Printer, Pencil, X, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Printer, Pencil, X, CheckCircle2, AlertTriangle, FileCheck2 } from 'lucide-react';
 import CompanyBrand from '@/components/CompanyBrand';
 import PrintPortal from '@/components/reports/PrintPortal';
 import { formatDateBR } from '@/lib/dateFormat';
 import {
   MIN_RESISTANCE_BY_TRAFFIC, MIN_THICKNESS_BY_TRAFFIC, DIMENSIONAL_TOLERANCE_MM,
   groupByAge, ageStats, estimateFck, checkCompliance, buildAlerts,
+  resolveRevision,
 } from '@/lib/qualityNorms';
 
 function fmtDate(d) {
@@ -288,10 +289,15 @@ export default function QualityReportView({ report, onClose, onEdit }) {
           <section className="grid grid-cols-5 gap-3 text-sm">
             <Box label={`Resistência Média (${finalAge}d)`} value={`${(report.average_resistance || 0).toFixed(2)} MPa`} />
             <Box label="Menor Individual" value={`${(report.min_resistance || 0).toFixed(2)} MPa`} />
-            <Box label="fck Estimado" value={report.estimated_fck ? `${report.estimated_fck.toFixed(2)} MPa` : '—'} />
+            <Box label={report.normative_revision === '2026' ? 'fpk,est (MPa)' : 'fck Estimado'} value={report.fpk || report.estimated_fck ? `${(report.fpk || report.estimated_fck).toFixed(2)} MPa` : '—'} />
             <Box label="fck Projeto" value={report.target_resistance ? `${report.target_resistance} MPa` : '—'} />
             <Box label="Conformidade" value={compliant ? 'CONFORME' : 'NÃO CONFORME'} highlight={compliant ? 'green' : 'red'} />
           </section>
+
+          {/* Versionamento normativo e memória de cálculo (NBR 9781:2026) */}
+          {report.normative_revision === '2026' && (
+            <NormativeVersionBlock report={report} />
+          )}
 
           {/* Alertas */}
           {alerts.length > 0 && (
@@ -502,6 +508,19 @@ function PrintLaudoBlock({ report, group }) {
           />
         </section>
 
+        {/* Versionamento normativo (impressão) */}
+        {report.normative_revision === '2026' && (
+          <section className="text-[10px] text-slate-500 border-t border-slate-200 pt-2">
+            <p>
+              Motor: <strong>{report.engine_name || 'NBR_9781_2026_COMPRESSION'}</strong> v{report.engine_version || '1.0.0'} •
+              Método: {report.compression_method === 'large_sample' ? 'amostra grande' : 'amostra pequena'} •
+              p={report.thickness_factor?.toFixed(2) || '—'} •
+              ψ={report.psi_coefficient ?? '—'} •
+              Cálculo: {report.calculation_timestamp ? formatDateBR(report.calculation_timestamp) : '—'}
+            </p>
+          </section>
+        )}
+
         {/* Alertas */}
         {alerts.length > 0 && (
           <section className="bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -539,6 +558,49 @@ function PrintLaudoBlock({ report, group }) {
         </section>
       </div>
     </div>
+  );
+}
+
+function NormativeVersionBlock({ report }) {
+  const revision = resolveRevision(report);
+  if (revision !== '2026') return null;
+  const mem = report.calculation_memory;
+  const steps = mem?.steps || [];
+  return (
+    <section className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+      <div className="flex items-center gap-2 text-slate-700 text-sm font-semibold">
+        <FileCheck2 className="w-4 h-4" />
+        Versionamento Normativo — Motor NBR_9781_2026_COMPRESSION
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+        <Info label="Revisão da Norma" value={report.normative_revision} />
+        <Info label="Método de Ensaio" value={report.test_method_revision || 'NBR 9781-2:2026'} />
+        <Info label="Motor" value={report.engine_name || 'NBR_9781_2026_COMPRESSION'} />
+        <Info label="Versão do Motor" value={report.engine_version || '1.0.0'} />
+        <Info label="Versão dos Parâmetros" value={report.parameter_version || 'NBR9781-COMPRESSION-2026'} />
+        <Info label="Fator de Espessura (p)" value={report.thickness_factor != null ? report.thickness_factor.toFixed(2) : '—'} />
+        <Info label="Coeficiente ψ" value={report.psi_coefficient ?? '—'} />
+        <Info label="Método Estatístico" value={report.compression_method === 'large_sample' ? 'Amostra grande (n ≥ 18)' : report.compression_method === 'small_sample' ? 'Amostra pequena (6 ≤ n ≤ 16)' : '—'} />
+      </div>
+      {report.calculation_timestamp && (
+        <p className="text-[11px] text-slate-500">Cálculo executado em: {formatDateBR(report.calculation_timestamp)}</p>
+      )}
+      {steps.length > 0 && (
+        <details className="text-xs">
+          <summary className="cursor-pointer text-slate-600 hover:text-slate-900 font-medium">Memória de Cálculo ({steps.length} passos)</summary>
+          <ol className="mt-2 space-y-1 pl-4 list-decimal text-slate-600">
+            {steps.map((s, i) => (
+              <li key={i}>
+                {s.description}
+                {s.value != null && <span className="font-medium text-slate-900"> → {typeof s.value === 'number' ? s.value.toFixed(2) : s.value}</span>}
+                {s.formula && <span className="text-slate-500"> ({s.formula})</span>}
+                {s.error && <span className="text-red-600 font-medium"> [ERRO: {s.error}]</span>}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+    </section>
   );
 }
 

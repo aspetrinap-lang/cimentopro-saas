@@ -9,6 +9,8 @@ import {
   MIN_RESISTANCE_BY_TRAFFIC, MIN_THICKNESS_BY_TRAFFIC, DIMENSIONAL_TOLERANCE_MM,
   inferNorm, computeSpecimen, groupByAge, ageStats,
   checkThickness, buildAlerts, checkApproval, estimateFck, getClassFbk,
+  COMPRESSION_REVISIONS,
+  calculateCompression2026, getEngineMetadata, buildAlerts2026,
 } from '@/lib/qualityNorms';
 
 // Resolve o fck de referência: usa o fck de projeto informado; na NBR 9781 sem
@@ -45,6 +47,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
       return {
         specimen_count: report.specimens?.length || 6,
         final_age_days: report.final_age_days ?? 28,
+        normative_revision: report.normative_revision || '2013',
         ...rest,
       };
     }
@@ -56,6 +59,7 @@ export default function QualityReportForm({ order, productType, report, onClose,
       product_type_name: productType?.name || order?.product_type_name || '',
       category: productType?.category || '',
       norm_reference: inferNorm(productType?.category),
+      normative_revision: '2026',
       laboratory_name: '',
       test_equipment: 'Prensa PAVITEST 100 toneladas, acionamento hidráulico',
       calibration_number: '0212/26',
@@ -133,6 +137,18 @@ export default function QualityReportForm({ order, productType, report, onClose,
   const { average, min } = ageStats(finalGroup.specimens);
   const estimatedFck = useMemo(() => estimateFck(finalGroup.specimens), [finalGroup]);
 
+  // Motor NBR 9781:2026 — cálculo versionado com fator de espessura, ψ e fpk,est
+  const compressionResult2026 = useMemo(() => {
+    if (form.norm_reference !== 'NBR 9781' || form.normative_revision !== '2026') return null;
+    return calculateCompression2026(finalGroup.specimens, {
+      nominalThicknessMm: form.nominal_thickness_mm,
+      targetFck: target,
+    });
+  }, [finalGroup, form.norm_reference, form.normative_revision, form.nominal_thickness_mm, target]);
+
+  const is2026 = !!compressionResult2026 && !compressionResult2026.error;
+  const effectiveFck = is2026 ? compressionResult2026.fpk : estimatedFck;
+
   // Valores de exibição: refletem a idade selecionada (activeAge) nos cartões de resumo
   const displayGroup = useMemo(
     () => groups.find(g => g.age_days === activeAge) || { specimens: [] },
@@ -152,17 +168,21 @@ export default function QualityReportForm({ order, productType, report, onClose,
   const thicknessOk = checkThickness(form.nominal_thickness_mm, effectiveMeasured);
   const hasFinalAge = groups.some(g => g.age_days === finalAge && g.specimens.some(s => s.resistance_mpa > 0));
 
-  const alerts = buildAlerts({
-    norm_reference: form.norm_reference,
-    average, min, target,
-    traffic_type: form.traffic_type,
-    thickness_ok: thicknessOk,
-    hasFinalAge,
-  });
+  const alerts = is2026
+    ? buildAlerts2026(compressionResult2026, { target, hasFinalAge })
+    : buildAlerts({
+        norm_reference: form.norm_reference,
+        average, min, target,
+        traffic_type: form.traffic_type,
+        thickness_ok: thicknessOk,
+        hasFinalAge,
+      });
 
-  // Critério de aprovação: fck,est ≥ fck especificado (APROVADO/ATENÇÃO/REPROVADO)
-  const finalApproval = checkApproval({ estimatedFck, target });
-  const compliant = finalApproval === 'APROVADO';
+  // Critério de aprovação: 2026 usa fpk do motor; 2013 usa fck,est (média − 1,65·s)
+  const finalApproval = is2026
+    ? compressionResult2026.approval
+    : checkApproval({ estimatedFck, target });
+  const compliant = is2026 ? compressionResult2026.compliant : (finalApproval === 'APROVADO');
 
   useEffect(() => {
     setForm(f => ({
@@ -209,6 +229,25 @@ export default function QualityReportForm({ order, productType, report, onClose,
       alerts,
       final_age_days: finalAge,
     };
+    // Motor 2026: persiste metadados de versionamento e memória de cálculo
+    if (is2026) {
+      const meta = getEngineMetadata('2026');
+      Object.assign(payload, {
+        normative_revision: '2026',
+        engine_name: meta.engine_name,
+        engine_version: meta.engine_version,
+        parameter_version: meta.parameter_version,
+        test_method_revision: meta.test_method_revision,
+        calculation_timestamp: meta.calculation_timestamp,
+        fpk_est: compressionResult2026.fpk_est,
+        fpk: compressionResult2026.fpk,
+        psi_coefficient: compressionResult2026.psi,
+        thickness_factor: compressionResult2026.thickness_factor,
+        compression_method: compressionResult2026.method,
+        calculation_memory: compressionResult2026.calculation_memory,
+        estimated_fck: compressionResult2026.fpk, // compatibilidade de exibição
+      });
+    }
     if (!payload.test_date && payload.molding_date) {
       const d = new Date(payload.molding_date + 'T00:00:00');
       d.setDate(d.getDate() + (payload.final_age_days || 28));
@@ -217,12 +256,14 @@ export default function QualityReportForm({ order, productType, report, onClose,
     const targetLabel = Number(form.target_resistance) > 0
       ? `fck de ${target} MPa`
       : `resistência mínima de ${target} MPa (${payload.norm_reference} — tráfego ${payload.traffic_type})`;
-    if (!estimatedFck || estimatedFck === 0) {
+    const fckLabel = is2026 ? 'fpk' : 'fck,est';
+    const revisionLabel = payload.normative_revision === '2026' ? ` (NBR 9781:2026 — ${payload.compression_method === 'large_sample' ? 'amostra grande' : 'amostra pequena'})` : '';
+    if (!effectiveFck || effectiveFck === 0) {
       payload.conclusion = `Laudo em fase de preenchimento — aguardando resultados do ensaio de compressão para avaliação da conformidade à norma ${payload.norm_reference}.`;
     } else {
       payload.conclusion = compliant
-        ? `Lote CONFORME à norma ${payload.norm_reference}. fck estimado de ${estimatedFck.toFixed(2)} MPa na idade de ${finalAge} dias atende à ${targetLabel}.`
-        : `Lote NÃO CONFORME à norma ${payload.norm_reference}. fck estimado de ${estimatedFck.toFixed(2)} MPa na idade de ${finalAge} dias não atende à ${targetLabel}.`;
+        ? `Lote CONFORME à norma ${payload.norm_reference}${revisionLabel}. ${fckLabel} de ${effectiveFck.toFixed(2)} MPa na idade de ${finalAge} dias atende à ${targetLabel}.`
+        : `Lote NÃO CONFORME à norma ${payload.norm_reference}${revisionLabel}. ${fckLabel} de ${effectiveFck.toFixed(2)} MPa na idade de ${finalAge} dias não atende à ${targetLabel}.`;
     }
     try {
       if (report) {
@@ -373,6 +414,28 @@ export default function QualityReportForm({ order, productType, report, onClose,
                         Variação: {thicknessVariation.toFixed(1)} mm (tol. ±{DIMENSIONAL_TOLERANCE_MM} mm) — {thicknessOk ? 'OK' : 'FORA'}
                       </p>
                     </div>
+                    <div className="md:col-span-3 border-t border-amber-200 dark:border-amber-900 pt-2">
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Revisão da Norma de Compressão</label>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {COMPRESSION_REVISIONS.map(r => (
+                          <button key={r.value} type="button"
+                            onClick={() => setField('normative_revision', r.value)}
+                            className={`px-3 py-1.5 text-xs rounded-lg font-medium border transition-colors ${
+                              form.normative_revision === r.value
+                                ? 'bg-amber-600 text-white border-amber-600'
+                                : 'border-amber-300 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                            }`}>
+                            {r.label}
+                          </button>
+                        ))}
+                      </div>
+                      {form.normative_revision === '2026' && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Motor NBR_9781_2026_COMPRESSION — fator de espessura (p), coeficiente ψ, fpk,est = 2 × média(i−1 menores) − fp(i).
+                          Mínimo de 6 CPs válidos. n=17 bloqueado.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </section>
               )}
@@ -518,6 +581,46 @@ export default function QualityReportForm({ order, productType, report, onClose,
                         <span className="mt-0.5">•</span>{a}
                       </p>
                     ))}
+                  </div>
+                )}
+
+                {/* Resultados do motor NBR 9781:2026 (idade de referência) */}
+                {is2026 && compressionResult2026 && (
+                  <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                      Motor NBR_9781_2026_COMPRESSION — Memória de Cálculo
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                      <div className="bg-white dark:bg-slate-800 rounded p-2 border border-slate-200 dark:border-slate-700">
+                        <p className="text-muted-foreground">Fator de Espessura (p)</p>
+                        <p className="font-bold text-foreground text-sm">{compressionResult2026.thickness_factor?.toFixed(2)}</p>
+                      </div>
+                      <div className="bg-white dark:bg-slate-800 rounded p-2 border border-slate-200 dark:border-slate-700">
+                        <p className="text-muted-foreground">Coeficiente ψ</p>
+                        <p className="font-bold text-foreground text-sm">{compressionResult2026.psi ?? '—'}</p>
+                      </div>
+                      <div className="bg-white dark:bg-slate-800 rounded p-2 border border-slate-200 dark:border-slate-700">
+                        <p className="text-muted-foreground">fpk,est (MPa)</p>
+                        <p className="font-bold text-primary text-sm">{compressionResult2026.fpk_est?.toFixed(2)}</p>
+                      </div>
+                      <div className="bg-white dark:bg-slate-800 rounded p-2 border border-slate-200 dark:border-slate-700">
+                        <p className="text-muted-foreground">Método</p>
+                        <p className="font-bold text-foreground text-sm">{compressionResult2026.method === 'large_sample' ? 'Amostra grande' : 'Amostra pequena'}</p>
+                      </div>
+                    </div>
+                    <details className="text-xs">
+                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Ver memória de cálculo completa ({compressionResult2026.calculation_memory?.steps?.length || 0} passos)</summary>
+                      <ol className="mt-2 space-y-1 pl-4 list-decimal">
+                        {compressionResult2026.calculation_memory?.steps?.map((s, i) => (
+                          <li key={i} className="text-muted-foreground">
+                            {s.description}
+                            {s.value != null && <span className="font-medium text-foreground"> → {typeof s.value === 'number' ? s.value.toFixed(2) : s.value}</span>}
+                            {s.formula && <span className="text-slate-500"> ({s.formula})</span>}
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
                   </div>
                 )}
               </section>

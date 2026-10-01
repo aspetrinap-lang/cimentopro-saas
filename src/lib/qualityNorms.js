@@ -1,4 +1,29 @@
 // Constantes e regras das normas técnicas para laudos de qualidade
+//
+// Motor de compressão versionado: NBR 9781:2013 (preservado) e
+// NBR 9781:2026 (vigente). Os parâmetros normativos estão em
+// fonte única em ./quality/normativeParams e o motor de cálculo
+// em ./quality/compressionEngine. Este módulo mantém as funções
+// compartilhadas e re-exporta o motor para compatibilidade.
+
+export {
+  NBR_9781_2026_COMPRESSION,
+  NBR_9781_2013_COMPRESSION,
+  COMPRESSION_REVISIONS,
+  getCompressionParams,
+  getThicknessFactor,
+  getPsi,
+  getIndexI,
+} from './quality/normativeParams';
+
+export {
+  calculateCompression,
+  calculateCompression2013,
+  calculateCompression2026,
+  getEngineMetadata,
+  resolveRevision,
+  buildAlerts2026,
+} from './quality/compressionEngine';
 
 export const NORM_OPTIONS = ['NBR 6136', 'NBR 9781'];
 
