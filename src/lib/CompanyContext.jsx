@@ -154,8 +154,10 @@ export const CompanyProvider = ({ children }) => {
 
   // Mantém o escopo global (scopedFilter) ciente do SUPER_ADMIN (status
   // verificado no backend) — consultas fora da árvore React preservam a
-  // visão de plataforma dele.
-  setPlatformAdminScope(platformAdmin);
+  // visão de plataforma dele. Executado em efeito para não re-renderizar.
+  useEffect(() => {
+    setPlatformAdminScope(platformAdmin);
+  }, [platformAdmin]);
 
   return (
     <CompanyContext.Provider value={{
