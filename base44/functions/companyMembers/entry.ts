@@ -85,6 +85,10 @@ export default async function(req) {
     // sincronizar o cache da sessão pelo caminho oficial da plataforma.
     if (action === 'myCompanies') {
       const links = await svc.entities.UserCompany.filter({ user_id: auth.id, status: 'active' }, '-created_date', 500);
+      // Sincroniza o cache company_ids do usuário exclusivamente no backend
+      // (service role), partindo dos vínculos ativos — o frontend nunca grava
+      // esse campo. Garante que o RLS use a lista real, não dados do cliente.
+      await syncUserCompanies(auth.id);
       const ids = [...new Set(links.map((l) => l.company_id))];
       const linked = ids.length
         ? (await Promise.all(ids.map((id) => svc.entities.Company.get(id).catch(() => null)))).filter(Boolean)

@@ -98,12 +98,9 @@ export const CompanyProvider = ({ children }) => {
           verifiedAdmin = !!res.data?.platform_admin;
           blocked = res.data?.blocked_companies || [];
         } catch { /* sem vínculos legíveis — segue com lista vazia */ }
-        // Sincroniza o cache de empresas na própria sessão pelo caminho oficial
-        // da plataforma (dados do usuário): RLS e consultas passam a enxergar o
-        // vínculo já neste acesso, sem precisar sair e entrar novamente.
-        try {
-          await base44.auth.updateMe({ company_ids: [...new Set(activeMbs.map((m) => m.company_id))] });
-        } catch { /* indisponível — o próximo acesso sincroniza */ }
+        // company_ids é sincronizado no backend (companyMembers/myCompanies) via
+        // service role — o frontend nunca grava esse campo, evitando que o
+        // cliente forneça empresas não vinculadas e rompa o isolamento RLS.
         if (cancelled) return;
         setMemberships(activeMbs);
         setCompanies(selectable);
