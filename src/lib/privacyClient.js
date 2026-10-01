@@ -28,6 +28,10 @@ export async function getActiveNotice() {
   return privacy({ action: 'getActiveNotice' });
 }
 
+export async function createPublicRequest(request_type, description, contact_email) {
+  return privacy({ action: 'createPublicRequest', request_type, description, contact_email });
+}
+
 export async function submitConsent(purpose, notice_version, { revoke, reason } = {}) {
   return privacy({ action: 'submitConsent', purpose, notice_version, revoke: !!revoke, reason });
 }

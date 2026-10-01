@@ -104,7 +104,7 @@ export default function Lgpd() {
             <FileText className="w-3.5 h-3.5" /> Aviso de Privacidade
           </Link>
           <button onClick={handleExport} disabled={exporting} className="flex items-center gap-1.5 border border-border rounded-lg px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60">
-            {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Meus dados
+            {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Exportação individual (Meus dados)
           </button>
         </div>
       </div>
@@ -116,6 +116,12 @@ export default function Lgpd() {
             A exclusão é uma <strong>solicitação</strong>, não uma ação imediata. Dados sujeitos a obrigações legais, fiscais ou contratuais podem ser mantidos ou anonimizados. O resultado será informado no protocolo. Nenhum dado é apagado automaticamente.
           </p>
         </div>
+      </div>
+
+      <div className="bg-muted/40 border border-border rounded-xl p-4">
+        <p className="text-xs text-muted-foreground">
+          <strong className="text-foreground">Exportação individual (LGPD):</strong> o arquivo "Meus dados" contém apenas dados do titular autenticado. Logs de auditoria aparecem como metadados sanitizados (data, ação, entidade) — sem IPs, e-mails de terceiros ou empresas fora do seu vínculo. Este fluxo é distinto do backup administrativo da empresa.
+        </p>
       </div>
 
       <div className="flex items-center justify-between">

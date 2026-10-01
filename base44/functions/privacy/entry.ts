@@ -64,14 +64,45 @@ async function assertExceptionalAccess(svc, auth, ip, justification) {
   return { ok: true };
 }
 
-// Exportação individual por titular: dados que identificam a pessoa em registros
-// de vínculo, operador, auditoria, suporte e IA — nunca dados de terceiros.
+// Exportação INDIVIDUAL do titular (LGPD — portabilidade/acesso).
+// Distinta do backup administrativo: usa apenas a sessão autenticada, sem
+// escopo global por auth.role === 'admin' e sem tratamento especial para
+// superadmin. Dados de terceiros (e-mails, IPs, empresas alheias, payloads
+// de auditoria) são redigidos ou omitidos.
+const SENSITIVE_PIN_FIELDS = ['pin', 'pin_hash', 'pin_salt', 'password', 'token', 'tokens', 'secret', 'credentials'];
+
+function redactSensitive(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const clean = Array.isArray(obj) ? [...obj] : { ...obj };
+  for (const k of Object.keys(clean)) {
+    if (SENSITIVE_PIN_FIELDS.includes(k)) {
+      delete clean[k];
+    } else if (clean[k] && typeof clean[k] === 'object') {
+      clean[k] = redactSensitive(clean[k]);
+    }
+  }
+  return clean;
+}
+
+// Auditoria como metadados sanitizados: data, ação e entidade. Sem old/new_value,
+// sem IPs, sem e-mails de terceiros, sem company_id de empresas alheias.
+function sanitizeAuditLog(log, allowedCompanyIds) {
+  if (!log) return null;
+  const withinCompany = !log.company_id || allowedCompanyIds.includes(log.company_id);
+  return {
+    created_date: log.created_date || null,
+    action: log.action || null,
+    entity_name: log.entity_name || null,
+    within_authorized_scope: withinCompany,
+  };
+}
+
 async function exportTitularData(svc, auth) {
   const userId = auth.id;
   const companyIds = extractCompanyIds(auth);
   const out = { user: { id: auth.id, email: auth.email, full_name: auth.full_name, role: auth.role } };
 
-  // Vínculos usuário-empresa
+  // Vínculos usuário-empresa do próprio titular
   const links = await svc.entities.UserCompany.filter({ user_id: userId }).catch(() => []);
   out.user_companies = links;
 
@@ -83,18 +114,13 @@ async function exportTitularData(svc, auth) {
     const ids = new Set(pins.map((p) => p.id));
     for (const p of pinsByEmail) if (!ids.has(p.id)) { pins.push(p); ids.add(p.id); }
   }
-  // Sanitiza: hash e salt nunca saem na exportação
-  out.user_pins = pins.map((p) => {
-    const { pin_hash, pin_salt, pin, ...rest } = p;
-    return rest;
-  });
+  out.user_pins = pins.map((p) => redactSensitive(p));
 
-  // Auditoria onde o titular é o ator
+  // Auditoria onde o titular é o ator — apenas metadados sanitizados.
   const auditByUser = await svc.entities.AuditLog.filter({ user_id: userId }).catch(() => []);
-  const auditByCreator = await svc.entities.AuditLog.filter({ created_by_id: userId }).catch(() => []);
-  out.audit_logs = [...auditByUser, ...auditByCreator];
+  out.audit_logs = auditByUser.map((l) => sanitizeAuditLog(l, companyIds)).filter(Boolean);
 
-  // Suporte
+  // Suporte: somente tickets/mensagens do próprio titular (autor/destinatário)
   const tickets = await svc.entities.SupportTicket.filter({ created_by: userId }).catch(() => []);
   out.support_tickets = tickets;
   const messages = await svc.entities.SupportMessage.filter({ sender_user_id: userId }).catch(() => []);
@@ -108,7 +134,7 @@ async function exportTitularData(svc, auth) {
   const aiUsage = await svc.entities.AIAnalysisUsage.filter({ user_id: userId }).catch(() => []);
   out.ai_usage = aiUsage;
 
-  // Pedidos LGPD do próprio titular
+  // Pedidos LGPD e consentimentos do próprio titular
   const privacyRequests = await svc.entities.PrivacyRequest.filter({ user_id: userId }).catch(() => []);
   out.privacy_requests = privacyRequests;
   const consents = await svc.entities.PrivacyConsent.filter({ user_id: userId }).catch(() => []);
@@ -127,11 +153,52 @@ export default async function(req) {
     try { body = await req.json(); } catch (error) { body = {}; }
     const action = body.action;
 
-    // Ações públicas (aviso de privacidade) — não exigem autenticação
+    // Ações públicas (aviso de privacidade e registro por titular sem conta)
+    // — não exigem autenticação. Nunca retornam dados de terceiros.
     if (action === 'getActiveNotice') {
       const notices = await svc.entities.PrivacyPolicyNotice.filter({ status: 'published' }, '-published_at', 1).catch(() => []);
       const notice = notices?.[0] || null;
       return Response.json({ notice });
+    }
+
+    if (action === 'createPublicRequest') {
+      // Titular SEM conta: registro de solicitação por canal público.
+      // Verificação de identidade proporcional: e-mail sintático + confirmação
+      // posterior; nunca exige nem armazena documentos por padrão. A consulta
+      // NUNCA ocorre apenas por conhecimento de e-mail ou protocolo.
+      const requestType = body.request_type;
+      const description = String(body.description || '').trim();
+      const contactEmail = String(body.contact_email || '').trim().toLowerCase();
+      if (!REQUEST_TYPES.includes(requestType)) {
+        return Response.json({ error: 'Tipo de pedido inválido' }, { status: 400 });
+      }
+      if (description.length < 10) {
+        return Response.json({ error: 'Descreva o pedido com pelo menos 10 caracteres.' }, { status: 400 });
+      }
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail);
+      if (!emailOk) {
+        return Response.json({ error: 'Informe um e-mail de contato válido para confirmação.' }, { status: 400 });
+      }
+      const protocol = await generateProtocol();
+      const now = new Date();
+      const due = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000); // Art. 19 — 15 dias
+      const record = {
+        user_id: null,
+        user_email: null,
+        user_name: null,
+        protocol,
+        request_type: requestType,
+        description,
+        status: 'RECEBIDA',
+        visibility: 'user',
+        identity_verification_method: 'session',
+        response_due_date: due.toISOString().slice(0, 10),
+        events: [{ at: now.toISOString(), actor: 'public_channel', action: 'CREATED', detail: `Pedido de ${requestType} recebido por canal público` }],
+      };
+      const created = await svc.entities.PrivacyRequest.create(record);
+      const audit = makeAuditor(svc, { id: null, email: null }, ip, 'PrivacyRequest');
+      await audit('CREATE', created.id, null, { protocol, request_type: requestType, channel: 'public', contact_email_domain: contactEmail.split('@')[1] || null });
+      return Response.json({ request: { protocol, status: created.status, response_due_date: created.response_due_date } });
     }
 
     // Demais ações exigem autenticação
@@ -183,21 +250,30 @@ export default async function(req) {
       const request = await svc.entities.PrivacyRequest.get(requestId).catch(() => null);
       if (!request) return Response.json({ error: 'Pedido não encontrado' }, { status: 404 });
       if (request.user_id !== auth.id) {
-        // Acesso excepcional exigido para qualquer pedido de outro titular
+        // Acesso excepcional exigido para qualquer pedido de outro titular.
+        // Cada leitura é auditada individualmente (além da verificação de
+        // permissão) — flags do navegador nunca autorizam.
         const access = await assertExceptionalAccess(svc, auth, ip, body.justification);
         if (!access.ok) return Response.json({ error: access.body.error }, { status: access.status });
+        const events = Array.isArray(request.events) ? [...request.events] : [];
+        events.push({ at: new Date().toISOString(), actor: auth.email, action: 'EXCEPTIONAL_READ', detail: `Acesso excepcional ao pedido ${request.protocol}` });
+        await svc.entities.PrivacyRequest.update(requestId, { events }).catch(() => null);
       }
       return Response.json({ request });
     }
 
     // ── Titular: exportar meus dados ─────────────────────────
     if (action === 'exportMyData') {
+      // Exportação INDIVIDUAL do titular — distinta do backup administrativo.
+      // Sem escopo global por auth.role; superadmin não recebe tratamento
+      // especial neste fluxo. Dados de terceiros são redigidos.
       const data = await exportTitularData(svc, auth);
-      await audit('PERMISSION_CHANGE', null, null, { data_export: true, request_type: 'portabilidade' });
+      await audit('PERMISSION_CHANGE', null, null, { data_export: true, request_type: 'portabilidade', scope: 'individual' });
       return Response.json({
         package: data,
         generated_at: new Date().toISOString(),
-        warning: 'Este arquivo contém dados pessoais. Proteja-o e evite compartilhá-lo.',
+        scope: 'individual',
+        warning: 'Exportação individual (LGPD). Logs de auditoria aparecem apenas como metadados sanitizados. Este arquivo contém dados pessoais — proteja-o e evite compartilhá-lo.',
       });
     }
 
