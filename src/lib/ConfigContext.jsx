@@ -24,6 +24,7 @@ export function ConfigProvider({ children }) {
     Object.fromEntries(INSUMO_KEYS.map(k => [k, 0]))
   );
   const [maintenanceIntervals, setMaintenanceIntervals] = useState(DEFAULT_MAINTENANCE_INTERVALS);
+  const [traceDefaultMode, setTraceDefaultMode] = useState('ratio');
   const [loading, setLoading] = useState(true);
   const { isAuthenticated, isLoadingAuth } = useAuth();
   const { currentCompanyId } = useCompany();
@@ -37,6 +38,7 @@ export function ConfigProvider({ children }) {
       const mat = byKey('raw_materials');
       const costs = byKey('insumo_costs');
       const intervals = byKey('maintenance_intervals');
+      const traceMode = byKey('trace_default_mode');
       if (mat && Array.isArray(mat.value?.items)) {
         setRawMaterials(mat.value.items);
       }
@@ -45,6 +47,9 @@ export function ConfigProvider({ children }) {
       }
       if (intervals?.value) {
         setMaintenanceIntervals({ ...DEFAULT_MAINTENANCE_INTERVALS, ...intervals.value });
+      }
+      if (traceMode?.value?.mode) {
+        setTraceDefaultMode(traceMode.value.mode);
       }
     } catch (error) {
       // Sem sessão válida (tela de login / sessão expirada) ou falha transitória
@@ -100,8 +105,19 @@ export function ConfigProvider({ children }) {
     setMaintenanceIntervals(newIntervals);
   }
 
+  async function saveTraceDefaultMode(mode) {
+    const valueObj = { mode };
+    const rows = await base44.entities.AppSettings.filter(scopedFilter({ key: 'trace_default_mode' }));
+    if (rows.length > 0) {
+      await base44.entities.AppSettings.update(rows[0].id, { value: valueObj });
+    } else {
+      await base44.entities.AppSettings.create(withCompany({ key: 'trace_default_mode', value: valueObj }));
+    }
+    setTraceDefaultMode(mode);
+  }
+
   return (
-    <ConfigContext.Provider value={{ rawMaterials, insumoNames, insumoCosts, maintenanceIntervals, loading, refreshConfigs, saveCosts, saveRawMaterials, saveMaintenanceIntervals }}>
+    <ConfigContext.Provider value={{ rawMaterials, insumoNames, insumoCosts, maintenanceIntervals, traceDefaultMode, loading, refreshConfigs, saveCosts, saveRawMaterials, saveMaintenanceIntervals, saveTraceDefaultMode }}>
       {children}
     </ConfigContext.Provider>
   );

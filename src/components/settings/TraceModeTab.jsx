@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { X, ArrowLeftRight } from 'lucide-react';
+import { X, ArrowLeftRight, Percent, Scale } from 'lucide-react';
 import { useConfig } from '@/lib/ConfigContext';
 import { useAuth } from '@/lib/AuthContext';
 import { deriveDirectWeights, buildModeSwitchPayload, formatRatioLabel } from '@/lib/traceDirect';
@@ -21,9 +21,17 @@ function ModeBadge({ mode }) {
 // (proporção ↔ peso direto), com reconversão dos valores e histórico registrado.
 export default function TraceModeTab({ traces, onChanged }) {
   const { user } = useAuth();
-  const { rawMaterials } = useConfig();
+  const { rawMaterials, traceDefaultMode, saveTraceDefaultMode } = useConfig();
   const [target, setTarget] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [savingMode, setSavingMode] = useState(false);
+
+  async function handleSetDefaultMode(mode) {
+    if (mode === traceDefaultMode) return;
+    setSavingMode(true);
+    await saveTraceDefaultMode(mode);
+    setSavingMode(false);
+  }
 
   function matName(key) {
     return rawMaterials.find(m => m.key === key)?.name || key;
@@ -49,11 +57,44 @@ export default function TraceModeTab({ traces, onChanged }) {
 
   return (
     <div className="space-y-4">
+      <div className="bg-card rounded-xl border border-border shadow-sm p-4 space-y-3">
+        <div>
+          <p className="text-sm font-medium text-foreground">Modo padrão de novos traços</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Define o modo de entrada usado ao criar um novo traço. Traços existentes mantêm o modo salvo.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleSetDefaultMode('ratio')}
+            disabled={savingMode}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors disabled:opacity-60 ${
+              traceDefaultMode !== 'direct'
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'border-border text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            <Percent className="w-4 h-4" /> Proporção
+          </button>
+          <button
+            onClick={() => handleSetDefaultMode('direct')}
+            disabled={savingMode}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors disabled:opacity-60 ${
+              traceDefaultMode === 'direct'
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'border-border text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            <Scale className="w-4 h-4" /> Peso Direto
+          </button>
+        </div>
+      </div>
+
       <div className="bg-card rounded-xl border border-border shadow-sm p-4">
-        <p className="text-sm font-medium text-foreground">Modo de entrada dos traços</p>
+        <p className="text-sm font-medium text-foreground">Converter traços existentes</p>
         <p className="text-xs text-muted-foreground mt-1">
-          O modo é escolhido na criação do traço. Use esta aba apenas para corrigir traços existentes:
-          a alternância recalcula os valores (kg ↔ proporção) e fica registrada no histórico do traço.
+          Use esta seção para corrigir traços existentes: a alternância recalcula os valores (kg ↔ proporção)
+          e fica registrada no histórico do traço.
         </p>
       </div>
 

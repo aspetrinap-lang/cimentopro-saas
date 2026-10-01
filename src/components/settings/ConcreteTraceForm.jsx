@@ -35,9 +35,9 @@ function fmt1(val) {
 }
 
 export default function ConcreteTraceForm({ item, onClose, onSaved }) {
-  const { rawMaterials } = useConfig();
-  // Modo travado: escolhido apenas na criação; na edição segue o modo salvo.
-  const [mode, setMode] = useState(() => (item ? (item.input_mode || 'ratio') : null));
+  const { rawMaterials, traceDefaultMode } = useConfig();
+  // Modo travado: na criação usa o modo padrão da empresa; na edição segue o modo salvo.
+  const [mode, setMode] = useState(() => (item ? (item.input_mode || 'ratio') : (traceDefaultMode || 'ratio')));
   const isDirect = mode === 'direct';
   const [form, setForm] = useState(() => {
     if (!item) return { ...empty, materials_composition: {} };
