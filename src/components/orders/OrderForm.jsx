@@ -109,7 +109,7 @@ export default function OrderForm({ order, productTypes, onClose, onSaved }) {
     base44.entities.Machine.filter(scopedFilter({ active: true }), 'name').then(ms => setMachines(ms.filter(m => m.machine_type !== 'Movimentação')));
     base44.entities.Mold.filter({ status: 'Ativo' }, 'name').then(setMolds);
     base44.entities.ConcreteTrace.filter(scopedFilter({ active: true }), 'name').then(setConcreteTraces);
-    base44.entities.UserPin.filter(scopedFilter({ active: true }), 'name').then(setOperators);
+    base44.functions.invoke('operatorPins', { action: 'list', company_id: activeCompanyId() }).then(res => setOperators(res.data.operators || []));
     if (!order) generateOrderNumber();
   }, []);
 

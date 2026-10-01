@@ -107,8 +107,7 @@ export default function OperatorsTab() {
   async function handleDelete(item) {
     if (!window.confirm(`Excluir operador "${item.name}"?`)) return;
     try {
-      await base44.entities.UserPin.delete(item.id);
-      await logAudit({ action: 'DELETE', entity_name: 'UserPin', entity_id: item.id, old_value: item });
+      await base44.functions.invoke('operatorPins', { action: 'delete', operator_id: item.id });
       toast({ title: 'Operador excluído' });
       load();
     } catch (err) {

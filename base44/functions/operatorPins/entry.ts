@@ -260,6 +260,19 @@ export default async function(req) {
       return Response.json({ total: all.length, migrated, already_hashed: alreadyHashed, pending_reset: pending });
     }
 
+    if (action === 'delete') {
+      const operatorId = body.operator_id;
+      if (!operatorId) return Response.json({ error: 'Operador é obrigatório' }, { status: 400 });
+      const op = await svc.entities.UserPin.get(operatorId).catch(() => null);
+      if (!op) return Response.json({ error: 'Operador não encontrado' }, { status: 404 });
+      if (!(await canManage(op.company_id))) {
+        return Response.json({ error: 'Sem permissão para gerenciar operadores desta empresa' }, { status: 403 });
+      }
+      await svc.entities.UserPin.delete(operatorId);
+      await audit('DELETE', operatorId, op.company_id, { name: op.name });
+      return Response.json({ ok: true });
+    }
+
     return Response.json({ error: 'Ação inválida' }, { status: 400 });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });

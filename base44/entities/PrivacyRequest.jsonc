@@ -1,0 +1,154 @@
+{
+  "name": "PrivacyRequest",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "ID do titular (User) que solicitou o direito \u2014 o titular acessa apenas os pr\u00f3prios pedidos via fun\u00e7\u00e3o backend"
+    },
+    "user_email": {
+      "type": "string",
+      "description": "E-mail do titular (cache, exibi\u00e7\u00e3o)"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "Nome do titular (cache, exibi\u00e7\u00e3o)"
+    },
+    "protocol": {
+      "type": "string",
+      "description": "Protocolo aleat\u00f3rio e n\u00e3o previs\u00edvel (ex: LGPD-K7F3A9BQ2X) \u2014 gerado com entropia segura; a numera\u00e7\u00e3o sequencial \u00e9 apenas interna e nunca exibida"
+    },
+    "request_type": {
+      "type": "string",
+      "enum": [
+        "acesso",
+        "correcao",
+        "portabilidade",
+        "exclusao"
+      ],
+      "description": "Tipo de direito do titular: acesso, corre\u00e7\u00e3o, portabilidade ou exclus\u00e3o (Art. 18, LGPD)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do pedido feita pelo titular"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "RECEBIDA",
+        "EM_ANALISE",
+        "AGUARDANDO_JURIDICO",
+        "CONCLUIDA",
+        "RECUSADA"
+      ],
+      "default": "RECEBIDA",
+      "description": "Situa\u00e7\u00e3o do pedido no fluxo de atendimento"
+    },
+    "visibility": {
+      "type": "string",
+      "enum": [
+        "user",
+        "privacy_team"
+      ],
+      "default": "user",
+      "description": "Visibilidade do pedido: user (titular v\u00ea apenas o seu) ou privacy_team (equipe de privacidade). Administradores de empresa N\u00c3O recebem acesso autom\u00e1tico."
+    },
+    "assigned_to": {
+      "type": "string",
+      "description": "ID do membro da equipe de privacidade respons\u00e1vel pelo atendimento (null quando sem designa\u00e7\u00e3o)"
+    },
+    "identity_verification_method": {
+      "type": "string",
+      "enum": [
+        "session",
+        "document"
+      ],
+      "default": "session",
+      "description": "M\u00e9todo de verifica\u00e7\u00e3o de identidade: session (autentica\u00e7\u00e3o da plataforma \u2014 padr\u00e3o, sem coleta de documentos) ou document (verifica\u00e7\u00e3o adicional exigida pelo controlador, com prazo de descarte definido)"
+    },
+    "response_due_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data limite para resposta (Art. 19, LGPD \u2014 at\u00e9 15 dias para declara\u00e7\u00e3o completa)"
+    },
+    "resolution": {
+      "type": "object",
+      "description": "Resolu\u00e7\u00e3o registrada pela equipe de privacidade: decis\u00e3o, o que foi exclu\u00eddo/anonimizado/mantido e o motivo (reten\u00e7\u00e3o legal). Nada \u00e9 apagado automaticamente.",
+      "properties": {
+        "decision": {
+          "type": "string"
+        },
+        "excluded": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "anonymized": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "kept": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "events": {
+      "type": "array",
+      "description": "Trilha de auditoria do pedido (cria\u00e7\u00e3o, mudan\u00e7as de status, acesso excepcional, resolu\u00e7\u00e3o)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "user_id",
+    "protocol",
+    "request_type",
+    "status"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "__apenas_backend__"
+      }
+    }
+  }
+}
