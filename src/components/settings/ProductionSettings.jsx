@@ -58,7 +58,7 @@ export default function ProductionSettings({ canEditCost, canManageTraceMode }) 
 
   const newLabel = { categorias: 'Nova Categoria', tracos: 'Novo Traço', maquinas: 'Nova Máquina' }[tab];
   const hasNew = ['categorias', 'tracos', 'maquinas'].includes(tab);
-  const tabs = canManageTraceMode ? [...TABS, { key: 'tracos_config', label: 'Traços · Modo' }, { key: 'numeracao', label: 'Numeração' }] : TABS;
+  const tabs = canManageTraceMode ? [...TABS, { key: 'tracos_config', label: 'Traços · Modo' }, { key: 'numeracao', label: 'Numeração de OS' }] : TABS;
 
   return (
     <div className="space-y-5">
